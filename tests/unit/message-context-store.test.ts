@@ -14,8 +14,8 @@ import {
     resolveByQuotedRef,
     upsertInboundMessageContext,
     upsertOutboundMessageContext,
-} from '../../src/message-context-store';
-import { resolveNamespacePath } from '../../src/persistence-store';
+} from '../../src/messaging/message-context-store';
+import { resolveNamespacePath } from '../../src/shared/persistence-store';
 
 describe('message-context-store', () => {
     let tempDir = '';

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 async function loadDedupModule() {
     vi.resetModules();
-    return import('../../src/dedup');
+    return import('../../src/shared/dedup');
 }
 
 describe('message dedup', () => {

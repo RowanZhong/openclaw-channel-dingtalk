@@ -30,7 +30,7 @@ vi.mock("dingtalk-stream", () => ({
     },
 }));
 
-vi.mock("../../src/connection-manager", () => ({
+vi.mock("../../src/gateway/connection-manager", () => ({
     ConnectionManager: class {
         connect: () => Promise<void>;
         waitForStop: () => Promise<void>;
@@ -46,8 +46,8 @@ vi.mock("../../src/connection-manager", () => ({
     },
 }));
 
-vi.mock("../../src/utils", async () => {
-    const actual = await vi.importActual<typeof import("../../src/utils")>("../../src/utils");
+vi.mock("../../src/shared/utils", async () => {
+    const actual = await vi.importActual<typeof import("../../src/shared/utils")>("../../src/shared/utils");
     return {
         ...actual,
         resolvePluginDebugLog: shared.resolvePluginDebugLogMock,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getMainAgentId, resolveAtAgents } from '../../src/targeting/agent-name-matcher';
 import type { OpenClawConfig } from 'openclaw/plugin-sdk/core';
-import type { AtMention } from '../../src/types';
+import type { AtMention } from '../../src/platform/types';
 
 describe('agent-name-matcher', () => {
   describe('getMainAgentId', () => {

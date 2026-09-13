@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSenderAllowed, isSenderGroupAllowed, normalizeAllowFrom, resolveGroupAccess } from '../../src/access-control';
+import { isSenderAllowed, isSenderGroupAllowed, normalizeAllowFrom, resolveGroupAccess } from '../../src/platform/access-control';
 
 describe('access-control', () => {
     it('normalizes allowFrom entries and strips dingtalk prefixes', () => {

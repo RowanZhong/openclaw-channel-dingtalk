@@ -8,7 +8,7 @@
  * each other's private modules.
  */
 
-import { getErrorMessage } from "../utils";
+import { getErrorMessage } from "../shared/utils";
 
 export type RuntimeEventsLogger = {
   debug?: (msg: string) => void;

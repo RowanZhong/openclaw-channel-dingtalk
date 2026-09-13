@@ -12,21 +12,21 @@ const shared = vi.hoisted(() => ({
     resolveOriginalPeerIdMock: vi.fn(),
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
     sendMessage: shared.sendMessageMock,
     sendMedia: shared.sendMediaMock,
 }));
 
-vi.mock("../../src/logger-context", () => ({
+vi.mock("../../src/platform/logger-context", () => ({
     getLogger: shared.getLoggerMock,
 }));
 
-vi.mock("../../src/config", () => ({
+vi.mock("../../src/platform/config", () => ({
     getConfig: shared.getConfigMock,
     stripTargetPrefix: (raw: string) => ({ targetId: raw.replace(/^(dingtalk|dd|ding):/i, "") }),
 }));
 
-vi.mock("../../src/peer-id-registry", () => ({
+vi.mock("../../src/targeting/peer-id-registry", () => ({
     resolveOriginalPeerId: shared.resolveOriginalPeerIdMock,
 }));
 

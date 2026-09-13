@@ -11,7 +11,7 @@ const mockedAxiosPost = vi.mocked(axios.post);
 
 async function loadAuthModule() {
     vi.resetModules();
-    return import('../../src/auth');
+    return import('../../src/platform/auth');
 }
 
 describe('auth.getAccessToken', () => {

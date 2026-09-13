@@ -41,15 +41,15 @@ vi.mock("../../src/messaging/btw-deliver", () => ({
   }),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_abc"),
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   getDingTalkRuntime: shared.getRuntimeMock,
 }));
 
-vi.mock("../../src/message-utils", () => ({
+vi.mock("../../src/messaging/message-utils", () => ({
   extractMessageContent: shared.extractMessageContentMock,
 }));
 
@@ -57,15 +57,15 @@ vi.mock("../../src/messaging/attachment-text-extractor", () => ({
   extractAttachmentText: shared.extractAttachmentTextMock,
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendBySession: shared.sendBySessionMock,
   sendMessage: shared.sendMessageMock,
   sendProactiveMedia: shared.sendProactiveMediaMock,
 }));
 
-vi.mock("../../src/media-utils", async () => {
+vi.mock("../../src/messaging/media-utils", async () => {
   const actual =
-    await vi.importActual<typeof import("../../src/media-utils")>("../../src/media-utils");
+    await vi.importActual<typeof import("../../src/messaging/media-utils")>("../../src/messaging/media-utils");
   return {
     ...actual,
     prepareMediaInput: shared.prepareMediaInputMock,
@@ -73,7 +73,7 @@ vi.mock("../../src/media-utils", async () => {
   };
 });
 
-vi.mock("../../src/card-service", () => ({
+vi.mock("../../src/card/card-service", () => ({
   createAICard: shared.createAICardMock,
   finishAICard: shared.finishAICardMock,
   formatContentForCard: shared.formatContentForCardMock,
@@ -81,9 +81,9 @@ vi.mock("../../src/card-service", () => ({
   streamAICard: shared.streamAICardMock,
 }));
 
-vi.mock("../../src/message-context-store", async () => {
-  const actual = await vi.importActual<typeof import("../../src/message-context-store")>(
-    "../../src/message-context-store",
+vi.mock("../../src/messaging/message-context-store", async () => {
+  const actual = await vi.importActual<typeof import("../../src/messaging/message-context-store")>(
+    "../../src/messaging/message-context-store",
   );
   return {
     ...actual,
@@ -102,12 +102,12 @@ vi.mock("../../src/messaging/quoted-file-service", () => ({
 }));
 
 // NOTE: session-lock is NOT mocked — we use the real module to verify lock bypass
-import { acquireSessionLock } from "../../src/session-lock";
-import { handleDingTalkMessage } from "../../src/inbound-handler";
-import * as messageContextStore from "../../src/message-context-store";
+import { acquireSessionLock } from "../../src/gateway/session-lock";
+import { handleDingTalkMessage } from "../../src/gateway/inbound-handler";
+import * as messageContextStore from "../../src/messaging/message-context-store";
 import { clearCardRunRegistryForTest } from "../../src/card/card-run-registry";
 import { clearTargetDirectoryStateCache } from "../../src/targeting/target-directory-store";
-import { resetProactivePermissionHintStateForTest } from "../../src/inbound-handler";
+import { resetProactivePermissionHintStateForTest } from "../../src/gateway/inbound-handler";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";

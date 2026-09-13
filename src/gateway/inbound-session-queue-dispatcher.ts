@@ -21,13 +21,20 @@
 // orchestrator, adapted to soimy's blocking gateway contract (we await each
 // task so the gateway's per-message dedup stays correct).
 
-import { attachNativeAckReaction } from "../ack-reaction-service";
+import { attachNativeAckReaction } from "../ack-reaction/ack-reaction-service";
 import {
   createAICard,
   isCardInTerminalState,
   recallAICardMessage,
   streamAICard,
-} from "../card-service";
+} from "../card/card-service";
+import { sendMessage } from "../messaging/send-service";
+import type {
+  AICardInstance,
+  DingTalkConfig,
+  DingTalkInboundMessage,
+  Logger,
+} from "../platform/types";
 import {
   chainInboundSessionTask,
   getInboundSessionQueueDepth,
@@ -37,8 +44,6 @@ import {
   MAX_INBOUND_SESSION_QUEUE_WAIT_MS,
   pickQueueBusyAckPhrase,
 } from "./inbound-session-queue";
-import { sendMessage } from "../send-service";
-import type { AICardInstance, DingTalkConfig, DingTalkInboundMessage, Logger } from "../types";
 
 export interface InboundQueueDispatchInput {
   accountId: string;
@@ -138,13 +143,14 @@ export async function dispatchInboundViaSessionQueue<T>(
   // slot below. Otherwise a burst of inbound messages can all observe the
   // same pre-await depth and each pass the cap check.
   let queuedAckState: "queued" | "timed-out" = "queued";
-  const preCreatedCardPromise = wasBusy && shouldPrepareQueueAckCard(input)
-    ? tryPrepareQueueAckCard(input, () =>
-        queuedAckState === "timed-out"
-          ? { content: QUEUE_WAIT_TIMEOUT_ACK, finished: true }
-          : { content: pickQueueBusyAckPhrase(), finished: false },
-      )
-    : undefined;
+  const preCreatedCardPromise =
+    wasBusy && shouldPrepareQueueAckCard(input)
+      ? tryPrepareQueueAckCard(input, () =>
+          queuedAckState === "timed-out"
+            ? { content: QUEUE_WAIT_TIMEOUT_ACK, finished: true }
+            : { content: pickQueueBusyAckPhrase(), finished: false },
+        )
+      : undefined;
   // Chain onto the prior task for this conversation and AWAIT. Awaiting (rather
   // than fire-and-forget) preserves the gateway's per-message dedup:
   // `markMessageProcessed` runs only after this message truly completes, so a
@@ -153,9 +159,7 @@ export async function dispatchInboundViaSessionQueue<T>(
     return await chainInboundSessionTask(
       queueKey,
       async () => {
-        const preCreatedCard = preCreatedCardPromise
-          ? await preCreatedCardPromise
-          : undefined;
+        const preCreatedCard = preCreatedCardPromise ? await preCreatedCardPromise : undefined;
         if (!preCreatedCard) {
           return handler(undefined);
         }

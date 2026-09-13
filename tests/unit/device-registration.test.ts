@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import httpClient from "../../src/http-client";
+import httpClient from "../../src/shared/http-client";
 
-vi.mock("../../src/http-client", () => ({
+vi.mock("../../src/shared/http-client", () => ({
   default: {
     post: vi.fn(),
   },
@@ -10,7 +10,7 @@ vi.mock("../../src/http-client", () => ({
 import {
   RegistrationError,
   beginDeviceRegistration,
-} from "../../src/device-registration";
+} from "../../src/platform/device-registration";
 
 // Helper: mock a sequence of POST responses
 function mockPostSequence(responses: Record<string, unknown>[]) {

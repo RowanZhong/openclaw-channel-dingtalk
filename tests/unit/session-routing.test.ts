@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveDingTalkSessionPeer } from '../../src/session-routing';
+import { resolveDingTalkSessionPeer } from '../../src/targeting/session-routing';
 
 describe('resolveDingTalkSessionPeer', () => {
     it('uses senderId for direct messages', () => {

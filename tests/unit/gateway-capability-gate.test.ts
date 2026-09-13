@@ -4,7 +4,7 @@ import {
   checkDocsGatewayCapability,
   checkProactiveSendGatewayCapability,
   resolveGatewayCapabilityConfig,
-} from "../../src/config";
+} from "../../src/platform/config";
 
 function makeCfg(dingtalk: Record<string, unknown>): OpenClawConfig {
   return { channels: { dingtalk } } as unknown as OpenClawConfig;

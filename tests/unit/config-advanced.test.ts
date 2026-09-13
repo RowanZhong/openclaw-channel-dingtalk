@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DingTalkConfigSchema } from '../../src/config-schema';
+import { DingTalkConfigSchema } from '../../src/platform/config-schema';
 import { resolveCardTaskProgressEnabled } from '../../src/card/card-task-progress';
 import {
     getConfig,
@@ -10,7 +10,7 @@ import {
     resolveAckReactionSetting,
     resolveRelativePath,
     resolveUserPath,
-} from '../../src/config';
+} from '../../src/platform/config';
 
 describe('config advanced', () => {
     const originalPlatform = process.platform;

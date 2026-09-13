@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import axios from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -33,12 +33,12 @@ import {
     sendProactiveCardText,
     streamAICard,
     updateAICardBlockList,
-} from '../../src/card-service';
+} from '../../src/card/card-service';
 import { BUILTIN_DINGTALK_CARD_TEMPLATE_ID } from '../../src/card/card-template';
-import { getAccessToken } from '../../src/auth';
-import { resolveByAlias } from '../../src/message-context-store';
-import { resolveNamespacePath } from '../../src/persistence-store';
-import { AICardStatus } from '../../src/types';
+import { getAccessToken } from '../../src/platform/auth';
+import { resolveByAlias } from '../../src/messaging/message-context-store';
+import { resolveNamespacePath } from '../../src/shared/persistence-store';
+import { AICardStatus } from '../../src/platform/types';
 
 const mockedAxios = axios as any;
 const mockedGetAccessToken = vi.mocked(getAccessToken);

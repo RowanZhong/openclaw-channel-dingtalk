@@ -1,8 +1,5 @@
-import {
-  resolveByQuotedRef,
-  type MessageRecord,
-} from "../message-context-store";
-import type { DingTalkInboundMessage, Logger, MessageContent, QuotedRef } from "../types";
+import type { DingTalkInboundMessage, Logger, MessageContent, QuotedRef } from "../platform/types";
+import { resolveByQuotedRef, type MessageRecord } from "./message-context-store";
 
 function firstTrimmedString(...candidates: Array<string | undefined>): string | undefined {
   for (const candidate of candidates) {
@@ -27,7 +24,11 @@ export function buildInboundQuotedRef(
   content: MessageContent,
 ): QuotedRef | undefined {
   const repliedMsg = data.text?.repliedMsg;
-  const repliedMsgId = firstTrimmedString(repliedMsg?.msgId, data.originalMsgId, content.quoted?.msgId);
+  const repliedMsgId = firstTrimmedString(
+    repliedMsg?.msgId,
+    data.originalMsgId,
+    content.quoted?.msgId,
+  );
   const fallbackCreatedAt = firstFiniteNumber(
     repliedMsg?.createdAt,
     content.quoted?.cardCreatedAt,
@@ -38,7 +39,10 @@ export function buildInboundQuotedRef(
     repliedMsg?.senderId === data.chatbotUserId ||
     content.quoted?.isQuotedCard === true;
   if (isOutboundQuoted) {
-    const processQueryKey = firstTrimmedString(data.originalProcessQueryKey, content.quoted?.processQueryKey);
+    const processQueryKey = firstTrimmedString(
+      data.originalProcessQueryKey,
+      content.quoted?.processQueryKey,
+    );
     if (processQueryKey) {
       return {
         targetDirection: "outbound",

@@ -15,7 +15,7 @@ vi.mock('dingtalk-stream', () => ({
     TOPIC_ROBOT: 'TOPIC_ROBOT',
 }));
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: getAccessTokenMock,
 }));
 

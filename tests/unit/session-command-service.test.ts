@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseSessionCommand, validateSessionAlias } from "../../src/session-command-service";
+import { parseSessionCommand, validateSessionAlias } from "../../src/command/session-command-service";
 
 describe("session-command-service", () => {
   it("parses session alias commands", () => {

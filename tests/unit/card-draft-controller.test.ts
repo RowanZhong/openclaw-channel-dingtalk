@@ -1,12 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { createCardDraftController } from "../../src/card-draft-controller";
+import { createCardDraftController } from "../../src/card/card-draft-controller";
 import { createCardTaskProgressController } from "../../src/card/card-task-progress";
-import * as cardService from "../../src/card-service";
-import { AICardStatus } from "../../src/types";
-import type { AICardInstance, CardBlock } from "../../src/types";
+import * as cardService from "../../src/card/card-service";
+import { AICardStatus } from "../../src/platform/types";
+import type { AICardInstance, CardBlock } from "../../src/platform/types";
 
-vi.mock("../../src/card-service", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../src/card-service")>();
+vi.mock("../../src/card/card-service", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../src/card/card-service")>();
     return {
         ...actual,
         streamAICard: vi.fn(),

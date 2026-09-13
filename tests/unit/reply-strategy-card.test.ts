@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCardReplyStrategy } from "../../src/reply-strategy-card";
-import * as cardService from "../../src/card-service";
-import * as sendService from "../../src/send-service";
-import * as mediaUtils from "../../src/media-utils";
-import { clearAllSessionStatesForTest, initSessionState } from "../../src/session-state";
-import { clearAllForTest as clearAllUsageForTest, recordRunStart, accumulateUsage, getUsageByRunId } from "../../src/run-usage-store";
-import { AICardStatus } from "../../src/types";
-import type { AICardInstance } from "../../src/types";
-import type { ReplyStrategyContext } from "../../src/reply-strategy";
+import { createCardReplyStrategy } from "../../src/messaging/reply-strategy-card";
+import * as cardService from "../../src/card/card-service";
+import * as sendService from "../../src/messaging/send-service";
+import * as mediaUtils from "../../src/messaging/media-utils";
+import { clearAllSessionStatesForTest, initSessionState } from "../../src/platform/session-state";
+import { clearAllForTest as clearAllUsageForTest, recordRunStart, accumulateUsage, getUsageByRunId } from "../../src/card/run-usage-store";
+import { AICardStatus } from "../../src/platform/types";
+import type { AICardInstance } from "../../src/platform/types";
+import type { ReplyStrategyContext } from "../../src/messaging/reply-strategy";
 
-vi.mock("../../src/card-service", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../src/card-service")>();
+vi.mock("../../src/card/card-service", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../src/card/card-service")>();
     return {
         ...actual,
         finishAICard: vi.fn(),
@@ -23,8 +23,8 @@ vi.mock("../../src/card-service", async (importOriginal) => {
     };
 });
 
-vi.mock("../../src/send-service", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../src/send-service")>();
+vi.mock("../../src/messaging/send-service", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../src/messaging/send-service")>();
     return {
         ...actual,
         sendMessage: vi.fn().mockResolvedValue({ ok: true }),
@@ -35,8 +35,8 @@ vi.mock("../../src/send-service", async (importOriginal) => {
     };
 });
 
-vi.mock("../../src/media-utils", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../src/media-utils")>();
+vi.mock("../../src/messaging/media-utils", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../src/messaging/media-utils")>();
     return {
         ...actual,
         prepareMediaInput: vi.fn().mockImplementation(async (input: string) => ({ path: input })),

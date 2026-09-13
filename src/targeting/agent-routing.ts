@@ -9,10 +9,10 @@
 
 import { maybeResolveTextAlias } from "openclaw/plugin-sdk/command-auth";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
-import { resolveRobotCode } from "../config";
-import { parseLearnCommand } from "../learning-command-service";
-import { getDingTalkRuntime } from "../runtime";
-import { sendBySession } from "../send-service";
+import { parseLearnCommand } from "../command/learning-command-service";
+import { sendBySession } from "../messaging/send-service";
+import { resolveRobotCode } from "../platform/config";
+import { getDingTalkRuntime } from "../platform/runtime";
 import type {
   AgentNameMatch,
   DingTalkConfig,
@@ -21,10 +21,10 @@ import type {
   Logger,
   MessageContent,
   ResolvedDingTalkRoute,
-} from "../types";
-import { getErrorMessage } from "../utils";
+} from "../platform/types";
+import { getErrorMessage } from "../shared/utils";
 import { resolveAtAgents } from "./agent-name-matcher";
-import type { ResolvedDingTalkSessionPeer } from "../session-routing";
+import type { ResolvedDingTalkSessionPeer } from "./session-routing";
 
 export class HostRoutingHelperUnavailableError extends Error {
   constructor(

@@ -8,13 +8,13 @@ import {
 } from '../../src/targeting/group-members-store';
 import {
     clearCardContentCacheForTest,
-} from '../../src/card-service';
+} from '../../src/card/card-service';
 import {
     clearMessageContextCacheForTest,
     resolveByAlias,
     resolveByMsgId,
-} from '../../src/message-context-store';
-import { resolveNamespacePath } from '../../src/persistence-store';
+} from '../../src/messaging/message-context-store';
+import { resolveNamespacePath } from '../../src/shared/persistence-store';
 
 describe('persistence migration sanity', () => {
     const tempDirs: string[] = [];

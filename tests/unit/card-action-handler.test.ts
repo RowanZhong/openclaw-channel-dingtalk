@@ -6,12 +6,12 @@ const shared = vi.hoisted(() => ({
     dispatchDingTalkCardStopCommandMock: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
-vi.mock('../../src/card-service', () => ({
+vi.mock('../../src/card/card-service', () => ({
     finalizeStoppedAICard: shared.finalizeStoppedAICardMock,
 }));
 
-vi.mock('../../src/card-callback-service', async (importOriginal) => {
-    const orig = await importOriginal<typeof import('../../src/card-callback-service')>();
+vi.mock('../../src/card/card-callback-service', async (importOriginal) => {
+    const orig = await importOriginal<typeof import('../../src/card/card-callback-service')>();
     return {
         ...orig,
         updateCardVariables: shared.updateCardVariablesMock,
@@ -30,7 +30,7 @@ import {
     resolveCardRun,
     attachCardRunController,
 } from '../../src/card/card-run-registry';
-import { AICardStatus } from '../../src/types';
+import { AICardStatus } from '../../src/platform/types';
 
 describe('card-action-handler', () => {
     beforeEach(() => {

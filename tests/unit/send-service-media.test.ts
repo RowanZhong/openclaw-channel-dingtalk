@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -14,8 +14,8 @@ const cardRunRegistryMocks = vi.hoisted(() => ({
     resolveCardRunByOwnerMock: vi.fn(),
 }));
 
-vi.mock('../../src/message-context-store', async () => {
-    const actual = await vi.importActual<typeof import('../../src/message-context-store')>('../../src/message-context-store');
+vi.mock('../../src/messaging/message-context-store', async () => {
+    const actual = await vi.importActual<typeof import('../../src/messaging/message-context-store')>('../../src/messaging/message-context-store');
     return {
         ...actual,
         upsertOutboundMessageContext: messageContextMocks.upsertOutboundMessageContextMock,
@@ -27,7 +27,7 @@ vi.mock('../../src/card/card-run-registry', () => ({
     resolveCardRunByOwner: cardRunRegistryMocks.resolveCardRunByOwnerMock,
 }));
 
-vi.mock('../../src/media-utils', () => ({
+vi.mock('../../src/messaging/media-utils', () => ({
     uploadMedia: vi.fn(),
     detectMediaTypeFromExtension: vi.fn(),
     getVoiceDurationMs: vi.fn(),
@@ -43,8 +43,8 @@ vi.mock('axios', () => {
     };
 });
 
-import { sendBySession, sendMessage, sendProactiveMedia } from '../../src/send-service';
-import { getVoiceDurationMs, prepareMediaInput, resolveOutboundMediaType, uploadMedia as uploadMediaUtil } from '../../src/media-utils';
+import { sendBySession, sendMessage, sendProactiveMedia } from '../../src/messaging/send-service';
+import { getVoiceDurationMs, prepareMediaInput, resolveOutboundMediaType, uploadMedia as uploadMediaUtil } from '../../src/messaging/media-utils';
 
 const mockedAxios = vi.mocked(axios);
 const mockedUploadMedia = vi.mocked(uploadMediaUtil);
@@ -78,7 +78,7 @@ describe('send-service media branches', () => {
     });
 
     it('sendMedia reroutes markdown mode media to proactive media delivery', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/dingtalk_remote.png',
             cleanup: vi.fn(),
@@ -114,7 +114,7 @@ describe('send-service media branches', () => {
     });
 
     it('sendMedia embeds card images into active card instead of proactive send', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         const appendImageBlock = vi.fn().mockResolvedValue(undefined);
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image.png',
@@ -149,7 +149,7 @@ describe('send-service media branches', () => {
     });
 
     it('sendMedia still resolves active card by conversationId when expectedCardOwnerId is omitted', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         const appendImageBlock = vi.fn().mockResolvedValue(undefined);
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image-no-owner.png',
@@ -183,7 +183,7 @@ describe('send-service media branches', () => {
     });
 
     it('sendMedia falls back to conversation-only lookup when owner-filtered lookup misses active card', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         const appendImageBlock = vi.fn().mockResolvedValue(undefined);
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image-owner-fallback.png',
@@ -228,7 +228,7 @@ describe('send-service media branches', () => {
 
     it('waits briefly for card controller attachment before falling back to proactive media', async () => {
         vi.useFakeTimers();
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         const appendImageBlock = vi.fn().mockResolvedValue(undefined);
         const activeRun = {
             outTrackId: 'track_race_1',
@@ -268,7 +268,7 @@ describe('send-service media branches', () => {
     });
 
     it('sendMedia resolves active card by conversationId instead of target when they differ', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         const appendImageBlock = vi.fn().mockResolvedValue(undefined);
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image.png',

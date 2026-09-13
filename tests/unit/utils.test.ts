@@ -13,7 +13,7 @@ import {
     parseBooleanLike,
     resolvePluginDebugLog,
     retryWithBackoff,
-} from '../../src/utils';
+} from '../../src/shared/utils';
 
 describe('utils', () => {
     describe('parseBooleanLike', () => {

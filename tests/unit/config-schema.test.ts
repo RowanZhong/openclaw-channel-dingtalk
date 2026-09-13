@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DingTalkConfigSchema } from '../../src/config-schema';
+import { DingTalkConfigSchema } from '../../src/platform/config-schema';
 import { resolveCardStreamingMode } from '../../src/card/card-streaming-mode';
 
 describe('DingTalkConfigSchema', () => {

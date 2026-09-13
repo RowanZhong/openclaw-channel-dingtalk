@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DingTalkConfig } from "../../src/types";
+import type { DingTalkConfig } from "../../src/platform/types";
 
 const shared = vi.hoisted(() => ({
   getRuntimeMock: vi.fn(),
@@ -31,15 +31,15 @@ vi.mock("axios", () => ({
     Boolean((err as { isAxiosError?: boolean })?.isAxiosError),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_test"),
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   getDingTalkRuntime: shared.getRuntimeMock,
 }));
 
-vi.mock("../../src/message-utils", () => ({
+vi.mock("../../src/messaging/message-utils", () => ({
   extractMessageContent: shared.extractMessageContentMock,
 }));
 
@@ -53,18 +53,18 @@ vi.mock("../../src/messaging/quoted-file-service", () => ({
   resolveQuotedFile: shared.resolveQuotedFileMock,
 }));
 
-vi.mock("../../src/card-service", () => ({
+vi.mock("../../src/card/card-service", () => ({
   createAICard: shared.createAICardMock,
   commitAICardBlocks: shared.commitAICardBlocksMock,
   isCardInTerminalState: shared.isCardInTerminalStateMock,
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendBySession: shared.sendBySessionMock,
   sendMessage: shared.sendMessageMock,
 }));
 
-vi.mock("../../src/session-lock", () => ({
+vi.mock("../../src/gateway/session-lock", () => ({
   acquireSessionLock: shared.acquireSessionLockMock,
 }));
 
@@ -74,10 +74,10 @@ vi.mock("openclaw/plugin-sdk/reply-runtime", () => ({
 }));
 
 // message-context-store: spy on the actual implementation
-vi.mock("../../src/message-context-store", async () => {
+vi.mock("../../src/messaging/message-context-store", async () => {
   const actual = await vi.importActual<
-    typeof import("../../src/message-context-store")
-  >("../../src/message-context-store");
+    typeof import("../../src/messaging/message-context-store")
+  >("../../src/messaging/message-context-store");
   return {
     ...actual,
     upsertInboundMessageContext: vi.fn(actual.upsertInboundMessageContext),
@@ -86,8 +86,8 @@ vi.mock("../../src/message-context-store", async () => {
   };
 });
 
-import { handleDingTalkMessage } from "../../src/inbound-handler";
-import * as messageContextStore from "../../src/message-context-store";
+import { handleDingTalkMessage } from "../../src/gateway/inbound-handler";
+import * as messageContextStore from "../../src/messaging/message-context-store";
 import { clearCardRunRegistryForTest } from "../../src/card/card-run-registry";
 import { clearTargetDirectoryStateCache } from "../../src/targeting/target-directory-store";
 

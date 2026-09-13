@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccessToken } from "../../src/auth";
+import { getAccessToken } from "../../src/platform/auth";
 
 const shared = vi.hoisted(() => ({
   sendBySessionMock: vi.fn(),
@@ -40,15 +40,15 @@ vi.mock("axios", () => ({
   isAxiosError: (err: unknown) => Boolean((err as { isAxiosError?: boolean })?.isAxiosError),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_abc"),
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   getDingTalkRuntime: shared.getRuntimeMock,
 }));
 
-vi.mock("../../src/message-utils", () => ({
+vi.mock("../../src/messaging/message-utils", () => ({
   extractMessageContent: shared.extractMessageContentMock,
 }));
 
@@ -56,16 +56,16 @@ vi.mock("../../src/messaging/attachment-text-extractor", () => ({
   extractAttachmentText: shared.extractAttachmentTextMock,
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendBySession: shared.sendBySessionMock,
   sendMessage: shared.sendMessageMock,
   sendProactiveMedia: shared.sendProactiveMediaMock,
   uploadMedia: shared.uploadMediaMock,
 }));
 
-vi.mock("../../src/media-utils", async () => {
+vi.mock("../../src/messaging/media-utils", async () => {
   const actual =
-    await vi.importActual<typeof import("../../src/media-utils")>("../../src/media-utils");
+    await vi.importActual<typeof import("../../src/messaging/media-utils")>("../../src/messaging/media-utils");
   return {
     ...actual,
     prepareMediaInput: shared.prepareMediaInputMock,
@@ -73,7 +73,7 @@ vi.mock("../../src/media-utils", async () => {
   };
 });
 
-vi.mock("../../src/card-service", () => ({
+vi.mock("../../src/card/card-service", () => ({
   createAICard: shared.createAICardMock,
   finishAICard: shared.finishAICardMock,
   commitAICardBlocks: shared.commitAICardBlocksMock,
@@ -85,7 +85,7 @@ vi.mock("../../src/card-service", () => ({
   clearAICardStreamingContent: shared.clearAICardStreamingContentMock,
 }));
 
-vi.mock("../../src/session-lock", () => ({
+vi.mock("../../src/gateway/session-lock", () => ({
   acquireSessionLock: shared.acquireSessionLockMock,
 }));
 
@@ -94,9 +94,9 @@ vi.mock("openclaw/plugin-sdk/reply-runtime", () => ({
   isBtwRequestText: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("../../src/message-context-store", async () => {
-  const actual = await vi.importActual<typeof import("../../src/message-context-store")>(
-    "../../src/message-context-store",
+vi.mock("../../src/messaging/message-context-store", async () => {
+  const actual = await vi.importActual<typeof import("../../src/messaging/message-context-store")>(
+    "../../src/messaging/message-context-store",
   );
   return {
     ...actual,
@@ -118,10 +118,10 @@ import {
   downloadMedia,
   handleDingTalkMessage,
   resetProactivePermissionHintStateForTest,
-} from "../../src/inbound-handler";
-import * as messageContextStore from "../../src/message-context-store";
+} from "../../src/gateway/inbound-handler";
+import * as messageContextStore from "../../src/messaging/message-context-store";
 import { clearCardRunRegistryForTest } from "../../src/card/card-run-registry";
-import { recordProactiveRiskObservation } from "../../src/proactive-risk-registry";
+import { recordProactiveRiskObservation } from "../../src/messaging/proactive-risk-registry";
 import {
   clearTargetDirectoryStateCache,
   listKnownGroupTargets,

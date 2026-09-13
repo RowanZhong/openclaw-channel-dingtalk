@@ -6,7 +6,7 @@ import type {
   Logger,
   ResolvedDingTalkRoute,
   SubAgentOptions,
-} from "../types";
+} from "../platform/types";
 
 export type DingTalkQuestionContext = {
   cfg: HandleDingTalkMessageParams["cfg"];

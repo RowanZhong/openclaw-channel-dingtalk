@@ -24,7 +24,7 @@ vi.mock("openclaw/plugin-sdk/secret-input-runtime", async (importOriginal) => {
 import {
   resolveDingTalkSecretConfig,
   resolveSecretInputStringWithFailure,
-} from "../../src/secret-input";
+} from "../../src/platform/secret-input";
 
 const ALLOWLISTED_VAR = "DINGTALK_TEST_ALLOWLISTED_SECRET";
 const UNAUTHORIZED_VAR = "DINGTALK_TEST_UNAUTHORIZED_SECRET";

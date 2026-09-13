@@ -70,7 +70,8 @@ async function probeApi(state) {
 function printSummary(state) {
   const uptimeSec = Math.max(1, Math.floor((Date.now() - state.startMs) / 1000));
   const callbackPerMin = Number(((state.callbackReceived / uptimeSec) * 60).toFixed(2));
-  const silentSec = state.lastCallbackAt > 0 ? Math.floor((Date.now() - state.lastCallbackAt) / 1000) : null;
+  const silentSec =
+    state.lastCallbackAt > 0 ? Math.floor((Date.now() - state.lastCallbackAt) / 1000) : null;
 
   logLine("info", "monitor summary", {
     uptimeSec,
@@ -102,11 +103,14 @@ function printHeuristicConclusion(state) {
   if (hasTransportInstability && apiProbeBad) {
     conclusion = "likely network or upstream instability (outside local handler)";
   } else if (hasTransportInstability && !apiProbeBad && hasSdkHeartbeat) {
-    conclusion = "stream transport unstable while api probe is mostly healthy (possible server stream path or ws route issue)";
+    conclusion =
+      "stream transport unstable while api probe is mostly healthy (possible server stream path or ws route issue)";
   } else if (!hasTransportInstability && hasSdkHeartbeat && !hasCallbackFlow) {
-    conclusion = "stream alive but no callbacks observed (possible server push/permission/subscription issue)";
+    conclusion =
+      "stream alive but no callbacks observed (possible server push/permission/subscription issue)";
   } else if (hasCallbackFlow) {
-    conclusion = "callbacks are arriving locally; missing user-perceived messages likely in upstream push semantics or downstream business processing";
+    conclusion =
+      "callbacks are arriving locally; missing user-perceived messages likely in upstream push semantics or downstream business processing";
   }
 
   logLine("info", "heuristic conclusion", { conclusion });

@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { resolveGroupConfig, resolveRelativePath, stripTargetPrefix } from '../../src/config';
+import { resolveGroupConfig, resolveRelativePath, stripTargetPrefix } from '../../src/platform/config';
 
 describe('config helpers', () => {
     describe('stripTargetPrefix', () => {

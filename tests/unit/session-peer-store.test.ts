@@ -6,7 +6,7 @@ import {
     clearSessionPeerOverride,
     getSessionPeerOverride,
     setSessionPeerOverride,
-} from '../../src/session-peer-store';
+} from '../../src/targeting/session-peer-store';
 
 let tempDir = '';
 let storePath = '';
@@ -104,7 +104,7 @@ describe('session-peer-store', () => {
         });
 
         vi.resetModules();
-        const reloaded = await import('../../src/session-peer-store');
+        const reloaded = await import('../../src/targeting/session-peer-store');
 
         expect(
             reloaded.getSessionPeerOverride({

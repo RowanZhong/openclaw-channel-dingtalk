@@ -48,7 +48,8 @@ export function parseArgs(argv) {
     sdkDebug: process.env.DINGTALK_MONITOR_SDK_DEBUG === "1",
     sdkKeepAlive: process.env.DINGTALK_MONITOR_SDK_KEEPALIVE !== "0",
     durationSec: Number.parseInt(process.env.DINGTALK_MONITOR_DURATION_SEC ?? "0", 10) || 0,
-    summaryEverySec: Number.parseInt(process.env.DINGTALK_MONITOR_SUMMARY_EVERY_SEC ?? "30", 10) || 30,
+    summaryEverySec:
+      Number.parseInt(process.env.DINGTALK_MONITOR_SUMMARY_EVERY_SEC ?? "30", 10) || 30,
     probeEverySec: Number.parseInt(process.env.DINGTALK_MONITOR_PROBE_EVERY_SEC ?? "20", 10) || 20,
   };
 

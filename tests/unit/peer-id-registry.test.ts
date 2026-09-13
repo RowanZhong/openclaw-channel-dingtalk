@@ -3,7 +3,7 @@ import {
   clearPeerIdRegistry,
   registerPeerId,
   resolveOriginalPeerId,
-} from "../../src/peer-id-registry";
+} from "../../src/targeting/peer-id-registry";
 
 describe("peer id registry", () => {
   beforeEach(() => {

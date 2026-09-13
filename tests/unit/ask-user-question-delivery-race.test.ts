@@ -9,19 +9,19 @@ const shared = vi.hoisted(() => ({
   axiosPost: vi.fn(),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn(async () => "access-token"),
 }));
 
-vi.mock("../../src/card-callback-service", () => ({
+vi.mock("../../src/card/card-callback-service", () => ({
   updateCardVariables: shared.updateCardVariables,
 }));
 
-vi.mock("../../src/inbound-handler", () => ({
+vi.mock("../../src/gateway/inbound-handler", () => ({
   handleDingTalkMessage: shared.handleDingTalkMessage,
 }));
 
-vi.mock("../../src/http-client", () => ({
+vi.mock("../../src/shared/http-client", () => ({
   default: { post: shared.axiosPost },
 }));
 
@@ -33,7 +33,7 @@ import {
 } from "../../src/card/ask-user-question";
 import { withDingTalkQuestionContext } from "../../src/card/ask-user-question-context";
 import { resolveAskUserQuestion } from "../../src/card/ask-user-question-store";
-import { resolveNamespacePath } from "../../src/persistence-store";
+import { resolveNamespacePath } from "../../src/shared/persistence-store";
 
 type AskUserTool = {
   execute: (toolCallId: string, params: unknown) => Promise<any>;

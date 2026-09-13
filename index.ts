@@ -4,9 +4,18 @@ import {
   type OpenClawPluginDefinition,
 } from "openclaw/plugin-sdk/core";
 import { readStringParam } from "openclaw/plugin-sdk/param-readers";
-import { getAccessToken } from "./src/auth";
 import { registerDingTalkAskUserQuestionTool } from "./src/card/ask-user-question";
+import { accumulateUsage } from "./src/card/run-usage-store";
 import { dingtalkPlugin } from "./src/channel";
+import {
+  appendToDoc,
+  createDoc,
+  DocCreateAppendError,
+  listDocs,
+  searchDocs,
+} from "./src/gateway/docs-service";
+import { sendMessage } from "./src/messaging/send-service";
+import { getAccessToken } from "./src/platform/auth";
 import {
   checkDocsGatewayCapability,
   checkProactiveSendGatewayCapability,
@@ -15,17 +24,8 @@ import {
   PROACTIVE_SEND_GATE_DISABLED_REASON,
   resolveDingTalkAccount,
   resolveGatewayCapabilityConfig,
-} from "./src/config";
-import {
-  appendToDoc,
-  createDoc,
-  DocCreateAppendError,
-  listDocs,
-  searchDocs,
-} from "./src/docs-service";
-import { accumulateUsage } from "./src/run-usage-store";
-import { setDingTalkRuntime } from "./src/runtime";
-import { sendMessage } from "./src/send-service";
+} from "./src/platform/config";
+import { setDingTalkRuntime } from "./src/platform/runtime";
 
 type GatewayMethodContext = Pick<
   Parameters<Parameters<OpenClawPluginApi["registerGatewayMethod"]>[1]>[0],
@@ -406,7 +406,7 @@ function registerDingTalkConnectorCompatibilityGatewayMethods(api: OpenClawPlugi
 }
 
 export { dingtalkPlugin } from "./src/channel";
-export { setDingTalkRuntime } from "./src/runtime";
+export { setDingTalkRuntime } from "./src/platform/runtime";
 
 const dingtalkEntry = defineChannelPluginEntry({
   id: "dingtalk",

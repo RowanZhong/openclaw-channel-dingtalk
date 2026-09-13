@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConnectionManager, ReconnectDeadlineError } from '../../src/connection-manager';
-import { ConnectionState } from '../../src/types';
+import { ConnectionManager, ReconnectDeadlineError } from '../../src/gateway/connection-manager';
+import { ConnectionState } from '../../src/platform/types';
 
 /**
  * Helper: create a mock DWClient whose connect() creates a socket that opens

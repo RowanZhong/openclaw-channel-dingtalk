@@ -27,7 +27,10 @@ export function resolveToolProgressReaction(toolName: unknown, args: unknown): s
       if (!command) {
         return "🛠️";
       }
-      if (/\bbrew\s+install\s+/i.test(command) || /\b(?:pnpm|npm|yarn)\s+(?:add|install)\s+/i.test(command)) {
+      if (
+        /\bbrew\s+install\s+/i.test(command) ||
+        /\b(?:pnpm|npm|yarn)\s+(?:add|install)\s+/i.test(command)
+      ) {
         return "📦";
       }
       if (/\bwhich\s+/i.test(command)) {

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getAccessToken } from "../../src/auth";
+import { getAccessToken } from "../../src/platform/auth";
 
 const shared = vi.hoisted(() => ({
   getRuntimeMock: vi.fn(),
@@ -15,15 +15,15 @@ vi.mock("axios", () => ({
   isAxiosError: (err: unknown) => Boolean((err as { isAxiosError?: boolean })?.isAxiosError),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_abc"),
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   getDingTalkRuntime: shared.getRuntimeMock,
 }));
 
-import { downloadMedia } from "../../src/inbound-handler";
+import { downloadMedia } from "../../src/gateway/inbound-handler";
 
 const mockedAxiosPost = vi.mocked(axios.post);
 const mockedAxiosGet = vi.mocked(axios.get);

@@ -7,9 +7,9 @@ import {
     cacheCardContent,
     clearCardContentCacheForTest,
     findCardContent,
-} from '../../src/card-service';
-import { resolveByCreatedAtWindow } from '../../src/message-context-store';
-import { resolveNamespacePath } from '../../src/persistence-store';
+} from '../../src/card/card-service';
+import { resolveByCreatedAtWindow } from '../../src/messaging/message-context-store';
+import { resolveNamespacePath } from '../../src/shared/persistence-store';
 
 describe('card-content-cache', () => {
     let tempDir = '';

@@ -1,7 +1,7 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
-import type { CardCallbackAnalysis } from "../card-callback-service";
-import type { DingTalkConfig, Logger } from "../types";
+import type { DingTalkConfig, Logger } from "../platform/types";
 import { handleDingTalkAskUserCardCallback } from "./ask-user-question";
+import type { CardCallbackAnalysis } from "./card-callback-service";
 import { resolveCardRun } from "./card-run-registry";
 import { stopCardRun } from "./card-stop-handler";
 

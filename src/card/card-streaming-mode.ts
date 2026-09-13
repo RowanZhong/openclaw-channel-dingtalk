@@ -1,4 +1,4 @@
-import type { DingTalkConfig } from "../types";
+import type { DingTalkConfig } from "../platform/types";
 
 export type CardStreamingMode = "off" | "answer" | "all";
 

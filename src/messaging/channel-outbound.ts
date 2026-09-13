@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { getConfig } from "../config";
-import { getLogger } from "../logger-context";
-import { getDingTalkRuntime } from "../runtime";
-import { sendMedia, sendMessage } from "../send-service";
+import { getConfig } from "../platform/config";
+import { getLogger } from "../platform/logger-context";
+import { getDingTalkRuntime } from "../platform/runtime";
+import type { DingTalkChannelPlugin } from "../platform/types";
+import { formatDingTalkErrorPayloadLog, parseBooleanLike } from "../shared/utils";
 import { normalizeResolvedDingTalkTarget } from "../targeting/target-directory-adapter";
-import type { DingTalkChannelPlugin } from "../types";
-import { formatDingTalkErrorPayloadLog, parseBooleanLike } from "../utils";
+import { sendMedia, sendMessage } from "./send-service";
 
 function readBooleanLikeParam(params: Record<string, unknown>, key: string): boolean | undefined {
   return parseBooleanLike(params[key]);
@@ -66,7 +66,9 @@ export function createDingTalkOutbound(): NonNullable<DingTalkChannelPlugin["out
         };
       } catch (err: any) {
         if (err?.response?.data !== undefined) {
-          effectiveLog?.error?.(formatDingTalkErrorPayloadLog("outbound.sendText", err.response.data));
+          effectiveLog?.error?.(
+            formatDingTalkErrorPayloadLog("outbound.sendText", err.response.data),
+          );
         }
         throw new Error(
           typeof err?.response?.data === "string"
@@ -112,9 +114,10 @@ export function createDingTalkOutbound(): NonNullable<DingTalkChannelPlugin["out
         );
       }
 
-      const requestedMediaType = typeof providedMediaType === "string"
-        ? (providedMediaType as "image" | "voice" | "video" | "file")
-        : undefined;
+      const requestedMediaType =
+        typeof providedMediaType === "string"
+          ? (providedMediaType as "image" | "voice" | "video" | "file")
+          : undefined;
 
       try {
         const result = await sendMedia(config, to, rawMediaPath, {
@@ -144,7 +147,9 @@ export function createDingTalkOutbound(): NonNullable<DingTalkChannelPlugin["out
         };
       } catch (err: any) {
         if (err?.response?.data !== undefined) {
-          effectiveLog?.error?.(formatDingTalkErrorPayloadLog("outbound.sendMedia", err.response.data));
+          effectiveLog?.error?.(
+            formatDingTalkErrorPayloadLog("outbound.sendMedia", err.response.data),
+          );
         }
         throw new Error(
           typeof err?.response?.data === "string"

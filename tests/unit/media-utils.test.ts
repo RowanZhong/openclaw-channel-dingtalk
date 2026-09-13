@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import axios from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { detectMediaTypeFromExtension, getVoiceDurationMs, prepareMediaInput, resolveOutboundMediaType, uploadMedia } from '../../src/media-utils';
+import { detectMediaTypeFromExtension, getVoiceDurationMs, prepareMediaInput, resolveOutboundMediaType, uploadMedia } from '../../src/messaging/media-utils';
 
 const mockLoadWebMedia = vi.fn();
 const { mockRunFfmpeg, mockRunFfprobe } = vi.hoisted(() => ({
@@ -12,7 +12,7 @@ const { mockRunFfmpeg, mockRunFfprobe } = vi.hoisted(() => ({
     mockRunFfprobe: vi.fn(),
 }));
 
-vi.mock('../../src/runtime', () => ({
+vi.mock('../../src/platform/runtime', () => ({
     getDingTalkRuntime: () => ({
         media: { loadWebMedia: mockLoadWebMedia },
         channel: { media: { saveMediaBuffer: vi.fn() } },

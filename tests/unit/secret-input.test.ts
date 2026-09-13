@@ -2,15 +2,15 @@ import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { isConfigured } from "../../src/config";
-import { DingTalkConfigSchema } from "../../src/config-schema";
+import { isConfigured } from "../../src/platform/config";
+import { DingTalkConfigSchema } from "../../src/platform/config-schema";
 import {
   formatSecretInputResolutionFailure,
   normalizeSecretInputString,
   parseSecretInputString,
   resolveSecretInputString,
   resolveSecretInputStringWithFailure,
-} from "../../src/secret-input";
+} from "../../src/platform/secret-input";
 
 describe("SecretInput support", () => {
   let tempDir: string | undefined;

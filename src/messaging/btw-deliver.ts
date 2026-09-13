@@ -1,5 +1,5 @@
-import { sendMessage } from "../send-service";
-import type { DingTalkConfig, Logger } from "../types";
+import type { DingTalkConfig, Logger } from "../platform/types";
+import { sendMessage } from "./send-service";
 
 const MAX_QUESTION_LENGTH = 80;
 const LEADING_MENTIONS_RE = /^(?:@\S+\s+)*/u;

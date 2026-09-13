@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendMessage: vi.fn(async () => ({ ok: true })),
 }));
 
 import { deliverBtwReply } from "../../src/messaging/btw-deliver";
-import { sendMessage } from "../../src/send-service";
+import { sendMessage } from "../../src/messaging/send-service";
 import { buildBtwBlockquote } from "../../src/messaging/btw-deliver";
 
 describe("buildBtwBlockquote", () => {

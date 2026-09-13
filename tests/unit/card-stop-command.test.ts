@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
     dispatchReplyWithBufferedBlockDispatcher: vi.fn(),
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
     getDingTalkRuntime: () => ({
         channel: {
             reply: {

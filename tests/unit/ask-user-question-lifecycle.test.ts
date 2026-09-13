@@ -12,19 +12,19 @@ const shared = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn(async () => "access-token"),
 }));
 
-vi.mock("../../src/card-callback-service", () => ({
+vi.mock("../../src/card/card-callback-service", () => ({
   updateCardVariables: shared.updateCardVariables,
 }));
 
-vi.mock("../../src/inbound-handler", () => ({
+vi.mock("../../src/gateway/inbound-handler", () => ({
   handleDingTalkMessage: shared.handleDingTalkMessage,
 }));
 
-vi.mock("../../src/http-client", () => ({
+vi.mock("../../src/shared/http-client", () => ({
   default: { post: shared.axiosPost },
 }));
 

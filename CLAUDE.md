@@ -31,6 +31,9 @@ pnpm run build:runtime
 # Format only (oxfmt)
 pnpm run format
 
+# Format check (oxfmt, CI gate)
+pnpm run format:check
+
 # Run all tests
 pnpm test
 
@@ -56,14 +59,14 @@ pnpm run monitor:stream -- --duration 300 --summary-every 30 --probe-every 20
 ### Core Module Responsibilities
 
 - **`src/channel.ts`** — Assembly layer only. Defines `dingtalkPlugin` (config, gateway, outbound, status, security, messaging, directory). Delegates all heavy logic to service modules. Keep this file thin.
-- **`src/inbound-handler.ts`** — Inbound pipeline orchestrator: dedup → self-filter → content extraction → authorization → session routing → media download → message context persistence → reply dispatch.
-- **`src/send-service.ts`** — All outbound delivery: session webhook, proactive text/markdown, proactive media, unified `sendMessage` with card/markdown fallback.
-- **`src/card-service.ts`** — AI Card state machine (PROCESSING → INPUTING → FINISHED/FAILED), card instance cache, createdAt fallback cache, recovery of unfinished cards on restart.
-- **`src/message-context-store.ts`** — Unified short-TTL message persistence under namespace `messages.context`. The **only** production API for quote/media/card context recovery.
-- **`src/reply-strategy.ts`** + `reply-strategy-card.ts` + `reply-strategy-markdown.ts` + `reply-strategy-with-reaction.ts` — Strategy pattern for reply delivery.
-- **`src/connection-manager.ts`** — Robust stream reconnect lifecycle with exponential backoff, jitter, cycle limits, and warm reconnection (creates fresh DWClient to minimize message-loss window).
-- **`src/config.ts`** — Config resolution, multi-account merging, path resolution. `getConfig()` is the canonical way to read DingTalk config.
-- **`src/auth.ts`** — Access token cache with clientId-scoped caching and retry.
+- **`src/gateway/inbound-handler.ts`** — Inbound pipeline orchestrator: dedup → self-filter → content extraction → authorization → session routing → media download → message context persistence → reply dispatch.
+- **`src/messaging/send-service.ts`** — All outbound delivery: session webhook, proactive text/markdown, proactive media, unified `sendMessage` with card/markdown fallback.
+- **`src/card/card-service.ts`** — AI Card state machine (PROCESSING → INPUTING → FINISHED/FAILED), card instance cache, createdAt fallback cache, recovery of unfinished cards on restart.
+- **`src/messaging/message-context-store.ts`** — Unified short-TTL message persistence under namespace `messages.context`. The **only** production API for quote/media/card context recovery.
+- **`src/messaging/reply-strategy.ts`** + `reply-strategy-card.ts` + `reply-strategy-markdown.ts` + `reply-strategy-with-reaction.ts` — Strategy pattern for reply delivery.
+- **`src/gateway/connection-manager.ts`** — Robust stream reconnect lifecycle with exponential backoff, jitter, cycle limits, and warm reconnection (creates fresh DWClient to minimize message-loss window).
+- **`src/platform/config.ts`** — Config resolution, multi-account merging, path resolution. `getConfig()` is the canonical way to read DingTalk config.
+- **`src/platform/auth.ts`** — Access token cache with clientId-scoped caching and retry.
 - **`src/targeting/`** — Learned group/user displayName directory, target normalization, displayNameResolution gate.
 
 ### Key Patterns
@@ -73,9 +76,9 @@ pnpm run monitor:stream -- --duration 300 --summary-every 30 --probe-every 20
 - **Dedup + inflight protection**: `dedup.processed-message`, `session.lock`, and `channel.inflight` are process-local memory-only state. Never introduce cross-process persistence for these.
 - **Peer SDK**: Types and APIs come from `openclaw/plugin-sdk`. The `tsconfig.json` paths resolve this from either `../openclaw/src/plugin-sdk` or `../../src/plugin-sdk`.
 
-### Planned Domain Directories
+### Domain Directories
 
-New code should align with these logical boundaries (physical moves are incremental):
+`src/` is physically organized by these logical boundaries; `src/channel.ts` is the only remaining root-level module and stays the thin assembly layer. New code must land inside the matching domain directory:
 - `gateway/` — stream lifecycle, callbacks, inbound entry
 - `targeting/` — peer identity, session aliasing, target resolution
 - `messaging/` — content parsing, reply strategies, outbound delivery, message context

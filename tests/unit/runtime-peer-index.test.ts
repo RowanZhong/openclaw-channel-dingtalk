@@ -96,17 +96,17 @@ vi.mock("openclaw/plugin-sdk/tool-send", () => ({
 vi.mock("../../src/channel", () => ({
   dingtalkPlugin: { id: "dingtalk", meta: { label: "DingTalk" } },
 }));
-vi.mock("../../src/docs-service", () => ({
+vi.mock("../../src/gateway/docs-service", () => ({
   createDoc: shared.createDocMock,
   appendToDoc: shared.appendToDocMock,
   searchDocs: shared.searchDocsMock,
   listDocs: shared.listDocsMock,
   DocCreateAppendError: shared.DocCreateAppendErrorMock,
 }));
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendMessage: shared.sendMessageMock,
 }));
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: shared.getAccessTokenMock,
 }));
 describe("runtime + peer registry + index plugin", () => {
@@ -130,11 +130,11 @@ describe("runtime + peer registry + index plugin", () => {
     shared.listDocsMock.mockResolvedValue([{ docId: "doc_3", title: "知识库", docType: "folder" }]);
     shared.sendMessageMock.mockResolvedValue({ ok: true, messageId: "msg_1" });
     shared.getAccessTokenMock.mockResolvedValue("token_abc");
-    const peer = await import("../../src/peer-id-registry");
+    const peer = await import("../../src/targeting/peer-id-registry");
     peer.clearPeerIdRegistry();
   });
   it("runtime getter throws before initialization and returns assigned runtime later", async () => {
-    const runtime = await import("../../src/runtime");
+    const runtime = await import("../../src/platform/runtime");
     expect(() => runtime.getDingTalkRuntime()).toThrow("DingTalk runtime not initialized");
     const rt = { channel: {} } as any;
     runtime.setDingTalkRuntime(rt);
@@ -142,7 +142,7 @@ describe("runtime + peer registry + index plugin", () => {
   });
 
   it("peer id registry preserves original case by lowercased key", async () => {
-    const peer = await import("../../src/peer-id-registry");
+    const peer = await import("../../src/targeting/peer-id-registry");
     peer.registerPeerId("CidAbC+123");
     expect(peer.resolveOriginalPeerId("cidabc+123")).toBe("CidAbC+123");
     expect(peer.resolveOriginalPeerId("unknown")).toBe("unknown");
@@ -151,7 +151,7 @@ describe("runtime + peer registry + index plugin", () => {
   });
 
   it("index plugin defines a channel entry and only registers gateway methods in full mode", async () => {
-    const runtimeModule = await import("../../src/runtime");
+    const runtimeModule = await import("../../src/platform/runtime");
     const runtimeSpy = vi.spyOn(runtimeModule, "setDingTalkRuntime");
     const plugin = (await import("../../index")).default;
     const registerChannel = vi.fn();

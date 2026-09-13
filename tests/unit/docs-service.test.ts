@@ -1,7 +1,7 @@
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_abc"),
 }));
 
@@ -12,7 +12,7 @@ vi.mock("axios", () => ({
   },
 }));
 
-import { appendToDoc, createDoc, DocCreateAppendError, listDocs, searchDocs } from "../../src/docs-service";
+import { appendToDoc, createDoc, DocCreateAppendError, listDocs, searchDocs } from "../../src/gateway/docs-service";
 
 const mockedAxiosPost = vi.mocked(axios.post);
 const mockedAxiosGet = vi.mocked(axios.get);

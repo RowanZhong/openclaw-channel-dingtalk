@@ -8,7 +8,7 @@
 DingTalk (钉钉) enterprise bot channel plugin using Stream mode (WebSocket, no public IP required). Part of OpenClaw ecosystem.
 
 Current architecture is modularized by responsibility. `src/channel.ts` is now an assembly layer; heavy logic is split into dedicated modules.
-Recent refactors unified short-lived message persistence into `src/message-context-store.ts` and split reply delivery selection into dedicated `reply-strategy*` modules.
+Recent refactors unified short-lived message persistence into `src/messaging/message-context-store.ts` and split reply delivery selection into dedicated `reply-strategy*` modules.
 Recent targeting work added a learned target directory under `src/targeting/` and a `displayNameResolution` config gate (`disabled` by default, `all` to enable learned displayName resolution).
 
 For new code and refactors, the canonical architecture guide is `docs/contributor/architecture.en.md`.
@@ -37,53 +37,95 @@ Planned domain summary:
 ├── index.ts                        # Plugin registration entry point
 ├── src/
 │   ├── channel.ts                  # Channel definition + gateway wiring + public exports
-│   ├── inbound-handler.ts          # Inbound pipeline (authz, routing, quote/media restore, dispatch orchestration)
-│   ├── send-service.ts             # Outbound send (session/proactive/text/media/card fallback)
-│   ├── card-service.ts             # AI Card lifecycle + cache + recovery helpers
-│   ├── card-callback-service.ts    # Card callback handling and action processing
-│   ├── card-draft-controller.ts    # Card draft buffering / state transitions
-│   ├── reply-strategy.ts           # Reply strategy selection entry
-│   ├── reply-strategy-card.ts      # AI Card reply strategy
-│   ├── reply-strategy-markdown.ts  # Markdown/text reply strategy
-│   ├── reply-strategy-with-reaction.ts # Reply wrapper for reaction lifecycle
-│   ├── auth.ts                     # Access token cache + retry
-│   ├── config.ts                   # Config/account/agent helpers
-│   ├── config-schema.ts            # Zod validation schema
-│   ├── runtime.ts                  # Runtime getter/setter
-│   ├── types.ts                    # Shared types/constants
-│   ├── access-control.ts           # DM/group allowlist checks
-│   ├── message-utils.ts            # Markdown/title detection + inbound content extraction
-│   ├── message-context-store.ts    # Unified short-TTL message context persistence
-│   ├── media-utils.ts              # Media type detect + upload/download helpers
-│   ├── quoted-file-service.ts      # Quote/file recovery helpers
-│   ├── docs-service.ts             # DingTalk docs gateway methods
-│   ├── feedback-learning-service.ts # Learning signal handling
-│   ├── feedback-learning-store.ts  # Learning persistence
-│   ├── learning-command-service.ts # /learn command handling
-│   ├── session-command-service.ts  # Session alias and related commands
-│   ├── connection-manager.ts       # Robust stream connection lifecycle
-│   ├── dedup.ts                    # Inbound message dedup with TTL + lazy cleanup
-│   ├── persistence-store.ts        # Namespace-based persistence primitives
-│   ├── session-routing.ts          # Agent/session routing helpers
-│   ├── session-peer-store.ts       # Session peer persistence
-│   ├── session-lock.ts             # Per-session dispatch locking
-│   ├── peer-id-registry.ts         # Preserve case-sensitive conversationId mapping
-│   ├── proactive-risk-registry.ts  # Proactive send risk tracking
-│   ├── logger-context.ts           # Shared logger getter/setter
-│   ├── onboarding.ts               # Channel onboarding adapter
-│   ├── ack-reaction/
+│   ├── ack-reaction/               # Ack/thinking reaction classification + delivery
+│   │   ├── ack-reaction-classifier.ts         # Sentence-type classification
+│   │   ├── ack-reaction-service.ts            # Thinking reaction attach/recall
 │   │   ├── dynamic-ack-reaction-controller.ts # Tool-progress reaction orchestration
-│   │   ├── dynamic-ack-reaction-events.ts     # Reaction event definitions
 │   │   └── dynamic-ack-reaction-progress.ts   # Reaction progress mapping
-│   ├── messaging/
+│   ├── card/                       # AI Card lifecycle, drafts, task progress, ask-user cards
+│   │   ├── card-service.ts         # AI Card lifecycle + cache + recovery helpers
+│   │   ├── card-callback-service.ts # Card callback handling and action processing
+│   │   ├── card-draft-controller.ts # Card draft buffering / state transitions
+│   │   ├── draft-stream-loop.ts    # Draft streaming scheduler
+│   │   ├── run-usage-store.ts      # Card run usage accumulation
+│   │   ├── card-action-handler.ts  # Card action dispatch
+│   │   ├── card-markdown-image-reroute.ts # Markdown image reroute for cards
+│   │   ├── card-run-registry.ts    # Active card run registry
+│   │   ├── card-stop-handler.ts    # Card stop handling
+│   │   ├── card-streaming-mode.ts  # Streaming mode resolution
+│   │   ├── card-task-progress.ts   # Task progress block rendering
+│   │   ├── card-template.ts        # Card template ids
+│   │   ├── reasoning-answer-split.ts    # Reasoning/answer split
+│   │   ├── reasoning-block-assembler.ts # Reasoning block assembly
+│   │   ├── statusline-renderer.ts  # Card status line rendering
+│   │   ├── task-model-metadata.ts  # Task model metadata
+│   │   ├── ask-user-question.ts    # ask_user_question card tool
+│   │   ├── ask-user-question-context.ts # Ask-user context restore
+│   │   └── ask-user-question-store.ts   # Ask-user persistence
+│   ├── command/                    # Slash commands and feedback learning
+│   │   ├── card-stop-command.ts    # /stop card command
+│   │   ├── inbound-command-dispatch-service.ts # Inbound slash command dispatch
+│   │   ├── feedback-learning-service.ts # Learning signal handling
+│   │   ├── feedback-learning-store.ts   # Learning persistence
+│   │   ├── learning-command-service.ts  # /learn command handling
+│   │   └── session-command-service.ts   # Session alias and related commands
+│   ├── gateway/                    # Stream lifecycle, inbound pipeline, session dispatch
+│   │   ├── channel-gateway.ts      # Gateway wiring and callback registration
+│   │   ├── connection-manager.ts   # Robust stream connection lifecycle
+│   │   ├── inbound-handler.ts      # Inbound pipeline (authz, routing, quote/media restore, dispatch)
+│   │   ├── session-lock.ts         # Per-session dispatch locking
+│   │   ├── docs-service.ts         # DingTalk docs gateway methods
+│   │   ├── inbound-session-queue.ts # Inbound session queue
+│   │   ├── inbound-session-queue-dispatcher.ts # Queue dispatcher
+│   │   └── reply-session-conflict.ts # Reply/session conflict handling
+│   ├── messaging/                  # Inbound extraction, reply strategies, outbound delivery
+│   │   ├── send-service.ts         # Outbound send (session/proactive/text/media/card fallback)
+│   │   ├── message-utils.ts        # Markdown/title detection + inbound content extraction
+│   │   ├── message-context-store.ts # Unified short-TTL message context persistence
+│   │   ├── media-utils.ts          # Media type detect + upload/download helpers
+│   │   ├── reply-strategy.ts       # Reply strategy selection entry
+│   │   ├── reply-strategy-card.ts  # AI Card reply strategy
+│   │   ├── reply-strategy-markdown.ts # Markdown/text reply strategy
+│   │   ├── reply-strategy-with-reaction.ts # Reply wrapper for reaction lifecycle
+│   │   ├── reply-strategy-types.ts # Reply strategy shared types
+│   │   ├── proactive-risk-registry.ts # Proactive send risk tracking
 │   │   ├── attachment-text-extractor.ts # Text extraction for supported attachments
-│   │   ├── quoted-file-service.ts  # Quote/file recovery helpers
+│   │   ├── btw-deliver.ts          # BTW message delivery
+│   │   ├── channel-actions.ts      # Channel message actions
+│   │   ├── channel-outbound.ts     # Channel outbound adapter
+│   │   ├── inline-directives.ts    # Inline directive parsing
 │   │   ├── quoted-context.ts       # Quoted context assembly
+│   │   ├── quoted-file-service.ts  # Quote/file recovery helpers
 │   │   └── quoted-ref.ts           # Structured quotedRef helpers
-│   └── targeting/
+│   ├── platform/                   # Config, auth, runtime, logger, shared types
+│   │   ├── access-control.ts       # DM/group allowlist checks
+│   │   ├── auth.ts                 # Access token cache + retry
+│   │   ├── channel-status.ts       # Channel status projection
+│   │   ├── config.ts               # Config/account/agent helpers
+│   │   ├── config-schema.ts        # Zod validation schema
+│   │   ├── device-registration.ts  # Device auto-registration
+│   │   ├── logger-context.ts       # Shared logger getter/setter
+│   │   ├── onboarding.ts           # Channel onboarding adapter
+│   │   ├── plugin-sdk-channel-actions-augment.ts # Plugin SDK type augmentation
+│   │   ├── runtime.ts              # Runtime getter/setter
+│   │   ├── runtime-events.ts       # Runtime event types
+│   │   ├── secret-input.ts         # Secret input resolution
+│   │   ├── session-state.ts        # Per-session model/effort state
+│   │   ├── signature.ts            # DingTalk signature helpers
+│   │   └── types.ts                # Shared types/constants
+│   ├── shared/                     # Persistence primitives, dedup, generic helpers
+│   │   ├── dedup.ts                # Inbound message dedup with TTL + lazy cleanup
+│   │   ├── http-client.ts          # Shared axios client policy
+│   │   ├── path-utils.ts           # Path normalization helpers
+│   │   ├── persistence-store.ts    # Namespace-based persistence primitives
+│   │   └── utils.ts                # Generic helpers
+│   └── targeting/                  # Peer identity, session aliasing, target resolution
 │       ├── agent-name-matcher.ts   # @agent name matching
 │       ├── agent-routing.ts        # Sub-agent routing helpers
 │       ├── group-members-store.ts  # Group member cache/persistence
+│       ├── peer-id-registry.ts     # Preserve case-sensitive conversationId mapping
+│       ├── session-peer-store.ts   # Session peer persistence
+│       ├── session-routing.ts      # Agent/session routing helpers
 │       ├── target-directory-adapter.ts # Learned directory bridge + displayNameResolution gate
 │       ├── target-directory-store.ts   # Learned group/user target persistence
 │       └── target-input.ts         # DingTalk target normalization + id heuristics
@@ -116,48 +158,48 @@ Planned domain summary:
 | --- | --- | --- |
 | Plugin registration | `index.ts` | Exports default plugin object |
 | Channel assembly | `src/channel.ts` | Defines `dingtalkPlugin`; wires gateway/outbound/status |
-| Inbound message handling | `src/inbound-handler.ts` | `handleDingTalkMessage`, `downloadMedia` |
-| Text/media sending | `src/send-service.ts` | `sendBySession`, `sendProactive*`, `sendMessage` |
-| Reply strategy selection | `src/reply-strategy.ts` | `createReplyStrategy` |
-| AI Card operations | `src/card-service.ts` | `createAICard`, `streamAICard`, `finishAICard` |
-| Message context persistence | `src/message-context-store.ts` | `upsertInboundMessageContext`, `upsertOutboundMessageContext`, `resolveByMsgId`, `resolveByAlias` |
-| Token management | `src/auth.ts` | `getAccessToken` with clientId-scoped cache |
-| Access control | `src/access-control.ts` | DM/group allowlist helpers |
-| Message parsing | `src/message-utils.ts` | quote parsing + richText/media extraction |
-| Config/path helpers | `src/config.ts` | `getConfig`, `resolveRelativePath`, `stripTargetPrefix` |
+| Inbound message handling | `src/gateway/inbound-handler.ts` | `handleDingTalkMessage`, `downloadMedia` |
+| Text/media sending | `src/messaging/send-service.ts` | `sendBySession`, `sendProactive*`, `sendMessage` |
+| Reply strategy selection | `src/messaging/reply-strategy.ts` | `createReplyStrategy` |
+| AI Card operations | `src/card/card-service.ts` | `createAICard`, `streamAICard`, `finishAICard` |
+| Message context persistence | `src/messaging/message-context-store.ts` | `upsertInboundMessageContext`, `upsertOutboundMessageContext`, `resolveByMsgId`, `resolveByAlias` |
+| Token management | `src/platform/auth.ts` | `getAccessToken` with clientId-scoped cache |
+| Access control | `src/platform/access-control.ts` | DM/group allowlist helpers |
+| Message parsing | `src/messaging/message-utils.ts` | quote parsing + richText/media extraction |
+| Config/path helpers | `src/platform/config.ts` | `getConfig`, `resolveRelativePath`, `stripTargetPrefix` |
 | Target directory persistence | `src/targeting/target-directory-store.ts` | learned group/user displayName directory |
 | Target directory adapter | `src/targeting/target-directory-adapter.ts` | directory bridge + `displayNameResolution` gate |
-| Deduplication | `src/dedup.ts` | message retry dedup keys |
-| Type definitions | `src/types.ts` | DingTalk and plugin types/constants |
+| Deduplication | `src/shared/dedup.ts` | message retry dedup keys |
+| Type definitions | `src/platform/types.ts` | DingTalk and plugin types/constants |
 
 ## CODE MAP
 
 | Symbol | Type | Location | Role |
 | --- | --- | --- | --- |
 | `dingtalkPlugin` | const | `src/channel.ts` | Main channel plugin definition |
-| `handleDingTalkMessage` | function | `src/inbound-handler.ts` | Process inbound messages end-to-end |
-| `downloadMedia` | function | `src/inbound-handler.ts` | Download inbound media via runtime media service |
-| `sendBySession` | function | `src/send-service.ts` | Send replies via session webhook |
-| `sendMessage` | function | `src/send-service.ts` | Auto send (card/text/markdown fallback) |
-| `sendProactiveMedia` | function | `src/send-service.ts` | Proactive media send |
-| `createReplyStrategy` | function | `src/reply-strategy.ts` | Select reply implementation by mode/capability |
-| `createAICard` | function | `src/card-service.ts` | Create and cache AI Card |
-| `streamAICard` | function | `src/card-service.ts` | Stream updates to AI Card |
-| `finishAICard` | function | `src/card-service.ts` | Finalize AI Card |
-| `upsertInboundMessageContext` | function | `src/message-context-store.ts` | Persist inbound message context by canonical msgId |
-| `upsertOutboundMessageContext` | function | `src/message-context-store.ts` | Persist outbound message context + delivery aliases |
-| `resolveByMsgId` | function | `src/message-context-store.ts` | Resolve unified message record by canonical/inbound msgId |
-| `resolveByAlias` | function | `src/message-context-store.ts` | Resolve outbound record by `messageId/processQueryKey/outTrackId/cardInstanceId` |
+| `handleDingTalkMessage` | function | `src/gateway/inbound-handler.ts` | Process inbound messages end-to-end |
+| `downloadMedia` | function | `src/gateway/inbound-handler.ts` | Download inbound media via runtime media service |
+| `sendBySession` | function | `src/messaging/send-service.ts` | Send replies via session webhook |
+| `sendMessage` | function | `src/messaging/send-service.ts` | Auto send (card/text/markdown fallback) |
+| `sendProactiveMedia` | function | `src/messaging/send-service.ts` | Proactive media send |
+| `createReplyStrategy` | function | `src/messaging/reply-strategy.ts` | Select reply implementation by mode/capability |
+| `createAICard` | function | `src/card/card-service.ts` | Create and cache AI Card |
+| `streamAICard` | function | `src/card/card-service.ts` | Stream updates to AI Card |
+| `finishAICard` | function | `src/card/card-service.ts` | Finalize AI Card |
+| `upsertInboundMessageContext` | function | `src/messaging/message-context-store.ts` | Persist inbound message context by canonical msgId |
+| `upsertOutboundMessageContext` | function | `src/messaging/message-context-store.ts` | Persist outbound message context + delivery aliases |
+| `resolveByMsgId` | function | `src/messaging/message-context-store.ts` | Resolve unified message record by canonical/inbound msgId |
+| `resolveByAlias` | function | `src/messaging/message-context-store.ts` | Resolve outbound record by `messageId/processQueryKey/outTrackId/cardInstanceId` |
 | `upsertObservedGroupTarget` | function | `src/targeting/target-directory-store.ts` | Persist observed group `conversationId/displayName` |
 | `upsertObservedUserTarget` | function | `src/targeting/target-directory-store.ts` | Persist observed user `staffId/senderId/displayName` |
 | `listDingTalkDirectoryGroups` | function | `src/targeting/target-directory-adapter.ts` | Expose learned group directory entries |
 | `listDingTalkDirectoryUsers` | function | `src/targeting/target-directory-adapter.ts` | Expose learned user directory entries |
-| `getAccessToken` | function | `src/auth.ts` | Get/cached DingTalk token |
-| `extractMessageContent` | function | `src/message-utils.ts` | Normalize inbound msg payload |
-| `normalizeAllowFrom` | function | `src/access-control.ts` | Normalize allowlist entries |
-| `isMessageProcessed` | function | `src/dedup.ts` | Message dedup check |
-| `DingTalkConfigSchema` | const | `src/config-schema.ts` | Zod validation schema |
-| `AICardStatus` | const | `src/types.ts` | AI Card state constants |
+| `getAccessToken` | function | `src/platform/auth.ts` | Get/cached DingTalk token |
+| `extractMessageContent` | function | `src/messaging/message-utils.ts` | Normalize inbound msg payload |
+| `normalizeAllowFrom` | function | `src/platform/access-control.ts` | Normalize allowlist entries |
+| `isMessageProcessed` | function | `src/shared/dedup.ts` | Message dedup check |
+| `DingTalkConfigSchema` | const | `src/platform/config-schema.ts` | Zod validation schema |
+| `AICardStatus` | const | `src/platform/types.ts` | AI Card state constants |
 
 ## CONVENTIONS
 
@@ -189,13 +231,13 @@ Planned domain summary:
 
 **State Management:**
 
-- Access token cache in `src/auth.ts`
-- AI Card caches in `src/card-service.ts` (`aiCardInstances`, `activeCardsByTarget`)
-- Unified short-TTL message contexts in `src/message-context-store.ts` under namespace `messages.context`
+- Access token cache in `src/platform/auth.ts`
+- AI Card caches in `src/card/card-service.ts` (`aiCardInstances`, `activeCardsByTarget`)
+- Unified short-TTL message contexts in `src/messaging/message-context-store.ts` under namespace `messages.context`
 - Learned target directory persistence in `src/targeting/target-directory-store.ts` under namespace `targets.directory`
-- Card createdAt fallback keeps an in-memory-only bucket in `src/card-service.ts` when no `storePath` is available
-- Message dedup state in `src/dedup.ts`
-- Runtime stored via getter/setter in `src/runtime.ts`
+- Card createdAt fallback keeps an in-memory-only bucket in `src/card/card-service.ts` when no `storePath` is available
+- Message dedup state in `src/shared/dedup.ts`
+- Runtime stored via getter/setter in `src/platform/runtime.ts`
 
 **Test File Structure:**
 
@@ -316,7 +358,7 @@ or any DingTalk real-device validation; otherwise the gateway may keep running s
 
 - Vitest test suite is initialized with unit + integration coverage under `tests/`
 - Network calls are mocked in tests (`vi.mock`), no real DingTalk API requests are made
-- CI should run `pnpm test` on every push and pull request
+- CI runs `pnpm run format:check`, `pnpm run type-check`, `pnpm run lint`, `pnpm test`, and `pnpm test:coverage` on every push and pull request
 - Coverage can be generated with `pnpm test:coverage`
 - Before applying code changes to a live DingTalk debugging session, run `pnpm run build:runtime` and then restart the gateway so `dist/index.js` matches the source.
 - When the task involves DingTalk real-device validation, PR-scoped test checklists, `验证 TODO` drafting, or contributor-workflow updates for that process, read and follow `skills/dingtalk-real-device-testing/SKILL.md` first.

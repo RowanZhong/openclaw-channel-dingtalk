@@ -7,15 +7,15 @@ import {
     buildLearningContextBlock,
     recordExplicitFeedbackLearning,
     recordOutboundReplyForLearning,
-} from "../../src/feedback-learning-service";
+} from "../../src/command/feedback-learning-service";
 import {
     listActiveSessionLearningNotes,
     listFeedbackEvents,
     listLearnedRules,
     listOutboundReplySnapshots,
     listReflectionRecords,
-} from "../../src/feedback-learning-store";
-import type { MessageContent } from "../../src/types";
+} from "../../src/command/feedback-learning-store";
+import type { MessageContent } from "../../src/platform/types";
 
 describe("feedback-learning-service", () => {
     const tempDirs: string[] = [];

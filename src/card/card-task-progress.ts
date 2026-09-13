@@ -4,8 +4,8 @@ import {
   type RuntimeEventsLogger,
   type RuntimeEventsSurface,
 } from "../platform/runtime-events";
-import type { CardTaskProgressRefresh, DingTalkConfig } from "../types";
-import { getErrorMessage } from "../utils";
+import type { CardTaskProgressRefresh, DingTalkConfig } from "../platform/types";
+import { getErrorMessage } from "../shared/utils";
 
 const DEFAULT_START_DELAY_MS = 10_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;

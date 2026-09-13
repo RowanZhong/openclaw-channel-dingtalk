@@ -10,7 +10,7 @@ vi.mock("openclaw/plugin-sdk/setup", () => ({
 
 const mockBeginDeviceRegistration = vi.fn();
 
-vi.mock("../../src/device-registration", () => ({
+vi.mock("../../src/platform/device-registration", () => ({
   beginDeviceRegistration: (...args: unknown[]) => mockBeginDeviceRegistration(...args),
   RegistrationError: class RegistrationError extends Error {
     constructor(message: string) {
@@ -20,7 +20,7 @@ vi.mock("../../src/device-registration", () => ({
   },
 }));
 
-import { dingtalkSetupAdapter, dingtalkSetupWizard } from "../../src/onboarding";
+import { dingtalkSetupAdapter, dingtalkSetupWizard } from "../../src/platform/onboarding";
 
 function listAccountIds(cfg: OpenClawConfig): string[] {
     const dingtalk = cfg.channels?.dingtalk as { accounts?: Record<string, unknown> } | undefined;
@@ -127,7 +127,7 @@ describe("dingtalk setup wizard", () => {
     });
 
     it("keeps DingTalk onboarding prompts in English", () => {
-        const onboardingSource = readFileSync("src/onboarding.ts", "utf8");
+        const onboardingSource = readFileSync("src/platform/onboarding.ts", "utf8");
 
         expect(onboardingSource).not.toMatch(/\p{Script=Han}/u);
     });

@@ -1,3 +1,4 @@
+import type { AICardInstance } from "../platform/types";
 /**
  * In-process card run registry for tracking active AI card runs.
  *
@@ -7,8 +8,7 @@
  * the stop button to silently fail. Ensure single-process deployment or sticky
  * routing per card callback when using the stop button feature.
  */
-import type { CardDraftController } from "../card-draft-controller";
-import type { AICardInstance } from "../types";
+import type { CardDraftController } from "./card-draft-controller";
 
 export interface CardRunRecord {
   outTrackId: string;
@@ -110,10 +110,16 @@ export function resolveCardRunByConversation(
   const targetOwner = options?.ownerUserId;
   let latest: CardRunRecord | null = null;
   for (const record of records.values()) {
-    if (record.accountId !== accountId) { continue; }
-    if (!record.sessionKey.toLowerCase().includes(lowerCid)) { continue; }
+    if (record.accountId !== accountId) {
+      continue;
+    }
+    if (!record.sessionKey.toLowerCase().includes(lowerCid)) {
+      continue;
+    }
     // If ownerUserId filter is specified, only match runs owned by that user
-    if (targetOwner !== undefined && record.ownerUserId !== targetOwner) { continue; }
+    if (targetOwner !== undefined && record.ownerUserId !== targetOwner) {
+      continue;
+    }
     if (!latest || record.registeredAt > latest.registeredAt) {
       latest = record;
     }
@@ -134,8 +140,12 @@ export function resolveCardRunByOwner(
 ): CardRunRecord | null {
   let latest: CardRunRecord | null = null;
   for (const record of records.values()) {
-    if (record.accountId !== accountId) { continue; }
-    if (record.ownerUserId !== ownerUserId) { continue; }
+    if (record.accountId !== accountId) {
+      continue;
+    }
+    if (record.ownerUserId !== ownerUserId) {
+      continue;
+    }
     if (!latest || record.registeredAt > latest.registeredAt) {
       latest = record;
     }

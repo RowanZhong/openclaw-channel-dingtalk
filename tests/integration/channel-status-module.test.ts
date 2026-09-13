@@ -4,7 +4,7 @@ const shared = vi.hoisted(() => ({
     getAccessTokenMock: vi.fn(),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
     getAccessToken: shared.getAccessTokenMock,
 }));
 

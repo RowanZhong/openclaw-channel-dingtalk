@@ -1,4 +1,4 @@
-import { stripTargetPrefix } from "../config";
+import { stripTargetPrefix } from "../platform/config";
 
 function stripProviderPrefix(raw: string): string {
   return raw.replace(/^(dingtalk|dd|ding)\s*:\s*/i, "");

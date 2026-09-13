@@ -10,8 +10,8 @@
 
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { extractMessageContent } from "../../../src/message-utils";
-import { sendBySession } from "../../../src/send-service";
+import { extractMessageContent } from "../../../src/messaging/message-utils";
+import { sendBySession } from "../../../src/messaging/send-service";
 import { resolveAtAgents } from "../../../src/targeting/agent-name-matcher";
 import {
   buildAgentSessionKey,
@@ -20,9 +20,9 @@ import {
   resolveMessageTarget,
   sendUnmatchedAgentNotice,
 } from "../../../src/targeting/agent-routing";
-import type { DingTalkConfig, DingTalkInboundMessage, Logger } from "../../../src/types";
+import type { DingTalkConfig, DingTalkInboundMessage, Logger } from "../../../src/platform/types";
 
-vi.mock("../../../src/send-service", () => ({
+vi.mock("../../../src/messaging/send-service", () => ({
   sendBySession: vi.fn(),
 }));
 
@@ -30,7 +30,7 @@ const runtimeShared = vi.hoisted(() => ({
   getDingTalkRuntime: vi.fn(),
 }));
 
-vi.mock("../../../src/runtime", () => ({
+vi.mock("../../../src/platform/runtime", () => ({
   getDingTalkRuntime: runtimeShared.getDingTalkRuntime,
 }));
 

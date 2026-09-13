@@ -7,7 +7,7 @@ const cardMocks = vi.hoisted(() => ({
     sendProactiveCardTextMock: vi.fn(),
 }));
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -16,14 +16,14 @@ vi.mock('axios', () => ({
     isAxiosError: vi.fn(),
 }));
 
-vi.mock('../../src/card-service', () => ({
+vi.mock('../../src/card/card-service', () => ({
     isCardInTerminalState: cardMocks.isCardInTerminalStateMock,
     streamAICard: cardMocks.streamAICardMock,
     sendProactiveCardText: cardMocks.sendProactiveCardTextMock,
 }));
 
-import { sendMessage } from '../../src/send-service';
-import { AICardStatus } from '../../src/types';
+import { sendMessage } from '../../src/messaging/send-service';
+import { AICardStatus } from '../../src/platform/types';
 
 const mockedAxios = vi.mocked(axios);
 

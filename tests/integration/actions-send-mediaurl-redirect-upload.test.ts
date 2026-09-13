@@ -36,7 +36,7 @@ vi.mock('node:dns/promises', () => ({
     lookup: dnsLookupMock,
 }));
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: getAccessTokenMock,
 }));
 

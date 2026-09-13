@@ -8,20 +8,20 @@ const shared = vi.hoisted(() => ({
     getConfigMock: vi.fn(),
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
     sendMessage: shared.sendMessageMock,
     sendMedia: shared.sendMediaMock,
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
     getDingTalkRuntime: shared.getRuntimeMock,
 }));
 
-vi.mock("../../src/logger-context", () => ({
+vi.mock("../../src/platform/logger-context", () => ({
     getLogger: shared.getLoggerMock,
 }));
 
-vi.mock("../../src/config", () => ({
+vi.mock("../../src/platform/config", () => ({
     getConfig: shared.getConfigMock,
 }));
 
