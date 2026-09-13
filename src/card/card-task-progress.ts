@@ -13,6 +13,17 @@ const OPTIMISTIC_RUN_ID_CAPTURE_WINDOW_MS = 5_000;
 const CORRELATION_CONSUMER = "card-task-progress";
 
 /**
+ * Tool events use `start` / `update` / `result` (`update` is a mid-call
+ * progress tick and must not count). Only the terminal phase completes a step.
+ *
+ * A real-device run caught this: the counter previously matched `"end"`, which
+ * the runtime never emits, so "已完成 N 步" stayed at 0 forever.
+ */
+function isToolCompletedPhase(phase: unknown): boolean {
+  return phase === "result";
+}
+
+/**
  * Decide whether the live task-progress block is allowed for this card.
  *
  * `cardTaskProgress` is tri-state on purpose: explicit `true`/`false` always
@@ -46,27 +57,34 @@ export function resolveCardTaskProgressEnabled(
   return config.cardStreamingMode !== "off";
 }
 
-function resolveSafeStage(toolName: unknown): string {
+/**
+ * Map a tool name to a short, sanitized task-kind label.
+ *
+ * Labels are bare kinds (no leading 正在) because the progress line renders them
+ * as `{kind}中，已完成 N 步，耗时 …`. Only the normalized tool name is used —
+ * raw arguments, commands, URLs and outputs never reach the card.
+ */
+function resolveTaskKind(toolName: unknown): string {
   const name = typeof toolName === "string" ? toolName.trim().toLowerCase() : "";
   if (["read", "view", "find", "list", "glob"].includes(name)) {
-    return "正在检查文件";
+    return "检查文件";
   }
   if (["write", "edit", "patch", "apply_patch"].includes(name)) {
-    return "正在应用修改";
+    return "应用修改";
   }
   if (["web_search", "search", "fetch", "open", "open_url"].includes(name)) {
-    return "正在查询资料";
+    return "查询资料";
   }
   if (name.includes("browser")) {
-    return "正在验证页面";
+    return "验证页面";
   }
   if (["bash", "exec", "process", "exec_command"].includes(name)) {
-    return "正在执行检查";
+    return "执行检查";
   }
   if (name.includes("database") || name.includes("sql") || name.includes("query")) {
-    return "正在查询数据";
+    return "查询数据";
   }
-  return "正在处理任务";
+  return "处理任务";
 }
 
 function formatElapsed(elapsedMs: number): string {
@@ -135,7 +153,7 @@ export function createCardTaskProgressController(params: {
     params.refresh === "interval" ? "interval" : "heartbeat";
 
   const startedAt = Date.now();
-  let currentStage = "正在处理任务";
+  let currentStage = "处理任务";
   let completedSteps = 0;
   let visible = false;
   let disposed = false;
@@ -152,15 +170,19 @@ export function createCardTaskProgressController(params: {
     log: params.log,
   });
 
-  const render = (): string => {
-    const now = Date.now();
-    return [
-      "⏳ 任务处理中",
-      `当前阶段：${currentStage}`,
-      `已完成：${completedSteps} 步`,
-      `已耗时：${formatElapsed(now - startedAt)}`,
-    ].join("\n");
-  };
+  /**
+   * One compact line, rendered as a single card block.
+   *
+   * Real-device constraints: inside one multi-line markdown block the DingTalk
+   * client only re-renders the trailing line (which froze the step count), so a
+   * single line is both the most compact shape and the only one that updates
+   * reliably at every refresh cadence.
+   *
+   * The leading task kind comes from the normalized tool name (never raw
+   * arguments), and the elapsed value renders as `n 秒` or `n 分 n 秒`.
+   */
+  const render = (): string =>
+    `${currentStage}中，已完成 ${completedSteps} 步，耗时 ${formatElapsed(Date.now() - startedAt)}`;
 
   const awaitDrain = async (): Promise<void> => {
     await updatePromise.catch(() => undefined);
@@ -179,17 +201,28 @@ export function createCardTaskProgressController(params: {
     }
     heartbeatTimer = setInterval(() => {
       if (visible) {
-        void enqueueUpdate();
+        void enqueueUpdate("heartbeat");
       }
     }, params.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS);
     // Never keep the gateway process alive for a cosmetic heartbeat.
     heartbeatTimer.unref?.();
   };
 
-  const enqueueUpdate = () => {
+  /**
+   * Queue one card refresh.
+   *
+   * The debug line is the only observable trace of what the reader actually
+   * sees (the rendered text never touches the API logs), and a real-device run
+   * needed exactly this to prove the step counter advances.
+   */
+  const enqueueUpdate = (reason: "appearance" | "heartbeat" | "tool-event") => {
     if (disposed) {
       return updatePromise;
     }
+    params.log?.debug?.(
+      `[DingTalk][TaskProgress] Push reason=${reason} steps=${completedSteps} ` +
+        `stage="${currentStage}" elapsed=${Math.round((Date.now() - startedAt) / 1000)}s`,
+    );
     updatePromise = updatePromise
       .then(() => params.updateProgress(render()))
       .catch((error: unknown) => {
@@ -216,7 +249,7 @@ export function createCardTaskProgressController(params: {
     // An early tool event already satisfied the startup delay.
     cancelStartTimer();
     ensureHeartbeat();
-    void enqueueUpdate();
+    void enqueueUpdate("appearance");
   };
 
   const refreshProgress = () => {
@@ -228,7 +261,7 @@ export function createCardTaskProgressController(params: {
       return;
     }
     if (refreshMode === "interval") {
-      void enqueueUpdate();
+      void enqueueUpdate("tool-event");
     }
   };
 
@@ -246,11 +279,11 @@ export function createCardTaskProgressController(params: {
     }
 
     if (agentEvent.data?.phase === "start") {
-      currentStage = resolveSafeStage(agentEvent.data?.name);
+      currentStage = resolveTaskKind(agentEvent.data?.name);
       refreshProgress();
       return;
     }
-    if (agentEvent.data?.phase === "end") {
+    if (isToolCompletedPhase(agentEvent.data?.phase)) {
       const toolCallId = agentEvent.data?.toolCallId?.trim();
       if (!toolCallId || !completedToolCalls.has(toolCallId)) {
         if (toolCallId) {

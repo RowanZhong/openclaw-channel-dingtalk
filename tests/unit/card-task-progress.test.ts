@@ -28,7 +28,7 @@ describe("card task progress", () => {
     vi.useRealTimers();
   });
 
-  it("shows a safe stage for a correlated tool without rendering raw arguments", async () => {
+  it("renders one compact sanitized progress line for a correlated tool", async () => {
     const controller = createCardTaskProgressController({
       sessionKey: "s1",
       runtimeEvents,
@@ -51,16 +51,19 @@ describe("card task progress", () => {
     await controller.awaitDrain();
 
     const rendered = String(updateProgress.mock.calls.at(-1)?.[0] ?? "");
-    expect(rendered).toContain("当前阶段：正在执行检查");
-    expect(rendered).toContain("已完成：0 步");
+    expect(rendered).toContain("执行检查中，已完成 0 步，耗时 ");
+    expect(rendered).toContain("耗时 ");
     expect(rendered).not.toContain("curl");
     expect(rendered).not.toContain("secret-token");
     // No server-clock line: wall-clock rendering is timezone dependent.
     expect(rendered).not.toContain("更新：");
-    expect(rendered.split("\n")).toHaveLength(4);
+    // One line is the only shape the DingTalk client re-renders reliably, and
+    // the stage is intentionally not part of the visible summary.
+    expect(rendered.split("\n")).toHaveLength(1);
+    expect(rendered).not.toContain("当前阶段");
   });
 
-  it("counts completed tools and renders the next concise stage on the heartbeat", async () => {
+  it("counts completed tools and reports the count on the heartbeat", async () => {
     const controller = createCardTaskProgressController({
       sessionKey: "s1",
       runtimeEvents,
@@ -77,7 +80,7 @@ describe("card task progress", () => {
     listener?.({
       stream: "tool",
       runId: "run-1",
-      data: { phase: "end", name: "read", toolCallId: "tool-1" },
+      data: { phase: "result", name: "read", toolCallId: "tool-1" },
     });
     listener?.({
       stream: "tool",
@@ -96,8 +99,54 @@ describe("card task progress", () => {
 
     expect(updateProgress).toHaveBeenCalledTimes(2);
     const rendered = String(updateProgress.mock.calls.at(-1)?.[0] ?? "");
-    expect(rendered).toContain("当前阶段：正在查询资料");
-    expect(rendered).toContain("已完成：1 步");
+    expect(rendered).toContain("已完成 1 步，耗时 ");
+    expect(rendered).toMatch(/耗时 \d+ 秒/);
+  });
+
+  it("counts one completed step per tool result and ignores mid-call update ticks", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    listener?.({ stream: "lifecycle", runId: "run-1", sessionKey: "s1", data: { phase: "start" } });
+    // Real runtime vocabulary, captured on a live device: start -> update -> result.
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "start", name: "exec", toolCallId: "tool-1" },
+    });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "update", name: "exec", toolCallId: "tool-1", partialResult: "…" },
+    });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "update", name: "exec", toolCallId: "tool-1", partialResult: "…" },
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    await controller.awaitDrain();
+    expect(String(updateProgress.mock.calls.at(-1)?.[0] ?? "")).toContain("已完成 0 步");
+
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "result", name: "exec", toolCallId: "tool-1", isError: false },
+    });
+    // A duplicate terminal event for the same call must not double count.
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "result", name: "exec", toolCallId: "tool-1", isError: false },
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    await controller.awaitDrain();
+
+    expect(String(updateProgress.mock.calls.at(-1)?.[0] ?? "")).toContain("已完成 1 步");
   });
 
   it("keeps the documented update budget for a tool-heavy task", async () => {    const controller = createCardTaskProgressController({
@@ -118,7 +167,7 @@ describe("card task progress", () => {
       listener?.({
         stream: "tool",
         runId: "run-1",
-        data: { phase: "end", name: "read", toolCallId: `tool-${index}` },
+        data: { phase: "result", name: "read", toolCallId: `tool-${index}` },
       });
     }
     await controller.awaitDrain();
@@ -131,7 +180,7 @@ describe("card task progress", () => {
     expect(updateProgress).toHaveBeenCalledTimes(5);
   });
 
-  it("pushes every stage change immediately in interval refresh mode", async () => {
+  it("pushes every update immediately in interval refresh mode", async () => {
     const controller = createCardTaskProgressController({
       sessionKey: "s1",
       refresh: "interval",
@@ -149,7 +198,7 @@ describe("card task progress", () => {
     listener?.({
       stream: "tool",
       runId: "run-1",
-      data: { phase: "end", name: "read", toolCallId: "tool-1" },
+      data: { phase: "result", name: "read", toolCallId: "tool-1" },
     });
     listener?.({
       stream: "tool",
@@ -163,8 +212,7 @@ describe("card task progress", () => {
     // still applies `cardStreamInterval` on top of these calls.
     expect(updateProgress).toHaveBeenCalledTimes(3);
     const rendered = String(updateProgress.mock.calls.at(-1)?.[0] ?? "");
-    expect(rendered).toContain("当前阶段：正在查询资料");
-    expect(rendered).toContain("已完成：1 步");
+    expect(rendered).toContain("已完成 1 步，耗时 ");
 
     // The 10s startup timer was already cancelled by the first appearance.
     updateProgress.mockClear();
@@ -234,17 +282,17 @@ describe("card task progress", () => {
     await vi.advanceTimersByTimeAsync(1);
     await controller.awaitDrain();
     expect(updateProgress).toHaveBeenCalledTimes(1);
-    expect(String(updateProgress.mock.calls[0]?.[0])).toContain("当前阶段：正在处理任务");
+    expect(String(updateProgress.mock.calls[0]?.[0])).toContain("处理任务中，已完成 0 步");
 
     await vi.advanceTimersByTimeAsync(30_000);
     await controller.awaitDrain();
     expect(updateProgress).toHaveBeenCalledTimes(2);
-    expect(String(updateProgress.mock.calls[1]?.[0])).toContain("已耗时：40 秒");
+    expect(String(updateProgress.mock.calls[1]?.[0])).toContain("耗时 40 秒");
 
     await vi.advanceTimersByTimeAsync(30_000);
     await controller.awaitDrain();
     expect(updateProgress).toHaveBeenCalledTimes(3);
-    expect(String(updateProgress.mock.calls[2]?.[0])).toContain("已耗时：1 分 10 秒");
+    expect(String(updateProgress.mock.calls[2]?.[0])).toContain("耗时 1 分 10 秒");
   });
 
   it("unsubscribes, clears every timer and clears progress when disposed", async () => {
