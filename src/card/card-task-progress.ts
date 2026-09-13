@@ -1,14 +1,37 @@
 import {
-  createDynamicAckReactionCorrelator,
-  type DynamicAckReactionLogger,
+  createAgentEventCorrelator,
   type RuntimeAgentEvent,
+  type RuntimeEventsLogger,
   type RuntimeEventsSurface,
-} from "../ack-reaction/dynamic-ack-reaction-events";
+} from "../platform/runtime-events";
+import type { DingTalkConfig } from "../types";
 import { getErrorMessage } from "../utils";
 
 const DEFAULT_START_DELAY_MS = 10_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 const OPTIMISTIC_RUN_ID_CAPTURE_WINDOW_MS = 5_000;
+const CORRELATION_CONSUMER = "card-task-progress";
+
+/**
+ * Decide whether the live task-progress block is allowed for this card.
+ *
+ * `cardTaskProgress` is tri-state on purpose: explicit `true`/`false` always
+ * wins. When unset the block is on by default, except for an explicit
+ * `cardStreamingMode: "off"` — that is a deliberate "keep card traffic
+ * minimal" request, so progress stays quiet until the user opts back in.
+ * (An unset `cardStreamingMode` is not the same as `"off"` here.)
+ */
+export function resolveCardTaskProgressEnabled(
+  config: Pick<DingTalkConfig, "cardTaskProgress" | "cardStreamingMode">,
+): boolean {
+  if (config.cardTaskProgress === false) {
+    return false;
+  }
+  if (config.cardTaskProgress === true) {
+    return true;
+  }
+  return config.cardStreamingMode !== "off";
+}
 
 function resolveSafeStage(toolName: unknown): string {
   const name = typeof toolName === "string" ? toolName.trim().toLowerCase() : "";
@@ -40,24 +63,44 @@ function formatElapsed(elapsedMs: number): string {
   return minutes > 0 ? `${minutes} 分 ${seconds} 秒` : `${seconds} 秒`;
 }
 
-function formatUpdatedAt(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString("zh-CN", {
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+export interface CardTaskProgressController {
+  /** Wait for queued card updates to settle (test/observability helper). */
+  awaitDrain(): Promise<void>;
+  /**
+   * Release timers and the runtime-event subscription, then remove the
+   * progress block. Idempotent, and safe to call when nothing was rendered.
+   */
+  dispose(): Promise<void>;
 }
 
+/**
+ * Keep one replaceable "task in progress" block on an AI card.
+ *
+ * Returns a no-op controller when progress is disabled by config or when the
+ * session key is unknown: without a session key the correlator could only rely
+ * on its optimistic window, which surfaces as an intermittently missing block.
+ */
 export function createCardTaskProgressController(params: {
   sessionKey: string;
+  enabled?: boolean;
   runtimeEvents?: RuntimeEventsSurface;
   updateProgress: (text: string) => Promise<void>;
   clearProgress: () => Promise<void>;
   startDelayMs?: number;
   heartbeatIntervalMs?: number;
-  log?: DynamicAckReactionLogger;
-}) {
+  log?: RuntimeEventsLogger;
+}): CardTaskProgressController {
+  const sessionKey = params.sessionKey?.trim() ?? "";
+  if (params.enabled === false || !sessionKey) {
+    params.log?.debug?.(
+      `[DingTalk][TaskProgress] Disabled — enabled=${params.enabled !== false} hasSessionKey=${Boolean(sessionKey)}`,
+    );
+    return {
+      async awaitDrain(): Promise<void> {},
+      async dispose(): Promise<void> {},
+    };
+  }
+
   const startedAt = Date.now();
   let currentStage = "正在处理任务";
   let completedSteps = 0;
@@ -66,8 +109,9 @@ export function createCardTaskProgressController(params: {
   let updatePromise: Promise<void> = Promise.resolve();
   let heartbeatTimer: NodeJS.Timeout | undefined;
   const completedToolCalls = new Set<string>();
-  const isCorrelatedEvent = createDynamicAckReactionCorrelator({
-    sessionKey: params.sessionKey,
+  const isCorrelatedEvent = createAgentEventCorrelator({
+    consumer: CORRELATION_CONSUMER,
+    sessionKey,
     enabled: true,
     createdAt: startedAt,
     optimisticCaptureWindowMs: OPTIMISTIC_RUN_ID_CAPTURE_WINDOW_MS,
@@ -81,8 +125,11 @@ export function createCardTaskProgressController(params: {
       `当前阶段：${currentStage}`,
       `已完成：${completedSteps} 步`,
       `已耗时：${formatElapsed(now - startedAt)}`,
-      `更新：${formatUpdatedAt(now)}`,
     ].join("\n");
+  };
+
+  const awaitDrain = async (): Promise<void> => {
+    await updatePromise.catch(() => undefined);
   };
 
   const ensureHeartbeat = () => {
@@ -94,6 +141,8 @@ export function createCardTaskProgressController(params: {
         void queueUpdate();
       }
     }, params.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS);
+    // Never keep the gateway process alive for a cosmetic heartbeat.
+    heartbeatTimer.unref?.();
   };
 
   const queueUpdate = () => {
@@ -146,11 +195,10 @@ export function createCardTaskProgressController(params: {
   const startTimer = setTimeout(() => {
     void queueUpdate();
   }, params.startDelayMs ?? DEFAULT_START_DELAY_MS);
+  startTimer.unref?.();
 
   return {
-    async awaitDrain(): Promise<void> {
-      await updatePromise.catch(() => undefined);
-    },
+    awaitDrain,
     async dispose(): Promise<void> {
       if (disposed) {
         return;
@@ -159,9 +207,10 @@ export function createCardTaskProgressController(params: {
       clearTimeout(startTimer);
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
+        heartbeatTimer = undefined;
       }
       unsubscribe();
-      await this.awaitDrain();
+      await awaitDrain();
       if (visible) {
         await params.clearProgress();
       }

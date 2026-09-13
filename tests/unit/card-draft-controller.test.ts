@@ -189,6 +189,37 @@ describe("card-draft-controller", () => {
         expect(blocks).toHaveLength(0);
     });
 
+    it("keeps an active answer block intact while a progress block is added and removed", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateAnswer("answer draft", { stream: false, renderBlocks: true });
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+
+        let blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(2);
+        expect(getBlockText(blocks, 0)).toContain("任务处理中");
+        expect(getBlockText(blocks, 1)).toContain("answer draft");
+
+        await ctrl.clearProgress();
+        await vi.advanceTimersByTimeAsync(0);
+
+        blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(1);
+        expect(getBlockText(blocks, 0)).toContain("answer draft");
+
+        // The active answer index must still point at the surviving entry, so a
+        // later answer update replaces it instead of appending a second block.
+        await ctrl.updateAnswer("answer draft v2", { stream: false, renderBlocks: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(1);
+        expect(getBlockText(blocks, 0)).toContain("answer draft v2");
+        expect(getBlockText(blocks, 0)).not.toContain("任务处理中");
+    });
+
     it("answer rendering keeps the latest thinking block in the same timeline", async () => {
         const card = makeCard();
         const ctrl = createCardDraftController({ card, throttleMs: 0 });

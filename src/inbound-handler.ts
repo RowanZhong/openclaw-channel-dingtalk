@@ -7,7 +7,7 @@ import { normalizeAllowFrom, isSenderAllowed, resolveGroupAccess } from "./acces
 import { classifyAckReactionEmoji } from "./ack-reaction-classifier";
 import { attachNativeAckReaction } from "./ack-reaction-service";
 import { createDynamicAckReactionController } from "./ack-reaction/dynamic-ack-reaction-controller";
-import { createRuntimeEventsFanout } from "./ack-reaction/dynamic-ack-reaction-events";
+import { createRuntimeEventsFanout } from "./platform/runtime-events";
 import { getAccessToken } from "./auth";
 import {
   createAICard,
@@ -68,7 +68,7 @@ import {
   withReplySessionConflictRetry,
 } from "./gateway/reply-session-conflict";
 import { createReplyStrategy } from "./reply-strategy";
-import type { DeliverPayload } from "./reply-strategy-types";
+import type { DeliverPayload, ReplyStrategy } from "./reply-strategy-types";
 import { getDingTalkRuntime } from "./runtime";
 import { sendBySession, sendMessage, sendProactiveMedia } from "./send-service";
 import { acquireSessionLock } from "./session-lock";
@@ -2291,8 +2291,12 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         };
       }
     ).events;
-    const replyRuntimeEvents = createRuntimeEventsFanout(runtimeEvents);
+    const replyRuntimeEvents = createRuntimeEventsFanout(runtimeEvents, { log });
     const releaseSessionLock = await acquireSessionLock(route.sessionKey);
+    // Declared outside the dispatch try-block so the finally below can always
+    // release strategy-owned resources, including early returns that neither
+    // finalize nor abort (ask-user question-card takeover).
+    let strategyForCleanup: ReplyStrategy | undefined;
     const dynamicAckReactionController = createDynamicAckReactionController({
       enabled: shouldTrackDynamicAckReaction,
       initialReaction: resolvedAckReaction || "",
@@ -2380,6 +2384,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         taskMeta,
         runtimeEvents: replyRuntimeEvents,
       });
+      strategyForCleanup = strategy;
 
       let deliveredFinalCount = 0;
       // Extracted as a thunk so reply-session init conflicts (raised by the
@@ -2569,6 +2574,12 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       // In that case, let the 30-minute TTL sweep handle cleanup.
       if (currentOutTrackId && !isCardRunStopRequested(currentOutTrackId)) {
         removeCardRun(currentOutTrackId);
+      }
+      // Guarantee strategy-owned cleanup on every exit path, including the
+      // question-card takeover return above. `dispose()` is idempotent, so a
+      // prior finalize()/abort() already having disposed is harmless.
+      if (strategyForCleanup) {
+        await strategyForCleanup.dispose();
       }
       await waitForDynamicAckDispose({
         dispose: () => dynamicAckReactionController.dispose(MIN_THINKING_REACTION_VISIBLE_MS),

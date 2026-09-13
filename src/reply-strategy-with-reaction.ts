@@ -183,6 +183,11 @@ export function withDynamicReaction(
       await inner.abort(_error);
     },
 
+    async dispose(): Promise<void> {
+      await dispose();
+      await inner.dispose();
+    },
+
     getFinalText(): string | undefined {
       return inner.getFinalText();
     },

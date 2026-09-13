@@ -470,5 +470,93 @@ describe("inbound-handler card lifecycle", () => {
     );
   });
 
+  it("stops card task progress once a question card takes over the turn", async () => {
+    vi.useFakeTimers();
+    try {
+      const card = {
+        cardInstanceId: "card_takeover_progress",
+        state: "1",
+        lastUpdated: Date.now(),
+      } as unknown as { cardInstanceId: string; state: string; lastUpdated: number };
+      shared.createAICardMock.mockResolvedValueOnce(card);
+      shared.isCardInTerminalStateMock.mockImplementation(
+        (state: string) => state === "3" || state === "5",
+      );
 
+      let agentEventListener: ((event: unknown) => void) | undefined;
+      const runtime = buildRuntime();
+      (runtime as unknown as { events?: unknown }).events = {
+        onAgentEvent: vi.fn((listener: (event: unknown) => void) => {
+          agentEventListener = listener;
+          return vi.fn();
+        }),
+      };
+      runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher = vi
+        .fn()
+        .mockImplementation(async () => {
+          agentEventListener?.({
+            stream: "lifecycle",
+            runId: "run-takeover-progress",
+            sessionKey: "s1",
+            data: { phase: "start" },
+          });
+          agentEventListener?.({
+            stream: "tool",
+            runId: "run-takeover-progress",
+            sessionKey: "s1",
+            data: {
+              phase: "start",
+              name: "exec",
+              toolCallId: "tool-progress",
+              args: { cmd: "curl -H 'Authorization: Bearer secret-token' https://example.com" },
+            },
+          });
+          await getDingTalkQuestionContext()?.onQuestionCardSent?.({
+            questionId: "q_takeover_progress",
+            outTrackId: "ask_takeover_progress",
+          });
+          return { queuedFinal: false };
+        });
+      shared.getRuntimeMock.mockReturnValueOnce(runtime);
+
+      await handleDingTalkMessage({
+        cfg: {},
+        accountId: "main",
+        sessionWebhook: "https://session.webhook",
+        log: undefined,
+        dingtalkConfig: {
+          dmPolicy: "open",
+          messageType: "card",
+          ackReaction: "",
+        } as unknown as DingTalkConfig,
+        data: {
+          msgId: "question_takeover_progress",
+          msgtype: "text",
+          text: { content: "ask me" },
+          conversationType: "1",
+          conversationId: "cid_ok",
+          senderId: "user_1",
+          chatbotUserId: "bot_1",
+          sessionWebhook: "https://session.webhook",
+          createAt: Date.now(),
+        },
+      } as unknown as { data: unknown; dingtalkConfig: unknown });
+
+      const progressFrames = () =>
+        shared.updateAICardBlockListMock.mock.calls
+          .map((call: unknown[]) => String((call as unknown[])[1] ?? ""))
+          .filter((frame: string) => frame.includes("任务处理中"));
+
+      const framesAtTakeover = progressFrames().length;
+      // Regression guard: without releasing the progress controller, the 10s
+      // start delay and the 30s heartbeat keep pushing "⏳ 任务处理中" frames into
+      // a card the question card already replaced (resource leak + stale card).
+      await vi.advanceTimersByTimeAsync(61_000);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(progressFrames()).toHaveLength(framesAtTakeover);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

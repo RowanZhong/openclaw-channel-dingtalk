@@ -229,7 +229,10 @@ export function createCardDraftController(params: {
 
     const clearProgress = async () => {
         await waitForPendingBoundary();
-        if (stopped || failed) {
+        // A failed card never re-renders (the draft stream loop is stopped), but
+        // the timeline entry must still go away so a stale "任务处理中" block can
+        // never be picked up by a later render/fallback read.
+        if (stopped) {
             return;
         }
         const progressIndex = timelineEntries.findIndex((entry) => entry.kind === "progress");

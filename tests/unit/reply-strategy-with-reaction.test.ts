@@ -8,6 +8,7 @@ function buildInnerStrategy(overrides: Partial<ReplyStrategy> = {}): ReplyStrate
         deliver: vi.fn().mockResolvedValue(undefined),
         finalize: vi.fn().mockResolvedValue(undefined),
         abort: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn().mockResolvedValue(undefined),
         getFinalText: vi.fn().mockReturnValue("final"),
         ...overrides,
     };
@@ -216,6 +217,21 @@ describe("withDynamicReaction", () => {
 
         expect(unsubscribe).toHaveBeenCalledTimes(1);
         expect(inner.abort).toHaveBeenCalledWith(error);
+    });
+
+    it("dispose releases the reaction subscription and delegates to inner.dispose", async () => {
+        const inner = buildInnerStrategy();
+        const unsubscribe = vi.fn();
+        const subscribeAgentEvents = vi.fn(() => unsubscribe);
+
+        const decorated = withDynamicReaction(inner, buildParams({ subscribeAgentEvents }));
+        await decorated.dispose();
+
+        expect(unsubscribe).toHaveBeenCalledTimes(1);
+        expect(inner.dispose).toHaveBeenCalledTimes(1);
+        // dispose must not finalize or abort the delivery surface.
+        expect(inner.finalize).not.toHaveBeenCalled();
+        expect(inner.abort).not.toHaveBeenCalled();
     });
 
     it("resolves correct emoji for known tool names", async () => {

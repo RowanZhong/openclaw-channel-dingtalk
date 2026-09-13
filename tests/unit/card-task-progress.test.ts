@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createCardTaskProgressController } from "../../src/card/card-task-progress";
+import {
+  createCardTaskProgressController,
+  resolveCardTaskProgressEnabled,
+} from "../../src/card/card-task-progress";
 
 describe("card task progress", () => {
   let listener: ((event: unknown) => void) | undefined;
@@ -52,6 +55,9 @@ describe("card task progress", () => {
     expect(rendered).toContain("已完成：0 步");
     expect(rendered).not.toContain("curl");
     expect(rendered).not.toContain("secret-token");
+    // No server-clock line: wall-clock rendering is timezone dependent.
+    expect(rendered).not.toContain("更新：");
+    expect(rendered.split("\n")).toHaveLength(4);
   });
 
   it("counts completed tools and changes to the next concise stage", async () => {
@@ -111,7 +117,7 @@ describe("card task progress", () => {
     expect(String(updateProgress.mock.calls[2]?.[0])).toContain("已耗时：1 分 10 秒");
   });
 
-  it("unsubscribes and clears progress when disposed", async () => {
+  it("unsubscribes, clears every timer and clears progress when disposed", async () => {
     const unsubscribe = vi.fn();
     runtimeEvents.onAgentEvent.mockImplementationOnce((nextListener) => {
       listener = nextListener;
@@ -129,5 +135,127 @@ describe("card task progress", () => {
 
     expect(unsubscribe).toHaveBeenCalledOnce();
     expect(clearProgress).toHaveBeenCalledOnce();
+    // The start delay and the heartbeat must both be gone.
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not schedule anything after dispose even when events keep arriving", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await controller.dispose();
+    const framesAtDispose = updateProgress.mock.calls.length;
+
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      sessionKey: "s1",
+      data: { phase: "start", name: "exec", toolCallId: "late-tool" },
+    });
+    await vi.advanceTimersByTimeAsync(120_000);
+    await controller.awaitDrain();
+
+    expect(updateProgress).toHaveBeenCalledTimes(framesAtDispose);
+  });
+
+  it("is idempotent when disposed twice", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await controller.dispose();
+    await controller.dispose();
+
+    expect(clearProgress).toHaveBeenCalledOnce();
+  });
+
+  it("stays a no-op when disabled by config", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      enabled: false,
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    await controller.dispose();
+
+    expect(runtimeEvents.onAgentEvent).not.toHaveBeenCalled();
+    expect(updateProgress).not.toHaveBeenCalled();
+    expect(clearProgress).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("stays a no-op without a session key", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "   ",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    await controller.dispose();
+
+    expect(runtimeEvents.onAgentEvent).not.toHaveBeenCalled();
+    expect(updateProgress).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("unrefs the start delay and heartbeat so progress cannot keep the process alive", async () => {
+    vi.useRealTimers();
+    const countRefdTimeouts = () =>
+      process.getActiveResourcesInfo().filter((resource) => resource === "Timeout").length;
+    const before = countRefdTimeouts();
+
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+    expect(countRefdTimeouts()).toBe(before);
+
+    listener?.({ stream: "lifecycle", runId: "run-1", sessionKey: "s1", data: { phase: "start" } });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      sessionKey: "s1",
+      data: { phase: "start", name: "read", toolCallId: "tool-1" },
+    });
+    expect(countRefdTimeouts()).toBe(before);
+
+    await controller.dispose();
+  });
+});
+
+describe("resolveCardTaskProgressEnabled", () => {
+  it("honours an explicit boolean regardless of streaming mode", () => {
+    expect(resolveCardTaskProgressEnabled({ cardTaskProgress: true, cardStreamingMode: "off" })).toBe(
+      true,
+    );
+    expect(resolveCardTaskProgressEnabled({ cardTaskProgress: false, cardStreamingMode: "all" })).toBe(
+      false,
+    );
+  });
+
+  it("is enabled by default when cardTaskProgress is unset", () => {
+    expect(resolveCardTaskProgressEnabled({})).toBe(true);
+    expect(resolveCardTaskProgressEnabled({ cardStreamingMode: "answer" })).toBe(true);
+    expect(resolveCardTaskProgressEnabled({ cardStreamingMode: "all" })).toBe(true);
+  });
+
+  it("stays quiet for an explicit cardStreamingMode off", () => {
+    expect(resolveCardTaskProgressEnabled({ cardStreamingMode: "off" })).toBe(false);
   });
 });
