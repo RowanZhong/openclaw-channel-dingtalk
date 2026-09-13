@@ -104,7 +104,7 @@ openclaw configure --section channels
 
 插件把 SecretInput 交给 OpenClaw 宿主解析；文件路径来自 `secrets.providers`，不会把 `clientSecret.id` 当作路径读取。
 
-`env` 引用会先经过宿主只读路径授权，插件只读取该引用对应的单个环境变量。推荐显式配置 `allowlist`：
+`env` 引用会先经过宿主只读路径授权，随后由宿主 SDK 读取该引用对应的单个环境变量（插件自身不访问进程环境）。推荐显式配置 `allowlist`：
 
 ```json5
 {

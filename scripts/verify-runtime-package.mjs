@@ -35,10 +35,31 @@ if (processExecutionCall.test(runtime)) {
 // This is a shape heuristic against the exact fingerprint that ClawHub flagged
 // (Issue #608), not an exhaustive dataflow analysis: indirect forms such as
 // `env: { ...process.env }`, `const e = process.env; env: e`, or `env: process.env
-// as any` would not match, and a single-key read (`process.env[id]`) is allowed.
+// as any` would not match.
 const ambientEnvPassThrough = /\benv\s*:\s*process\.env\s*(?:,|\}|\))/u;
 if (ambientEnvPassThrough.test(runtime)) {
   throw new Error("Runtime package must not pass the whole process.env to a secret resolver");
+}
+
+// The runtime bundle must not reach into ambient environment state at all.
+//
+// ClawHub's `suspicious.env_credential_access` rule ("environment variable access
+// combined with network send") stayed open on the single-key read that used to
+// resolve an `env` SecretInput. That read now happens inside the host SDK
+// (`openclaw/plugin-sdk/secret-ref-readonly`), and this guard keeps a direct
+// ambient read from silently reappearing in the published artifact.
+//
+// Only the documented non-credential card template id override is allowed; see
+// `docs/user/reference/security-policies.md` (环境变量读取范围).
+const allowedEnvKeys = new Set(["DINGTALK_CARD_TEMPLATE_ID"]);
+const ambientEnvAccess = /\bprocess\s*\.\s*env\b(?:\s*\.\s*([A-Za-z_$][\w$]*)|(\s*\[[^\]]*\]))?/gu;
+for (const [match, staticKey, computedKey] of runtime.matchAll(ambientEnvAccess)) {
+  if (!computedKey && staticKey && allowedEnvKeys.has(staticKey)) {
+    continue;
+  }
+  throw new Error(
+    `Runtime package must not read ambient environment state outside the documented allowlist: ${match}`,
+  );
 }
 
 console.log(`Runtime package check passed: ${requiredFiles.join(", ")}`);

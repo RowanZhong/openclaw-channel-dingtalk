@@ -1,7 +1,10 @@
 /**
  * Verifies that DingTalk reads one allowlisted environment secret at a time
  * through the host read-only guard instead of handing the whole ambient
- * `process.env` object to the secret resolver.
+ * `process.env` object to the secret resolver, and that the plugin never performs
+ * the environment read itself: the single authorized value is read inside the host
+ * SDK (`resolveReadOnlyEnvSecretRef`), which is what keeps ClawHub's
+ * `suspicious.env_credential_access` fingerprint out of the published bundle.
  *
  * Only the host's configured/file resolver is mocked here; the read-only
  * authorization guard (`canResolveEnvSecretRefInReadOnlyPath`) and the literal
@@ -10,6 +13,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolveConfiguredSecretInputStringMock = vi.fn();
+const resolveReadOnlyEnvSecretRefMock = vi.fn();
 
 vi.mock("openclaw/plugin-sdk/secret-input-runtime", async (importOriginal) => {
   const actual =
@@ -18,6 +22,19 @@ vi.mock("openclaw/plugin-sdk/secret-input-runtime", async (importOriginal) => {
     ...actual,
     resolveConfiguredSecretInputString: (...args: unknown[]) =>
       resolveConfiguredSecretInputStringMock(...args),
+  };
+});
+
+vi.mock("openclaw/plugin-sdk/secret-ref-readonly", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/secret-ref-readonly")>();
+  return {
+    ...actual,
+    resolveReadOnlyEnvSecretRef: (params: unknown) => {
+      resolveReadOnlyEnvSecretRefMock(params);
+      return actual.resolveReadOnlyEnvSecretRef(
+        params as Parameters<typeof actual.resolveReadOnlyEnvSecretRef>[0],
+      );
+    },
   };
 });
 
@@ -33,6 +50,7 @@ const UNSET_VAR = "DINGTALK_TEST_UNSET_SECRET";
 describe("SecretInput env isolation", () => {
   beforeEach(() => {
     resolveConfiguredSecretInputStringMock.mockReset();
+    resolveReadOnlyEnvSecretRefMock.mockReset();
     delete process.env[ALLOWLISTED_VAR];
     delete process.env[UNAUTHORIZED_VAR];
     delete process.env[UNSET_VAR];
@@ -61,6 +79,41 @@ describe("SecretInput env isolation", () => {
     expect(resolved.failure).toBeUndefined();
     // The env branch never falls back to the file/config resolver.
     expect(resolveConfiguredSecretInputStringMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves the authorized single-value read to the host resolver", async () => {
+    process.env[ALLOWLISTED_VAR] = "host-owned-secret";
+    const hostConfig = allowlistedConfig(ALLOWLISTED_VAR);
+
+    const resolved = await resolveSecretInputStringWithFailure(
+      { source: "env", provider: "env", id: ALLOWLISTED_VAR },
+      undefined,
+      hostConfig as any,
+    );
+
+    expect(resolved.value).toBe("host-owned-secret");
+    expect(resolveReadOnlyEnvSecretRefMock).toHaveBeenCalledTimes(1);
+    const call = resolveReadOnlyEnvSecretRefMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(call).toMatchObject({
+      path: "channels.dingtalk.clientSecret",
+      cfg: hostConfig,
+      expectedEnvId: ALLOWLISTED_VAR,
+    });
+    // The plugin hands over the reference, never an environment snapshot.
+    expect(call).not.toHaveProperty("env");
+  });
+
+  it("does not ask the host to resolve an unauthorized variable", async () => {
+    process.env[ALLOWLISTED_VAR] = "ambient-secret";
+
+    const resolved = await resolveSecretInputStringWithFailure(
+      { source: "env", provider: "env", id: UNAUTHORIZED_VAR },
+      undefined,
+      allowlistedConfig(ALLOWLISTED_VAR) as any,
+    );
+
+    expect(resolved.failure?.reason).toContain("is not authorized for a read-only path");
+    expect(resolveReadOnlyEnvSecretRefMock).not.toHaveBeenCalled();
   });
 
   it("fails closed when the allowlist does not cover the variable", async () => {

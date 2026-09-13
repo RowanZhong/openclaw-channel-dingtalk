@@ -93,7 +93,7 @@ SecretInput 对象字段：
 
 安全边界：
 
-- `env` 引用通过宿主只读路径授权校验后才读取，且**只读取该引用对应的单个环境变量**，插件不会把整个 `process.env` 交给解析器
+- `env` 引用通过宿主只读路径授权校验后才读取：插件把引用交给宿主 SDK 的 `resolveReadOnlyEnvSecretRef`，由宿主读取该引用对应的**单个环境变量**；插件自身不访问进程环境，也不会把整个 `process.env` 交给任何解析器
 - 授权规则与宿主一致：
   - `secrets.providers.<provider>` 声明为 `source: "env"` 且 `allowlist` 包含该 `id` → 授权通过
   - `secrets.providers.<provider>` 声明为 `source: "env"` 但**未配置 `allowlist`** → 该 provider 会对**任意** `id` 放行，等效于不做白名单限制
