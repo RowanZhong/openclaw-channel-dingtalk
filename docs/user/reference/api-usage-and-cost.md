@@ -47,7 +47,8 @@
 
 - 10 秒内结束的任务：0 次额外调用
 - 超过 10 秒的任务：出现时 1 次，之后每 30 秒 1 次 `updateAICardBlockList`（例如 5 分钟任务约 11 次）
-- 可用 `cardTaskProgress: false` 关闭；`cardStreamingMode: "off"` 时默认也是关闭的
+- 工具事件只更新阶段/步数状态，不额外触发卡片更新；这些变化随下一次 30 秒刷新一起落盘，因此工具密集任务也不会显著抬高调用量
+- 可用 `cardTaskProgress: false` 关闭；显式设置 `cardStreamingMode: "off"` 时默认也是关闭的
 
 ## 推荐策略
 
