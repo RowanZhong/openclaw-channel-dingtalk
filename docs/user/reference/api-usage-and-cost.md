@@ -43,12 +43,15 @@
 
 ## 长任务进度块的额外调用
 
-卡片模式下，超过 10 秒的长任务会启用「任务进度块」（见 [AI 卡片](../features/ai-card.md)）：
+卡片模式下，超过 10 秒的长任务会启用「任务进度块」（见 [AI 卡片](../features/ai-card.md)）。默认 `cardTaskProgressRefresh: "heartbeat"`：
 
 - 10 秒内结束的任务：0 次额外调用
 - 超过 10 秒的任务：出现时 1 次，之后每 30 秒 1 次 `updateAICardBlockList`（例如 5 分钟任务约 11 次）
-- 工具事件只更新阶段/步数状态，不额外触发卡片更新；这些变化随下一次 30 秒刷新一起落盘，因此工具密集任务也不会显著抬高调用量
-- 可用 `cardTaskProgress: false` 关闭；显式设置 `cardStreamingMode: "off"` 时默认也是关闭的
+- 工具事件只更新阶段/步数状态，不额外触发卡片更新；这些变化随下一次 30 秒刷新一起落盘，因此工具密集任务也不会抬高调用量
+
+改用 `cardTaskProgressRefresh: "interval"` 会让每次可关联的工具事件都推送一次阶段变化，调用量随工具调用次数增长（仍受 `cardStreamInterval` 节流，默认约 1 秒 1 次），换来更及时的阶段文案。工具密集的长任务建议保留默认值。
+
+可用 `cardTaskProgress: false` 关闭；显式设置 `cardStreamingMode: "off"` 时默认也是关闭的。
 
 ## 推荐策略
 

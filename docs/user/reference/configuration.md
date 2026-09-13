@@ -29,6 +29,7 @@
 | `cardStreamingMode` | string | `off`（生效值） | 卡片流式模式：`off` / `answer` / `all` |
 | `cardStreamInterval` | number | `1000` | 卡片实时更新节奏（毫秒，最小 `200`） |
 | `cardTaskProgress` | boolean | 未设置时开启 | 长任务进度块；`false` 关闭，`true` 强制开启（含显式 `cardStreamingMode: "off"`） |
+| `cardTaskProgressRefresh` | string | `heartbeat` | 进度块刷新节奏：`heartbeat`（每 30 秒，调用量固定）/ `interval`（每次工具事件，受 `cardStreamInterval` 节流） |
 | `cardAtSender` | string | - | 群聊中卡片完成后追加 @发送者 的消息文本；非空时生效 |
 | `cardRealTimeStream` | boolean | `false` | 已弃用；仅兼容旧配置，`true` 会回退到 `cardStreamingMode: all` |
 | `aicardDegradeMs` | number | `1800000` | 卡片连续失败后的降级时间 |
@@ -155,7 +156,7 @@ SecretInput 对象字段：
 - 同时设置时，以 `cardStreamingMode` 为准。
 - `cardStreamInterval` 控制实时更新节奏（毫秒），在 `answer` / `all` 下生效；值越小，更新越频繁，API 调用通常越高。
 - `cardTaskProgress` 控制长任务进度块：未设置时默认开启，但 `cardStreamingMode` 显式为 `off` 时默认关闭；设为 `true` 可在 `off` 下仍然开启，设为 `false` 则完全关闭。详见 [AI 卡片](../features/ai-card.md)。
-- 进度块出现后每 30 秒刷新一次；工具事件引起的阶段变化会合并到下一次刷新，不会逐条推送。
+- `cardTaskProgressRefresh` 控制进度块的刷新节奏：默认 `heartbeat`，只有首次出现立即推送，之后每 30 秒刷新一次，调用量可预测；设为 `interval` 则每次可关联的工具事件都推送阶段变化（受 `cardStreamInterval` 节流），阶段文案更新更及时但调用量随工具调用次数增长。
 
 ## 关于连接参数
 

@@ -100,8 +100,7 @@ describe("card task progress", () => {
     expect(rendered).toContain("已完成：1 步");
   });
 
-  it("keeps the documented update budget for a tool-heavy task", async () => {
-    const controller = createCardTaskProgressController({
+  it("keeps the documented update budget for a tool-heavy task", async () => {    const controller = createCardTaskProgressController({
       sessionKey: "s1",
       runtimeEvents,
       updateProgress,
@@ -130,6 +129,73 @@ describe("card task progress", () => {
 
     // 1 appearance + 4 heartbeats, not 40 tool events.
     expect(updateProgress).toHaveBeenCalledTimes(5);
+  });
+
+  it("pushes every stage change immediately in interval refresh mode", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      refresh: "interval",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    listener?.({ stream: "lifecycle", runId: "run-1", sessionKey: "s1", data: { phase: "start" } });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "start", name: "read", toolCallId: "tool-1" },
+    });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "end", name: "read", toolCallId: "tool-1" },
+    });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "start", name: "web_search", toolCallId: "tool-2" },
+    });
+    await controller.awaitDrain();
+
+    // One push per correlated event (the first one also makes the block appear),
+    // instead of the single appearance push in heartbeat mode; the draft loop
+    // still applies `cardStreamInterval` on top of these calls.
+    expect(updateProgress).toHaveBeenCalledTimes(3);
+    const rendered = String(updateProgress.mock.calls.at(-1)?.[0] ?? "");
+    expect(rendered).toContain("当前阶段：正在查询资料");
+    expect(rendered).toContain("已完成：1 步");
+
+    // The 10s startup timer was already cancelled by the first appearance.
+    updateProgress.mockClear();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await controller.awaitDrain();
+    expect(updateProgress).not.toHaveBeenCalled();
+  });
+
+  it("falls back to heartbeat refresh for an unknown refresh value", async () => {
+    const controller = createCardTaskProgressController({
+      sessionKey: "s1",
+      refresh: "nonsense" as "heartbeat",
+      runtimeEvents,
+      updateProgress,
+      clearProgress,
+    });
+
+    listener?.({ stream: "lifecycle", runId: "run-1", sessionKey: "s1", data: { phase: "start" } });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "start", name: "read", toolCallId: "tool-1" },
+    });
+    listener?.({
+      stream: "tool",
+      runId: "run-1",
+      data: { phase: "start", name: "web_search", toolCallId: "tool-2" },
+    });
+    await controller.awaitDrain();
+
+    expect(updateProgress).toHaveBeenCalledTimes(1);
   });
 
   it("does not refresh again at the startup delay when a tool event already showed progress", async () => {

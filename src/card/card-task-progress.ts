@@ -4,7 +4,7 @@ import {
   type RuntimeEventsLogger,
   type RuntimeEventsSurface,
 } from "../platform/runtime-events";
-import type { DingTalkConfig } from "../types";
+import type { CardTaskProgressRefresh, DingTalkConfig } from "../types";
 import { getErrorMessage } from "../utils";
 
 const DEFAULT_START_DELAY_MS = 10_000;
@@ -106,6 +106,12 @@ export interface ClearProgressOptions {
 export function createCardTaskProgressController(params: {
   sessionKey: string;
   enabled?: boolean;
+  /**
+   * `heartbeat` (default) coalesces stage/step changes into the 30s refresh;
+   * `interval` pushes them on every correlated tool event, throttled further
+   * down by the card draft loop's `cardStreamInterval`.
+   */
+  refresh?: CardTaskProgressRefresh;
   runtimeEvents?: RuntimeEventsSurface;
   updateProgress: (text: string) => Promise<void>;
   clearProgress: (options?: ClearProgressOptions) => Promise<void>;
@@ -123,6 +129,10 @@ export function createCardTaskProgressController(params: {
       async dispose(): Promise<void> {},
     };
   }
+
+  // Unknown values (hand-built config) fall back to the safe default.
+  const refreshMode: CardTaskProgressRefresh =
+    params.refresh === "interval" ? "interval" : "heartbeat";
 
   const startedAt = Date.now();
   let currentStage = "正在处理任务";
@@ -193,10 +203,10 @@ export function createCardTaskProgressController(params: {
   /**
    * Make the block visible for the first time and start the heartbeat.
    *
-   * Later stage/step changes are deliberately *not* pushed immediately: they are
-   * rendered by the next heartbeat. A tool-heavy task would otherwise issue one
-   * DingTalk card update per tool event (bounded only by `cardStreamInterval`),
-   * far above the documented "once when it appears, then once per 30s" budget.
+   * The first appearance is always immediate. Later stage/step changes follow
+   * `refreshMode`: `heartbeat` (default) leaves them to the next 30s refresh, so
+   * a tool-heavy task cannot spend one DingTalk card update per tool event;
+   * `interval` pushes them right away and lets `cardStreamInterval` throttle.
    */
   const showProgress = () => {
     if (disposed || visible) {
@@ -207,6 +217,19 @@ export function createCardTaskProgressController(params: {
     cancelStartTimer();
     ensureHeartbeat();
     void enqueueUpdate();
+  };
+
+  const refreshProgress = () => {
+    if (disposed) {
+      return;
+    }
+    if (!visible) {
+      showProgress();
+      return;
+    }
+    if (refreshMode === "interval") {
+      void enqueueUpdate();
+    }
   };
 
   const handleAgentEvent = (event: unknown) => {
@@ -224,7 +247,7 @@ export function createCardTaskProgressController(params: {
 
     if (agentEvent.data?.phase === "start") {
       currentStage = resolveSafeStage(agentEvent.data?.name);
-      showProgress();
+      refreshProgress();
       return;
     }
     if (agentEvent.data?.phase === "end") {
@@ -235,7 +258,7 @@ export function createCardTaskProgressController(params: {
         }
         completedSteps += 1;
       }
-      showProgress();
+      refreshProgress();
     }
   };
 

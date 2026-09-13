@@ -204,6 +204,23 @@ describe('DingTalkConfigSchema', () => {
         expect(parsed.cardTaskProgress).toBe(false);
     });
 
+    it('defaults cardTaskProgressRefresh to heartbeat and accepts interval', () => {
+        const parsed = DingTalkConfigSchema.parse({
+            clientId: 'id',
+            clientSecret: 'secret',
+        }) as { cardTaskProgressRefresh?: string };
+
+        expect(parsed.cardTaskProgressRefresh).toBe('heartbeat');
+
+        const overridden = DingTalkConfigSchema.parse({
+            clientId: 'id',
+            clientSecret: 'secret',
+            cardTaskProgressRefresh: 'interval',
+        }) as { cardTaskProgressRefresh?: string };
+
+        expect(overridden.cardTaskProgressRefresh).toBe('interval');
+    });
+
     it('accepts account-level cardStreamingMode override', () => {
         const parsed = DingTalkConfigSchema.parse({
             cardStreamingMode: 'off',

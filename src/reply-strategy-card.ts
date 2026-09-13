@@ -138,6 +138,7 @@ export function createCardReplyStrategy(
   const taskProgressController = createCardTaskProgressController({
     sessionKey: ctx.sessionKey ?? "",
     enabled: resolveCardTaskProgressEnabled(config),
+    refresh: config.cardTaskProgressRefresh,
     runtimeEvents: ctx.runtimeEvents,
     updateProgress: controller.updateProgress,
     clearProgress: controller.clearProgress,
