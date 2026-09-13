@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createRuntimeEventsFanout } from "../../src/ack-reaction/dynamic-ack-reaction-events";
+import { createRuntimeEventsFanout } from "../../src/platform/runtime-events";
 
 describe("runtime events fanout", () => {
   it("uses one upstream subscription while delivering events to multiple local consumers", () => {
@@ -48,5 +48,38 @@ describe("runtime events fanout", () => {
 
     expect(first).toHaveBeenCalledOnce();
     expect(second).toHaveBeenCalledOnce();
+  });
+
+  it("isolates a throwing listener so later consumers still receive the event", () => {
+    let upstreamListener: ((event: unknown) => void) | undefined;
+    const upstream = {
+      onAgentEvent: vi.fn((listener: (event: unknown) => void) => {
+        upstreamListener = listener;
+        return vi.fn();
+      }),
+    };
+    const log = { warn: vi.fn() };
+    const fanout = createRuntimeEventsFanout(upstream, { log });
+    const failing = vi.fn(() => {
+      throw new Error("listener boom");
+    });
+    const healthy = vi.fn();
+
+    fanout.onAgentEvent?.(failing);
+    fanout.onAgentEvent?.(healthy);
+
+    // A throwing consumer must not bubble into the host event emitter.
+    expect(() => upstreamListener?.({ stream: "tool" })).not.toThrow();
+    expect(healthy).toHaveBeenCalledOnce();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("listener boom"));
+  });
+
+  it("keeps working without an upstream surface or a logger", () => {
+    const fanout = createRuntimeEventsFanout(undefined);
+    const listener = vi.fn();
+    const unsubscribe = fanout.onAgentEvent?.(listener);
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(() => unsubscribe?.()).not.toThrow();
   });
 });

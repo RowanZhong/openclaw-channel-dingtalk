@@ -1,6 +1,16 @@
+/**
+ * Cross-domain runtime agent-event infrastructure.
+ *
+ * Owns the generic OpenClaw `events.onAgentEvent` surface that several
+ * domains consume: event typing, reference-counted fan-out, field accessors,
+ * and run correlation. Domain owners (ack reactions, AI card task progress)
+ * build their own behavior on top of these primitives instead of importing
+ * each other's private modules.
+ */
+
 import { getErrorMessage } from "../utils";
 
-export type DynamicAckReactionLogger = {
+export type RuntimeEventsLogger = {
   debug?: (msg: string) => void;
   info?: (msg: string) => void;
   warn?: (msg: string) => void;
@@ -28,8 +38,17 @@ export type RuntimeEventsSurface = {
   onAgentEvent?: (listener: (event: unknown) => void) => () => void;
 };
 
+/**
+ * Fan one upstream `onAgentEvent` subscription out to multiple local consumers.
+ *
+ * The upstream subscription is reference-counted: it is created with the first
+ * local listener and released with the last one. Each listener is isolated so a
+ * throwing consumer can neither starve the remaining consumers nor bubble back
+ * into the host event emitter.
+ */
 export function createRuntimeEventsFanout(
   upstream: RuntimeEventsSurface | undefined,
+  options: { log?: RuntimeEventsLogger } = {},
 ): RuntimeEventsSurface {
   const listeners = new Set<(event: unknown) => void>();
   let unsubscribeUpstream: (() => void) | undefined;
@@ -39,9 +58,17 @@ export function createRuntimeEventsFanout(
       return;
     }
     unsubscribeUpstream = upstream.onAgentEvent((event: unknown) => {
+      // Dispatch against a snapshot so a listener that unsubscribes another
+      // listener during this event still receives the current event.
       const currentListeners = Array.from(listeners);
       for (const listener of currentListeners) {
-        listener(event);
+        try {
+          listener(event);
+        } catch (error: unknown) {
+          options.log?.warn?.(
+            `[DingTalk][RuntimeEvents] Listener failed: ${getErrorMessage(error)}`,
+          );
+        }
       }
     });
   };
@@ -93,13 +120,26 @@ export function describeEvent(event: RuntimeAgentEvent | undefined): string {
   );
 }
 
-export function createDynamicAckReactionCorrelator(params: {
+/**
+ * Build a predicate that decides whether an agent event belongs to one reply.
+ *
+ * Correlation prefers an already captured `runId`; otherwise it accepts events
+ * whose `sessionKey` matches, and finally falls back to optimistically
+ * capturing the first session-less lifecycle start inside a short window.
+ *
+ * `consumer` labels the debug logs so two consumers sharing the same session
+ * (ack reactions and card task progress) stay distinguishable while triaging.
+ */
+export function createAgentEventCorrelator(params: {
+  /** Short label identifying the consuming domain in debug logs. */
+  consumer: string;
   sessionKey: string;
   enabled: boolean;
   createdAt: number;
   optimisticCaptureWindowMs: number;
-  log?: DynamicAckReactionLogger;
+  log?: RuntimeEventsLogger;
 }) {
+  const logPrefix = `[DingTalk][AgentEventCorrelation][${params.consumer}]`;
   let activeRunId: string | undefined;
   let correlationUnavailableLogged = false;
   let optimisticCaptureCount = 0;
@@ -113,7 +153,7 @@ export function createDynamicAckReactionCorrelator(params: {
     if (activeRunId) {
       const matched = eventRunId === activeRunId;
       params.log?.debug?.(
-        `[DingTalk] Dynamic reaction correlation by runId matched=${matched} activeRunId=${activeRunId} ` +
+        `${logPrefix} correlation by runId matched=${matched} activeRunId=${activeRunId} ` +
           `eventRunId=${eventRunId || "-"} eventSessionKey=${eventSessionKey || "-"}`,
       );
       return matched;
@@ -123,11 +163,11 @@ export function createDynamicAckReactionCorrelator(params: {
       if (eventRunId) {
         activeRunId = eventRunId;
         params.log?.debug?.(
-          `[DingTalk] Dynamic reaction captured active runId=${activeRunId} from sessionKey=${params.sessionKey}`,
+          `${logPrefix} captured active runId=${activeRunId} from sessionKey=${params.sessionKey}`,
         );
       } else {
         params.log?.debug?.(
-          `[DingTalk] Dynamic reaction correlated by sessionKey=${params.sessionKey} without runId`,
+          `${logPrefix} correlated by sessionKey=${params.sessionKey} without runId`,
         );
       }
       return true;
@@ -144,7 +184,7 @@ export function createDynamicAckReactionCorrelator(params: {
       optimisticCaptureCount += 1;
       activeRunId = eventRunId;
       params.log?.debug?.(
-        `[DingTalk] Dynamic reaction optimistically captured active runId=${activeRunId} ` +
+        `${logPrefix} optimistically captured active runId=${activeRunId} ` +
           `from first lifecycle event without sessionKey windowMs=${params.optimisticCaptureWindowMs}`,
       );
       return true;
@@ -153,7 +193,7 @@ export function createDynamicAckReactionCorrelator(params: {
     if (!correlationUnavailableLogged && params.enabled) {
       correlationUnavailableLogged = true;
       params.log?.debug?.(
-        `[DingTalk] Dynamic reaction ignored uncorrelated agent events; ` +
+        `${logPrefix} ignored uncorrelated agent events; ` +
           `reason=${getErrorMessage(eventRunId || eventSessionKey || "waiting for sessionKey/runId match")}`,
       );
     }
