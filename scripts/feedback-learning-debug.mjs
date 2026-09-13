@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import http from "node:http";
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { URL } from "node:url";
 
@@ -21,7 +21,9 @@ function parseArgs(argv) {
     }
   }
   if (!args.storePath) {
-    console.error("Usage: node scripts/feedback-learning-debug.mjs --storePath /path/to/store.json [--accountId main] [--port 18895]");
+    console.error(
+      "Usage: node scripts/feedback-learning-debug.mjs --storePath /path/to/store.json [--accountId main] [--port 18895]",
+    );
     process.exit(1);
   }
   return args;
@@ -49,7 +51,9 @@ function buildScopeSuffix(scope = {}) {
   ];
   const parts = ordered
     .filter(([, current]) => current && String(current).trim())
-    .map(([key, current]) => `${key.replace(/Id$/, "")}-${encodeScopeValue(String(current).trim())}`);
+    .map(
+      ([key, current]) => `${key.replace(/Id$/, "")}-${encodeScopeValue(String(current).trim())}`,
+    );
   return parts.length > 0 ? `.${parts.join(".")}` : "";
 }
 
@@ -101,17 +105,23 @@ function listTargets(storePath, accountId) {
 function readOverview(storePath, accountId, targetId) {
   const scope = { accountId, targetId };
   return {
-    events: readJson(resolveNamespacePath(storePath, "feedback.events", scope), { entries: [] }).entries || [],
+    events:
+      readJson(resolveNamespacePath(storePath, "feedback.events", scope), { entries: [] })
+        .entries || [],
     snapshots:
-      readJson(resolveNamespacePath(storePath, "feedback.snapshots", scope), { entries: [] }).entries || [],
+      readJson(resolveNamespacePath(storePath, "feedback.snapshots", scope), { entries: [] })
+        .entries || [],
     reflections:
-      readJson(resolveNamespacePath(storePath, "feedback.reflections", scope), { entries: [] }).entries || [],
+      readJson(resolveNamespacePath(storePath, "feedback.reflections", scope), { entries: [] })
+        .entries || [],
     notes:
-      readJson(resolveNamespacePath(storePath, "feedback.session-notes", scope), { entries: [] }).entries || [],
-    rules:
-      Object.values(
-        readJson(resolveNamespacePath(storePath, "feedback.learned-rules", { accountId }), { rules: {} }).rules || {},
-      ).sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0)),
+      readJson(resolveNamespacePath(storePath, "feedback.session-notes", scope), { entries: [] })
+        .entries || [],
+    rules: Object.values(
+      readJson(resolveNamespacePath(storePath, "feedback.learned-rules", { accountId }), {
+        rules: {},
+      }).rules || {},
+    ).sort((left, right) => (right.updatedAt || 0) - (left.updatedAt || 0)),
   };
 }
 
@@ -125,8 +135,14 @@ async function readRequestBody(request) {
 }
 
 function appendManualReflection(storePath, accountId, targetId, payload) {
-  const reflectionPath = resolveNamespacePath(storePath, "feedback.reflections", { accountId, targetId });
-  const notePath = resolveNamespacePath(storePath, "feedback.session-notes", { accountId, targetId });
+  const reflectionPath = resolveNamespacePath(storePath, "feedback.reflections", {
+    accountId,
+    targetId,
+  });
+  const notePath = resolveNamespacePath(storePath, "feedback.session-notes", {
+    accountId,
+    targetId,
+  });
   const rulePath = resolveNamespacePath(storePath, "feedback.learned-rules", { accountId });
   const reflectionBucket = readJson(reflectionPath, { updatedAt: 0, entries: [] });
   const noteBucket = readJson(notePath, { updatedAt: 0, entries: [] });
@@ -383,7 +399,11 @@ const server = http.createServer(async (request, response) => {
   }
   if (request.method === "GET" && url.pathname === "/api/targets") {
     response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-    response.end(JSON.stringify({ targets: listTargets(args.storePath, url.searchParams.get("accountId") || args.accountId) }));
+    response.end(
+      JSON.stringify({
+        targets: listTargets(args.storePath, url.searchParams.get("accountId") || args.accountId),
+      }),
+    );
     return;
   }
   if (request.method === "GET" && url.pathname === "/api/overview") {
@@ -402,7 +422,12 @@ const server = http.createServer(async (request, response) => {
   }
   if (request.method === "POST" && url.pathname === "/api/manual-reflection") {
     const payload = await readRequestBody(request);
-    appendManualReflection(args.storePath, payload.accountId || args.accountId, payload.targetId, payload);
+    appendManualReflection(
+      args.storePath,
+      payload.accountId || args.accountId,
+      payload.targetId,
+      payload,
+    );
     response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
     response.end(JSON.stringify({ ok: true }));
     return;
