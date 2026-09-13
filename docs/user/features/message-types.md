@@ -50,3 +50,9 @@
 - [回复模式](reply-modes.md)
 - [AI 卡片](ai-card.md)
 - [安全策略](../reference/security-policies.md)
+
+### 引用正文恢复
+
+引用消息会优先使用 `message-context-store` 中保存的原文；记录不存在时，再从钉钉回调的 `repliedMsg` 提取预览正文。普通文本引用兼容 `content.text`，并支持真实回调中的 `content.content`；`interactiveCard` 会递归读取 `content.cardContent` 下 `elementType: "TEXT"` 节点的 `value`，多段文本按换行拼接。若这些字段都没有可读文本，才会保留类型占位符。
+
+这条兜底路径覆盖群聊引用他人消息、超过短期保存窗口的消息，以及插件未运行时产生的消息。
