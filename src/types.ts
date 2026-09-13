@@ -30,7 +30,7 @@ export type ContextVisibilityMode = "all" | "allowlist" | "allowlist_quote";
  * Aligns with the official connector's `tools: { docs, media }` gate shape.
  * All capabilities default to enabled for backward compatibility.
  */
-export interface DingTalkGatewayCapabilityConfig {
+export interface DingTalkGatewayCapabilitiesConfig {
   tools?: {
     /** Enable `dingtalk.docs.*` and `dingtalk-connector.docs.*` Gateway RPCs (default: true) */
     docs?: boolean;
@@ -126,8 +126,8 @@ export interface DingTalkConfig extends OpenClawConfig {
     tokens?: boolean;
     dapiUsage?: boolean;
   };
-  /** Gateway RPC capability gates and allowlists (docs RPCs + proactive-send RPCs); namespaced as `gatewayRpc` to avoid clashing with the host-level `gateway` config */
-  gatewayRpc?: DingTalkGatewayCapabilityConfig;
+  /** Gateway RPC capability gates and allowlists (docs RPCs + proactive-send RPCs). Named `gatewayCapabilities` because host `OpenClawConfig` already owns `gateway` and `tools`, and a bare `capabilities` key would collide with this plugin's channel capabilities metadata. */
+  gatewayCapabilities?: DingTalkGatewayCapabilitiesConfig;
 }
 
 /**
@@ -199,8 +199,8 @@ export interface DingTalkChannelConfig {
   convertMarkdownTables?: boolean;
   /** @mention the sender after card finalization in group chats; value is the message text */
   cardAtSender?: string;
-  /** Gateway RPC capability gates and allowlists (docs RPCs + proactive-send RPCs); namespaced as `gatewayRpc` to avoid clashing with the host-level `gateway` config */
-  gatewayRpc?: DingTalkGatewayCapabilityConfig;
+  /** Gateway RPC capability gates and allowlists (docs RPCs + proactive-send RPCs). Named `gatewayCapabilities` because host `OpenClawConfig` already owns `gateway` and `tools`, and a bare `capabilities` key would collide with this plugin's channel capabilities metadata. */
+  gatewayCapabilities?: DingTalkGatewayCapabilitiesConfig;
 }
 
 /**

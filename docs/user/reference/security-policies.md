@@ -103,14 +103,14 @@
 
 插件暴露的 `dingtalk.docs.*`、`dingtalk-connector.docs.*` 文档 RPC 和 `dingtalk-connector.sendToUser/sendToGroup/send` 主动发送 RPC 依赖宿主 Gateway 信任模型：能调用这些 RPC 的，是已获得 OpenClaw Gateway 访问权的调用方；插件层不做二次调用方身份认证。
 
-可以通过 `channels.dingtalk.gatewayRpc` 收窄影响面：
+可以通过 `channels.dingtalk.gatewayCapabilities` 收窄影响面：
 
-- `gatewayRpc.tools.docs = false`：关闭全部 docs RPC
-- `gatewayRpc.tools.proactiveSend = false`：关闭全部主动发送 RPC
-- `gatewayRpc.docs.allowedSpaceIds`：文档空间白名单（配置后至少一项；不携带 `spaceId` 的请求会被拒绝）
-- `gatewayRpc.send.allowedTargets`：主动发送目标白名单（`user:*` / `group:*`；配置后至少一项）
+- `gatewayCapabilities.tools.docs = false`：关闭全部 docs RPC
+- `gatewayCapabilities.tools.proactiveSend = false`：关闭全部主动发送 RPC
+- `gatewayCapabilities.docs.allowedSpaceIds`：文档空间白名单（配置后至少一项；不携带 `spaceId` 的请求会被拒绝）
+- `gatewayCapabilities.send.allowedTargets`：主动发送目标白名单（`user:*` / `group:*`；配置后至少一项）
 
-能力开关与白名单默认不启用（保持向后兼容），但一旦配置即 fail-closed：空数组会被配置校验拒绝，运行时遇到"已配置但为空"的白名单按全部拒绝处理；多账号下账号级 `gatewayRpc` 与渠道级按子键合并，渠道级的限制不会被账号级局部配置静默移除。
+能力开关与白名单默认不启用（保持向后兼容），但一旦配置即 fail-closed：空数组会被配置校验拒绝，运行时遇到"已配置但为空"的白名单按全部拒绝处理；多账号下账号级 `gatewayCapabilities` 与渠道级按子键合并，渠道级的限制不会被账号级局部配置静默移除。
 
 详见 [Gateway RPC 兼容层](gateway-rpc.md)。
 

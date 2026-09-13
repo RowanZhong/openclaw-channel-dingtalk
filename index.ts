@@ -49,8 +49,8 @@ function denyGatewayCapability(
 }
 
 /**
- * Wrap a docs Gateway RPC handler with the `gatewayRpc.tools.docs` capability gate
- * and the optional `gatewayRpc.docs.allowedSpaceIds` allowlist (Issue #608, 问题 3).
+ * Wrap a docs Gateway RPC handler with the `gatewayCapabilities.tools.docs` capability gate
+ * and the optional `gatewayCapabilities.docs.allowedSpaceIds` allowlist (Issue #608, 问题 3).
  * `dingtalk.docs.*` and `dingtalk-connector.docs.*` aliases share handlers, so
  * the gate automatically applies to both namespaces.
  */
@@ -76,8 +76,8 @@ function withDocsGatewayCapability(
 }
 
 /**
- * Wrap a proactive-send Gateway RPC handler with the `gatewayRpc.tools.proactiveSend`
- * capability gate and the optional `gatewayRpc.send.allowedTargets` allowlist
+ * Wrap a proactive-send Gateway RPC handler with the `gatewayCapabilities.tools.proactiveSend`
+ * capability gate and the optional `gatewayCapabilities.send.allowedTargets` allowlist
  * (Issue #608, 问题 3).
  */
 function withProactiveSendGatewayCapability(

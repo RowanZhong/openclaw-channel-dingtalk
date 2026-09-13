@@ -24,7 +24,7 @@ const GatewayTargetListSchema = z
   .min(1)
   .optional();
 
-const DingTalkGatewayConfigSchema = z
+const DingTalkGatewayCapabilitiesSchema = z
   .object({
     tools: z
       .object({
@@ -237,8 +237,8 @@ const DingTalkAccountConfigShape = {
       dapiUsage: false,
     }),
 
-  /** Gateway RPC capability gates and allowlists (docs RPCs + proactive-send RPCs); namespaced as `gatewayRpc` to avoid clashing with the host-level `gateway` config */
-  gatewayRpc: DingTalkGatewayConfigSchema,
+  /** Gateway RPC capability gates and allowlists (docs RPCs + proactive-send RPCs). Named `gatewayCapabilities` because host `OpenClawConfig` already owns `gateway` and `tools`, and a bare `capabilities` key would collide with this plugin's channel capabilities metadata. */
+  gatewayCapabilities: DingTalkGatewayCapabilitiesSchema,
 } as const;
 
 const DingTalkAccountConfigSchema = z.object(DingTalkAccountConfigShape);

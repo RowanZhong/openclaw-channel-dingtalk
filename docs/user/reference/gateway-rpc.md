@@ -20,15 +20,15 @@
 
 这些兼容方法复用 canonical auth、send、docs、usage-tracking 和 outbound-context persistence 路径。后续如果某个兼容请求需要与 `dingtalk.*` 不同的行为，必须先在这里说明差异，再扩展适配层。
 
-## 能力开关与白名单 `gatewayRpc`
+## 能力开关与白名单 `gatewayCapabilities`
 
-docs RPC 与主动发送 RPC 使用配置中的钉钉应用凭证直接执行文档读写和发消息。它们面向已获得 OpenClaw Gateway 访问权的调用方（插件层不做二次调用方身份认证）；如需进一步收窄，可通过 `channels.dingtalk.gatewayRpc` 配置：
+docs RPC 与主动发送 RPC 使用配置中的钉钉应用凭证直接执行文档读写和发消息。它们面向已获得 OpenClaw Gateway 访问权的调用方（插件层不做二次调用方身份认证）；如需进一步收窄，可通过 `channels.dingtalk.gatewayCapabilities` 配置：
 
 ```json5
 {
   "channels": {
     "dingtalk": {
-      "gatewayRpc": {
+      "gatewayCapabilities": {
         "tools": {
           "docs": true,           // 关闭后 dingtalk.docs.* 与 dingtalk-connector.docs.* 全部拒绝
           "proactiveSend": true   // 关闭后 dingtalk-connector.sendToUser/sendToGroup/send 全部拒绝
@@ -51,7 +51,7 @@ docs RPC 与主动发送 RPC 使用配置中的钉钉应用凭证直接执行文
 - `dingtalk.docs.*` 与 `dingtalk-connector.docs.*` 共享同一组 handler，能力开关对两个命名空间同时生效。
 - `allowedTargets` 中的每一项必须是 `user:<id>` 或 `group:<conversationId>`；`allowedSpaceIds` / `allowedTargets` 一旦配置就至少需要一项，空数组会被配置校验直接拒绝，避免"限制被静默取消"。
 - 白名单是 fail-closed 的：运行时若收到"已配置但为空"的白名单（例如绕过了配置校验），会按"全部拒绝"处理。
-- 多账号场景下，账号级 `gatewayRpc` **按子键与渠道级合并**（`tools` / `docs` / `send` 三组分别合并），同一子键以账号级为准。因此渠道级的 `tools.docs: false` 或渠道级白名单不会被账号级的局部配置静默移除；未配置的账号完全继承渠道级设置。
+- 多账号场景下，账号级 `gatewayCapabilities` **按子键与渠道级合并**（`tools` / `docs` / `send` 三组分别合并），同一子键以账号级为准。因此渠道级的 `tools.docs: false` 或渠道级白名单不会被账号级的局部配置静默移除；未配置的账号完全继承渠道级设置。
 
 `allowedSpaceIds` 的适用范围：
 

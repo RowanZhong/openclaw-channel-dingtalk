@@ -88,8 +88,8 @@ function callHandler(
   });
 }
 
-function dingtalkCfg(gatewayRpc: unknown): Record<string, unknown> {
-  return { channels: { dingtalk: { gatewayRpc } } };
+function dingtalkCfg(gatewayCapabilities: unknown): Record<string, unknown> {
+  return { channels: { dingtalk: { gatewayCapabilities } } };
 }
 
 describe("gateway RPC capability gates (Issue #608 问题 3)", () => {
@@ -97,7 +97,7 @@ describe("gateway RPC capability gates (Issue #608 问题 3)", () => {
     vi.clearAllMocks();
   });
 
-  it("docs RPC works by default (no gatewayRpc config)", async () => {
+  it("docs RPC works by default (no gatewayCapabilities config)", async () => {
     const entry = await loadEntry();
     const { mockApi, methods } = makeApi({ channels: { dingtalk: {} } });
     entry.register(mockApi);
@@ -108,7 +108,7 @@ describe("gateway RPC capability gates (Issue #608 问题 3)", () => {
     expect(res.ok).toBe(true);
   }, INDEX_IMPORT_TIMEOUT_MS);
 
-  it("docs RPC denied when gatewayRpc.tools.docs = false (canonical namespace)", async () => {
+  it("docs RPC denied when gatewayCapabilities.tools.docs = false (canonical namespace)", async () => {
     const entry = await loadEntry();
     const { mockApi, methods } = makeApi(dingtalkCfg({ tools: { docs: false } }));
     entry.register(mockApi);
@@ -144,7 +144,7 @@ describe("gateway RPC capability gates (Issue #608 问题 3)", () => {
     expect(allowed.ok).toBe(true);
   }, INDEX_IMPORT_TIMEOUT_MS);
 
-  it("proactive send denied when gatewayRpc.tools.proactiveSend = false", async () => {
+  it("proactive send denied when gatewayCapabilities.tools.proactiveSend = false", async () => {
     const entry = await loadEntry();
     const { mockApi, methods } = makeApi(dingtalkCfg({ tools: { proactiveSend: false } }));
     entry.register(mockApi);
@@ -259,16 +259,16 @@ describe("gateway capability gates review follow-ups", () => {
     expect((res.payload as { error: string }).error).toContain("user: or group:");
   }, INDEX_IMPORT_TIMEOUT_MS);
 
-  it("account-level gatewayRpc keeps channel-level allowlists in force", async () => {
+  it("account-level gatewayCapabilities keeps channel-level allowlists in force", async () => {
     const entry = await loadEntry();
     const { mockApi, methods } = makeApi({
       channels: {
         dingtalk: {
-          gatewayRpc: {
+          gatewayCapabilities: {
             tools: { docs: false },
             send: { allowedTargets: ["group:ok"] },
           },
-          accounts: { bot2: { gatewayRpc: { tools: { docs: true } } } },
+          accounts: { bot2: { gatewayCapabilities: { tools: { docs: true } } } },
         },
       },
     });

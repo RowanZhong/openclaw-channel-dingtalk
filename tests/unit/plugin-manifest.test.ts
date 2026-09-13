@@ -130,7 +130,7 @@ describe("plugin manifest channel metadata", () => {
         );
     });
 
-    it("publishes gatewayRpc capability gates in both top-level and account-level DingTalk schema", () => {
+    it("publishes gatewayCapabilities capability gates in both top-level and account-level DingTalk schema", () => {
         const manifest = readJsonFile<{
             channelConfigs?: Record<
                 string,
@@ -149,18 +149,18 @@ describe("plugin manifest channel metadata", () => {
         // additionalProperties: false, so a missing key makes the documented
         // config unusable (and fails config load).
         for (const properties of [topLevelProperties, accountLevelProperties]) {
-            expect(properties?.gatewayRpc).toEqual(
+            expect(properties?.gatewayCapabilities).toEqual(
                 expect.objectContaining({ type: "object", additionalProperties: false }),
             );
-            expect(properties?.gatewayRpc?.properties?.tools?.properties?.docs?.type).toBe("boolean");
-            expect(properties?.gatewayRpc?.properties?.tools?.properties?.proactiveSend?.type).toBe(
+            expect(properties?.gatewayCapabilities?.properties?.tools?.properties?.docs?.type).toBe("boolean");
+            expect(properties?.gatewayCapabilities?.properties?.tools?.properties?.proactiveSend?.type).toBe(
                 "boolean",
             );
-            expect(properties?.gatewayRpc?.properties?.docs?.properties?.allowedSpaceIds?.minItems).toBe(
+            expect(properties?.gatewayCapabilities?.properties?.docs?.properties?.allowedSpaceIds?.minItems).toBe(
                 1,
             );
             expect(
-                properties?.gatewayRpc?.properties?.send?.properties?.allowedTargets?.items?.pattern,
+                properties?.gatewayCapabilities?.properties?.send?.properties?.allowedTargets?.items?.pattern,
             ).toBe("^(user|group):\\S+$");
         }
     });

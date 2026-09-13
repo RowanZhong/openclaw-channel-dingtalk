@@ -7,7 +7,7 @@ import {
 import type {
   DingTalkChannelConfig,
   DingTalkConfig,
-  DingTalkGatewayCapabilityConfig,
+  DingTalkGatewayCapabilitiesConfig,
 } from "./types";
 export { resolveRelativePath, resolveUserPath } from "./path-utils";
 const DEFAULT_LEARNING_NOTE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -60,18 +60,18 @@ function stripRemovedLegacyFields(config: DingTalkConfig): DingTalkConfig {
 }
 
 /**
- * Merge channel-level and account-level `gatewayRpc` gates by sub-key.
+ * Merge channel-level and account-level `gatewayCapabilities` gates by sub-key.
  *
  * `mergeAccountWithDefaults` is a shallow merge, so without this helper an
- * account-level object would replace the whole channel-level `gatewayRpc` and
+ * account-level object would replace the whole channel-level `gatewayCapabilities` and
  * silently drop a channel-level allowlist (fail-open). Merging `tools` /
  * `docs` / `send` separately keeps channel-level restrictions in force unless
  * the account explicitly overrides that exact sub-key.
  */
-export function mergeGatewayRpcConfig(
-  channelLevel: DingTalkGatewayCapabilityConfig | undefined,
-  accountLevel: DingTalkGatewayCapabilityConfig | undefined,
-): DingTalkGatewayCapabilityConfig | undefined {
+export function mergeGatewayCapabilitiesConfig(
+  channelLevel: DingTalkGatewayCapabilitiesConfig | undefined,
+  accountLevel: DingTalkGatewayCapabilitiesConfig | undefined,
+): DingTalkGatewayCapabilitiesConfig | undefined {
   if (!channelLevel) {
     return accountLevel;
   }
@@ -111,9 +111,12 @@ export function mergeAccountWithDefaults(
     ...defaults,
     ...overrides,
   };
-  const gatewayRpc = mergeGatewayRpcConfig(defaults.gatewayRpc, overrides.gatewayRpc);
-  if (gatewayRpc) {
-    merged.gatewayRpc = gatewayRpc;
+  const gatewayCapabilities = mergeGatewayCapabilitiesConfig(
+    defaults.gatewayCapabilities,
+    overrides.gatewayCapabilities,
+  );
+  if (gatewayCapabilities) {
+    merged.gatewayCapabilities = gatewayCapabilities;
   }
   return normalizeLearningConfig(merged, { applyDefaults: true });
 }
@@ -164,13 +167,13 @@ export interface ResolvedGatewayCapabilities {
   allowedTargets?: string[];
 }
 
-/** Denial reason returned when `gatewayRpc.tools.docs` is explicitly false. */
+/** Denial reason returned when `gatewayCapabilities.tools.docs` is explicitly false. */
 export const DOCS_GATE_DISABLED_REASON =
-  "dingtalk docs Gateway RPC is disabled by config (gatewayRpc.tools.docs = false)";
+  "dingtalk docs Gateway RPC is disabled by config (gatewayCapabilities.tools.docs = false)";
 
-/** Denial reason returned when `gatewayRpc.tools.proactiveSend` is explicitly false. */
+/** Denial reason returned when `gatewayCapabilities.tools.proactiveSend` is explicitly false. */
 export const PROACTIVE_SEND_GATE_DISABLED_REASON =
-  "dingtalk proactive-send Gateway RPC is disabled by config (gatewayRpc.tools.proactiveSend = false)";
+  "dingtalk proactive-send Gateway RPC is disabled by config (gatewayCapabilities.tools.proactiveSend = false)";
 
 const DEFAULT_GATEWAY_CAPABILITIES: ResolvedGatewayCapabilities = Object.freeze({
   docsEnabled: true,
@@ -179,21 +182,21 @@ const DEFAULT_GATEWAY_CAPABILITIES: ResolvedGatewayCapabilities = Object.freeze(
 
 /**
  * Resolve Gateway RPC capability configuration for an account.
- * Account-level `gatewayRpc` is merged with channel-level defaults by sub-key
- * (see `mergeGatewayRpcConfig`); both default to all capabilities enabled.
+ * Account-level `gatewayCapabilities` is merged with channel-level defaults by sub-key
+ * (see `mergeGatewayCapabilitiesConfig`); both default to all capabilities enabled.
  */
 export function resolveGatewayCapabilityConfig(
   cfg: OpenClawConfig,
   accountId?: string,
 ): ResolvedGatewayCapabilities {
   const config = getConfig(cfg, accountId);
-  const gatewayRpc = config.gatewayRpc;
-  if (!gatewayRpc) {
+  const gatewayCapabilities = config.gatewayCapabilities;
+  if (!gatewayCapabilities) {
     return DEFAULT_GATEWAY_CAPABILITIES;
   }
-  const tools = gatewayRpc.tools ?? {};
-  const docs = gatewayRpc.docs ?? {};
-  const send = gatewayRpc.send ?? {};
+  const tools = gatewayCapabilities.tools ?? {};
+  const docs = gatewayCapabilities.docs ?? {};
+  const send = gatewayCapabilities.send ?? {};
   return {
     docsEnabled: tools.docs !== false,
     proactiveSendEnabled: tools.proactiveSend !== false,
@@ -219,10 +222,10 @@ export function checkDocsGatewayCapability(
   }
   if (caps.allowedSpaceIds) {
     if (!spaceId) {
-      return "docs RPC denied: this request carries no spaceId while gatewayRpc.docs.allowedSpaceIds is configured (dingtalk.docs.append never carries a spaceId)";
+      return "docs RPC denied: this request carries no spaceId while gatewayCapabilities.docs.allowedSpaceIds is configured (dingtalk.docs.append never carries a spaceId)";
     }
     if (!caps.allowedSpaceIds.includes(spaceId)) {
-      return "spaceId is not in gatewayRpc.docs.allowedSpaceIds allowlist";
+      return "spaceId is not in gatewayCapabilities.docs.allowedSpaceIds allowlist";
     }
   }
   return null;
@@ -244,7 +247,7 @@ export function checkProactiveSendGatewayCapability(
   }
   if (caps.allowedTargets) {
     if (!caps.allowedTargets.includes(target)) {
-      return "target is not in gatewayRpc.send.allowedTargets allowlist";
+      return "target is not in gatewayCapabilities.send.allowedTargets allowlist";
     }
   }
   return null;

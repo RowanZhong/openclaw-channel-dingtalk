@@ -325,7 +325,7 @@
             "type": "boolean",
             "description": "Legacy compatibility field from older host or runtime integrations. It is not used by the current runtime and new configs should omit it."
           },
-          "gatewayRpc": {
+          "gatewayCapabilities": {
             "type": "object",
             "additionalProperties": false,
             "description": "Capability gates and allowlists for docs Gateway RPCs (dingtalk.docs.* / dingtalk-connector.docs.*) and proactive-send Gateway RPCs (dingtalk-connector.sendToUser/sendToGroup/send). All capabilities default to enabled; these RPCs rely on the host Gateway trust model and do not authenticate the caller.",
@@ -671,10 +671,10 @@
                     }
                   }
                 },
-                "gatewayRpc": {
+                "gatewayCapabilities": {
                   "type": "object",
                   "additionalProperties": false,
-                  "description": "Account-level capability gates for docs and proactive-send Gateway RPCs. Merged with the channel-level gatewayRpc by sub-key (tools / docs / send), so a channel-level allowlist is never dropped implicitly.",
+                  "description": "Account-level capability gates for docs and proactive-send Gateway RPCs. Merged with the channel-level gatewayCapabilities by sub-key (tools / docs / send), so a channel-level allowlist is never dropped implicitly.",
                   "properties": {
                     "tools": {
                       "type": "object",
@@ -934,23 +934,23 @@
           "label": "Legacy Async Mode",
           "help": "Deprecated compatibility field from older host or runtime integrations. The current runtime ignores it."
         },
-        "gatewayRpc": {
+        "gatewayCapabilities": {
           "label": "Gateway RPC Capability Gates",
           "help": "Turn docs and proactive-send Gateway RPCs off, or restrict them to specific doc spaces and send targets."
         },
-        "gatewayRpc.tools.docs": {
+        "gatewayCapabilities.tools.docs": {
           "label": "Docs RPC Enabled",
           "help": "Allow dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Defaults to enabled."
         },
-        "gatewayRpc.tools.proactiveSend": {
+        "gatewayCapabilities.tools.proactiveSend": {
           "label": "Proactive Send RPC Enabled",
           "help": "Allow dingtalk-connector.sendToUser/sendToGroup/send Gateway RPCs. Defaults to enabled."
         },
-        "gatewayRpc.docs.allowedSpaceIds": {
+        "gatewayCapabilities.docs.allowedSpaceIds": {
           "label": "Allowed Doc Space IDs",
           "help": "When set, docs RPCs only accept these spaceId values; requests without a spaceId, such as dingtalk.docs.append, are denied."
         },
-        "gatewayRpc.send.allowedTargets": {
+        "gatewayCapabilities.send.allowedTargets": {
           "label": "Allowed Send Targets",
           "help": "When set, proactive-send RPCs only accept these user:<id> or group:<conversationId> targets."
         },
