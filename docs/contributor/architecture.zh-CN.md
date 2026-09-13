@@ -338,8 +338,8 @@ src/
 
 都应进入独立的 targeting 模块，例如：
 
-- `src/group-directory-store.ts`
-- `src/group-target-resolver.ts`
+- `src/targeting/group-directory-store.ts`
+- `src/targeting/group-target-resolver.ts`
 
 不要把这些职责继续塞进 `peer-id-registry.ts` 或 `session-peer-store.ts`。
 

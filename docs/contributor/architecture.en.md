@@ -338,8 +338,8 @@ Any new feature that resolves:
 
 should live in a dedicated targeting module, for example:
 
-- `src/group-directory-store.ts`
-- `src/group-target-resolver.ts`
+- `src/targeting/group-directory-store.ts`
+- `src/targeting/group-target-resolver.ts`
 
 Do not extend `peer-id-registry.ts` or `session-peer-store.ts` to absorb that responsibility.
 
