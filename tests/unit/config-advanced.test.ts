@@ -173,8 +173,7 @@ describe('config advanced', () => {
         expect(resolveCardTaskProgressEnabled(resolved)).toBe(false);
     });
 
-    it('lets a named account re-enable card task progress without an explicit cardStreamingMode', () => {
-        const cfg = {
+    it('lets a named account re-enable card task progress without an explicit cardStreamingMode', () => {        const cfg = {
             channels: {
                 dingtalk: {
                     clientId: 'top_id',
@@ -193,6 +192,45 @@ describe('config advanced', () => {
         const resolved = getConfig(cfg, 'bot2');
         expect(resolved.cardStreamingModeConfigured).toBe(false);
         expect(resolveCardTaskProgressEnabled(resolved)).toBe(true);
+    });
+
+    it('lets a named account inherit the channel-level card task progress settings', () => {
+        // Real host path: the manifest schema parses the config first, then
+        // getConfig() merges channel-level defaults into the named account.
+        const parsed = DingTalkConfigSchema.parse({
+            clientId: 'top_id',
+            clientSecret: 'top_sec',
+            cardTaskProgress: true,
+            cardTaskProgressRefresh: 'interval',
+            accounts: {
+                bot2: {
+                    clientId: 'bot2_id',
+                    clientSecret: 'bot2_sec',
+                },
+            },
+        });
+
+        const resolved = getConfig({ channels: { dingtalk: parsed } } as any, 'bot2');
+        expect(resolved.cardTaskProgress).toBe(true);
+        expect(resolved.cardTaskProgressRefresh).toBe('interval');
+    });
+
+    it('lets a named account override the channel-level card task progress refresh', () => {
+        const parsed = DingTalkConfigSchema.parse({
+            clientId: 'top_id',
+            clientSecret: 'top_sec',
+            cardTaskProgressRefresh: 'interval',
+            accounts: {
+                bot2: {
+                    clientId: 'bot2_id',
+                    clientSecret: 'bot2_sec',
+                    cardTaskProgressRefresh: 'heartbeat',
+                },
+            },
+        });
+
+        const resolved = getConfig({ channels: { dingtalk: parsed } } as any, 'bot2');
+        expect(resolved.cardTaskProgressRefresh).toBe('heartbeat');
     });
 
     it('named account inherits top-level cardStreamingMode when account-level value is omitted', () => {

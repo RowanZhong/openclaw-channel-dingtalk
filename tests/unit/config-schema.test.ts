@@ -204,21 +204,39 @@ describe('DingTalkConfigSchema', () => {
         expect(parsed.cardTaskProgress).toBe(false);
     });
 
-    it('defaults cardTaskProgressRefresh to heartbeat and accepts interval', () => {
+    it('does not inject cardTaskProgressRefresh into parsed config when omitted', () => {
         const parsed = DingTalkConfigSchema.parse({
             clientId: 'id',
             clientSecret: 'secret',
         }) as { cardTaskProgressRefresh?: string };
 
-        expect(parsed.cardTaskProgressRefresh).toBe('heartbeat');
+        // An injected default would look like an account-level override and
+        // break channel-level inheritance in mergeAccountWithDefaults().
+        expect(parsed.cardTaskProgressRefresh).toBeUndefined();
+    });
 
-        const overridden = DingTalkConfigSchema.parse({
+    it('accepts cardTaskProgressRefresh interval', () => {
+        const parsed = DingTalkConfigSchema.parse({
             clientId: 'id',
             clientSecret: 'secret',
             cardTaskProgressRefresh: 'interval',
         }) as { cardTaskProgressRefresh?: string };
 
-        expect(overridden.cardTaskProgressRefresh).toBe('interval');
+        expect(parsed.cardTaskProgressRefresh).toBe('interval');
+    });
+
+    it('does not inject account-level cardTaskProgressRefresh when omitted so accounts can inherit top-level behavior', () => {
+        const parsed = DingTalkConfigSchema.parse({
+            cardTaskProgressRefresh: 'interval',
+            accounts: {
+                main: {
+                    clientId: 'id',
+                    clientSecret: 'secret',
+                },
+            },
+        }) as { accounts: Record<string, { cardTaskProgressRefresh?: string }> };
+
+        expect(parsed.accounts.main?.cardTaskProgressRefresh).toBeUndefined();
     });
 
     it('accepts account-level cardStreamingMode override', () => {

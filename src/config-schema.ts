@@ -194,11 +194,11 @@ const DingTalkAccountConfigShape = {
   cardTaskProgress: z.boolean().optional(),
 
   /** How tool-driven stage/step changes reach the progress block:
-   *  - heartbeat (default): coalesced into the 30s refresh, so a task costs
-   *    one update on appearance plus one per 30s
+   *  - heartbeat (effective default): coalesced into the 30s refresh, so a task
+   *    costs one update on appearance plus one per 30s
    *  - interval: pushed on every correlated tool event, throttled by
    *    `cardStreamInterval` (more updates, fresher stage label) */
-  cardTaskProgressRefresh: CardTaskProgressRefreshSchema.optional().default("heartbeat"),
+  cardTaskProgressRefresh: CardTaskProgressRefreshSchema.optional(),
 
   /** Cooldown window in milliseconds after AI card trigger errors. Replies fall back to non-card delivery during this period. */
   aicardDegradeMs: z
