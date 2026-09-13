@@ -186,6 +186,12 @@ const DingTalkAccountConfigShape = {
   /** Throttle interval in milliseconds between AI card streaming updates. */
   cardStreamInterval: z.number().int().min(200).optional().default(1000),
 
+  /** Live "task in progress" block on AI cards for long-running tasks.
+   *  - true: always enabled
+   *  - false: always disabled
+   *  - unset (default): enabled, except when `cardStreamingMode` is explicitly `"off"` */
+  cardTaskProgress: z.boolean().optional(),
+
   /** Cooldown window in milliseconds after AI card trigger errors. Replies fall back to non-card delivery during this period. */
   aicardDegradeMs: z
     .number()

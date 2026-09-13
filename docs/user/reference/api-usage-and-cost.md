@@ -41,6 +41,14 @@
 
 `cardStreamInterval` 会影响 `answer` / `all` 下的调用频率：间隔越小，卡片更新调用通常越多。
 
+## 长任务进度块的额外调用
+
+卡片模式下，超过 10 秒的长任务会启用「任务进度块」（见 [AI 卡片](../features/ai-card.md)）：
+
+- 10 秒内结束的任务：0 次额外调用
+- 超过 10 秒的任务：出现时 1 次，之后每 30 秒 1 次 `updateAICardBlockList`（例如 5 分钟任务约 11 次）
+- 可用 `cardTaskProgress: false` 关闭；`cardStreamingMode: "off"` 时默认也是关闭的
+
 ## 推荐策略
 
 - 默认部署：用 `markdown`

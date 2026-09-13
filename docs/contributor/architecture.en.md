@@ -215,6 +215,7 @@ src/
     config.ts
     config-schema.ts
     runtime.ts
+    runtime-events.ts
     logger-context.ts
     types.ts
     device-registration.ts

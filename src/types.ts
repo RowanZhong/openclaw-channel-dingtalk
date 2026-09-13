@@ -105,6 +105,10 @@ export interface DingTalkConfig extends OpenClawConfig {
   cardRealTimeStream?: boolean;
   /** Throttle interval in ms for card stream updates (default 1000) */
   cardStreamInterval?: number;
+  /** Live "task in progress" block on AI cards for long-running tasks.
+   *  `true` forces it on, `false` forces it off; when unset it is on unless
+   *  `cardStreamingMode` is explicitly `"off"`. */
+  cardTaskProgress?: boolean;
   /** AICard degrade duration in milliseconds after trigger errors (default 30m) */
   aicardDegradeMs?: number;
   /** Enable local learning loop (events/reflections/session notes/global rules) */
@@ -187,6 +191,10 @@ export interface DingTalkChannelConfig {
   cardRealTimeStream?: boolean;
   /** Throttle interval in ms for card stream updates (default 1000) */
   cardStreamInterval?: number;
+  /** Live "task in progress" block on AI cards for long-running tasks.
+   *  `true` forces it on, `false` forces it off; when unset it is on unless
+   *  `cardStreamingMode` is explicitly `"off"`. */
+  cardTaskProgress?: boolean;
   /** AICard degrade duration in milliseconds after trigger errors (default 30m) */
   aicardDegradeMs?: number;
   /** Enable local learning loop (events/reflections/session notes/global rules) */
