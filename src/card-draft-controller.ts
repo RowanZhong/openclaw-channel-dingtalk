@@ -99,6 +99,29 @@ function wrapProcessBlockMarkdown(text: string): string {
         .join("\n");
 }
 
+/**
+ * Render the progress summary as one card block per field.
+ *
+ * Real-device finding: with all four fields inside a single multi-line markdown
+ * block, the DingTalk client only re-rendered the trailing line — the elapsed
+ * time ticked while "已完成：N 步" stayed pinned at its first value, even though
+ * the frame we sent contained the new count. Splitting the fields into separate
+ * blocks makes each field update independently, like the trailing line did.
+ *
+ * The fields deliberately avoid the quoted process-block style: a blockquote
+ * indents the text behind a quote bar, which reads poorly for a status summary.
+ * The footnote size/color tokens still mark these blocks as process metadata.
+ */
+function renderProgressBlocks(text: string): CardBlock[] {
+    return text
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line) => ({
+            type: 2 as const,
+            markdown: `<font sizeToken=${PROCESS_BLOCK_FONT_SIZE_TOKEN} colorTokenV2=${PROCESS_BLOCK_FONT_COLOR_TOKEN_V2}>${line}</font>`,
+        }));
+}
+
 export function createCardDraftController(params: {
     card: AICardInstance;
     throttleMs?: number;
@@ -325,7 +348,7 @@ export function createCardDraftController(params: {
             switch (entry.kind) {
                 case "progress":
                     if (entry.text?.trim()) {
-                        blocks.push({ type: 2, markdown: wrapProcessBlockMarkdown(entry.text) });
+                        blocks.push(...renderProgressBlocks(entry.text));
                     }
                     break;
                 case "answer":
@@ -444,6 +467,13 @@ export function createCardDraftController(params: {
             try {
                 // Use instances API for blockList (not streaming API)
                 const statusLine = params.getStatusLine?.();
+                // Wire-level trace: this is the only place that shows what the
+                // reader's card actually receives, which is what real-device
+                // card debugging needs (the rendered text never hits the API logs).
+                params.log?.debug?.(
+                    `[DingTalk][AICard] BlockList frame card=${params.card.outTrackId || params.card.cardInstanceId} ` +
+                        `len=${content.length} body=${content}`,
+                );
                 await updateAICardBlockList(params.card, content, params.log, statusLine ? { statusLine } : undefined);
                 lastSentContent = content;
                 lastQueuedContent = "";

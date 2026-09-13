@@ -545,11 +545,11 @@ describe("inbound-handler card lifecycle", () => {
       const progressFrames = () =>
         shared.updateAICardBlockListMock.mock.calls
           .map((call: unknown[]) => String((call as unknown[])[1] ?? ""))
-          .filter((frame: string) => frame.includes("任务处理中"));
+          .filter((frame: string) => frame.includes("已完成 "));
 
       const framesAtTakeover = progressFrames().length;
       // Regression guard: without releasing the progress controller, the 10s
-      // start delay and the 30s heartbeat keep pushing "⏳ 任务处理中" frames into
+      // start delay and the 30s heartbeat keep pushing progress frames into
       // a card the question card already replaced (resource leak + stale card).
       await vi.advanceTimersByTimeAsync(61_000);
       await vi.advanceTimersByTimeAsync(60_000);
@@ -629,8 +629,8 @@ describe("inbound-handler card lifecycle", () => {
       String((call as unknown[])[1] ?? ""),
     );
     // The progress block was the only visible block, so the remote card must be
-    // cleared instead of silently keeping its last "⏳ 任务处理中" frame.
-    expect(frames.some((frame: string) => frame.includes("任务处理中"))).toBe(true);
+    // cleared instead of silently keeping its last progress frame.
+    expect(frames.some((frame: string) => frame.includes("已完成 "))).toBe(true);
     expect(frames.at(-1)).toBe("[]");
   });
 });

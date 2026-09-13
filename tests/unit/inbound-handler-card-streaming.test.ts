@@ -374,10 +374,11 @@ describe("inbound-handler card streaming", () => {
 
       const progressFrames = shared.updateAICardBlockListMock.mock.calls
         .map((call) => String(call[1] ?? ""))
-        .filter((frame) => frame.includes("任务处理中"));
+        .filter((frame) => frame.includes("已完成 "));
       expect(progressFrames).not.toHaveLength(0);
-      expect(progressFrames.at(-1)).toContain("当前阶段：正在执行检查");
+      expect(progressFrames.at(-1)).toContain("已完成 0 步");
       expect(progressFrames.at(-1)).not.toContain("secret-token");
+      expect(progressFrames.at(-1)).not.toContain("curl");
       expect(shared.commitAICardBlocksMock.mock.calls.at(-1)?.[1]?.content).toContain("完成");
     });
   });

@@ -156,7 +156,7 @@ SecretInput 对象字段：
 - 同时设置时，以 `cardStreamingMode` 为准。
 - `cardStreamInterval` 控制实时更新节奏（毫秒），在 `answer` / `all` 下生效；值越小，更新越频繁，API 调用通常越高。
 - `cardTaskProgress` 控制长任务进度块：未设置时默认开启，但 `cardStreamingMode` 显式为 `off` 时默认关闭；设为 `true` 可在 `off` 下仍然开启，设为 `false` 则完全关闭。详见 [AI 卡片](../features/ai-card.md)。
-- `cardTaskProgressRefresh` 控制进度块的刷新节奏：默认 `heartbeat`，只有首次出现立即推送，之后每 30 秒刷新一次，调用量可预测；设为 `interval` 则每次可关联的工具事件都推送阶段变化（受 `cardStreamInterval` 节流），阶段文案更新更及时但调用量随工具调用次数增长。
+- `cardTaskProgressRefresh` 控制进度块的刷新节奏：默认 `heartbeat`，只有首次出现立即推送，之后每 30 秒刷新一次，调用量可预测；设为 `interval` 则每次可关联的工具事件都推送一次（受 `cardStreamInterval` 节流），数字更新更及时但调用量随工具调用次数增长。
 
 ## 关于连接参数
 
