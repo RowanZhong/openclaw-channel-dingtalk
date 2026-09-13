@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { ALLOWED_ENV_KEYS, findAmbientEnvAccess } from "./ambient-env-guard.mjs";
 
 const output = execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
   encoding: "utf8",
@@ -32,10 +33,9 @@ if (processExecutionCall.test(runtime)) {
 // Secret resolvers must never receive the whole ambient environment: reading one
 // authorized variable at a time keeps credential ownership with the host.
 //
-// This is a shape heuristic against the exact fingerprint that ClawHub flagged
-// (Issue #608), not an exhaustive dataflow analysis: indirect forms such as
-// `env: { ...process.env }`, `const e = process.env; env: e`, or `env: process.env
-// as any` would not match.
+// This regex keeps the exact fingerprint ClawHub flagged (Issue #608) failing with
+// a dedicated message; the syntax-aware guard below is the authoritative check and
+// also covers spread, aliasing, and the other equivalent spellings.
 const ambientEnvPassThrough = /\benv\s*:\s*process\.env\s*(?:,|\}|\))/u;
 if (ambientEnvPassThrough.test(runtime)) {
   throw new Error("Runtime package must not pass the whole process.env to a secret resolver");
@@ -49,16 +49,17 @@ if (ambientEnvPassThrough.test(runtime)) {
 // (`openclaw/plugin-sdk/secret-ref-readonly`), and this guard keeps a direct
 // ambient read from silently reappearing in the published artifact.
 //
-// Only the documented non-credential card template id override is allowed; see
-// `docs/user/reference/security-policies.md` (环境变量读取范围).
-const allowedEnvKeys = new Set(["DINGTALK_CARD_TEMPLATE_ID"]);
-const ambientEnvAccess = /\bprocess\s*\.\s*env\b(?:\s*\.\s*([A-Za-z_$][\w$]*)|(\s*\[[^\]]*\]))?/gu;
-for (const [match, staticKey, computedKey] of runtime.matchAll(ambientEnvAccess)) {
-  if (!computedKey && staticKey && allowedEnvKeys.has(staticKey)) {
-    continue;
-  }
+// The syntax-aware walker (see `scripts/ambient-env-guard.mjs`) also covers the
+// equivalent spellings a text match misses: `process?.env.X`, `process["env"].X`,
+// `globalThis.process.env.X`, `const { env } = process`, `const p = process`, and
+// `import { env } from "node:process"`. The same guard runs over production source
+// in `tests/unit/env-access-structure.test.ts`, so regressions surface before a
+// build as well as at release time.
+const ambientEnvViolations = findAmbientEnvAccess(runtime, { allowedEnvKeys: ALLOWED_ENV_KEYS });
+if (ambientEnvViolations.length > 0) {
   throw new Error(
-    `Runtime package must not read ambient environment state outside the documented allowlist: ${match}`,
+    "Runtime package must not read ambient environment state outside the documented " +
+      `allowlist: ${ambientEnvViolations.join("; ")}`,
   );
 }
 

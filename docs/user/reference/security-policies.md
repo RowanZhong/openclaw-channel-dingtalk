@@ -97,7 +97,7 @@
 | --- | --- | --- |
 | `DINGTALK_CARD_TEMPLATE_ID` | 覆盖内置 AI 卡片模板 ID | **非凭据例外**：该值是钉钉卡片模板 ID，不是密钥；默认值为内置模板，未设置时不读取任何其它变量 |
 
-`clientSecret` 的 `env` SecretInput 引用**不再由插件读取**：单键读取发生在宿主只读解析器内部（见上一节）。发布前的 `scripts/verify-runtime-package.mjs` 会校验构建产物：除上表例外外，运行时包中出现任何进程环境读取都会直接失败。
+`clientSecret` 的 `env` SecretInput 引用**不再由插件读取**：单键读取发生在宿主只读解析器内部（见上一节）。发布前的 `scripts/verify-runtime-package.mjs` 会用语法树校验构建产物（`scripts/ambient-env-guard.mjs`）：除上表例外外，任何进程环境读取都会直接失败，且 `process?.env`、`process["env"]`、`globalThis.process.env`、`const { env } = process` 等等价写法、以及 `node:process` 的 `env` 导入都在拒绝范围内。
 
 除该例外外，插件源码不直接读取宿主环境变量。底层库（例如 HTTP 客户端）可能会按自身约定读取代理类环境变量，这属于宿主既有行为，不受本插件控制。
 

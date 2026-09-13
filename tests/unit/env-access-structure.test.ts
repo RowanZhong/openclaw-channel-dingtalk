@@ -6,11 +6,14 @@
  * resolve an `env` SecretInput. That read now happens inside the host SDK
  * (`openclaw/plugin-sdk/secret-ref-readonly`), and this test keeps production
  * source from reintroducing a direct ambient read. The published runtime bundle is
- * checked independently by `scripts/verify-runtime-package.mjs`.
+ * checked with the same syntax-aware guard by `scripts/verify-runtime-package.mjs`.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
+
+import { findAmbientEnvAccess } from "../../scripts/ambient-env-guard.mjs";
 
 const repoRoot = resolve(__dirname, "../..");
 
@@ -25,43 +28,26 @@ function productionSourceFiles(): string[] {
     ];
 }
 
-function readProductionSource(): Array<{ file: string; content: string }> {
-    return productionSourceFiles().map((file) => ({
-        file,
-        content: readFileSync(resolve(repoRoot, file), "utf8"),
-    }));
+function findViolations(): string[] {
+    const violations: string[] = [];
+
+    for (const file of productionSourceFiles()) {
+        const content = readFileSync(resolve(repoRoot, file), "utf8");
+        for (const violation of findAmbientEnvAccess(content, {
+            allowedEnvKeys: ALLOWED_STATIC_ENV_KEYS,
+            fileName: file,
+            scriptKind: ts.ScriptKind.TS,
+        })) {
+            violations.push(`${file}: ${violation}`);
+        }
+    }
+
+    return violations;
 }
 
 describe("ambient environment access structure", () => {
-    it("never indexes the ambient environment in production source", () => {
-        const offenders = readProductionSource()
-            .filter(({ content }) => /process\s*\.\s*env\s*\[/u.test(content))
-            .map(({ file }) => file);
-
-        expect(offenders).toEqual([]);
-    });
-
-    it("reads only the documented static environment key in production source", () => {
-        const staticEnvRead = /process\s*\.\s*env\s*\.\s*([A-Za-z_$][\w$]*)/gu;
-        const offenders: string[] = [];
-
-        for (const { file, content } of readProductionSource()) {
-            for (const [, key] of content.matchAll(staticEnvRead)) {
-                if (!ALLOWED_STATIC_ENV_KEYS.has(key)) {
-                    offenders.push(`${file}: ${key}`);
-                }
-            }
-        }
-
-        expect(offenders).toEqual([]);
-    });
-
-    it("never hands the bare ambient environment to a secret resolver", () => {
-        const offenders = readProductionSource()
-            .filter(({ content }) => /\benv\s*:\s*process\s*\.\s*env\b/u.test(content))
-            .map(({ file }) => file);
-
-        expect(offenders).toEqual([]);
+    it("never reads ambient environment state in production source", () => {
+        expect(findViolations()).toEqual([]);
     });
 
     it("keeps SecretInput env resolution delegated to the host read-only resolver", () => {
