@@ -18,7 +18,7 @@ import {
 import { createDraftStreamLoop } from "./draft-stream-loop";
 import type { AICardInstance, CardBlock, Logger } from "./types";
 
-type TimelineEntryKind = "thinking" | "tool" | "answer" | "image";
+type TimelineEntryKind = "progress" | "thinking" | "tool" | "answer" | "image";
 
 type TimelineEntry = {
     kind: TimelineEntryKind;
@@ -34,6 +34,8 @@ const PROCESS_BLOCK_FONT_SIZE_TOKEN = "common_footnote_text_style__font_size";
 const PROCESS_BLOCK_FONT_COLOR_TOKEN_V2 = "common_level2_base_color";
 
 export interface CardDraftController {
+    updateProgress: (text: string) => Promise<void>;
+    clearProgress: (options?: { clearRemoteWhenEmpty?: boolean }) => Promise<void>;
     updateAnswer: (text: string, options?: { stream?: boolean; renderBlocks?: boolean }) => Promise<void>;
     updateReasoning: (text: string) => Promise<void>;
     updateThinking: (text: string) => Promise<void>;
@@ -95,6 +97,29 @@ function wrapProcessBlockMarkdown(text: string): string {
     return lines
         .map((line) => `> <font sizeToken=${PROCESS_BLOCK_FONT_SIZE_TOKEN} colorTokenV2=${PROCESS_BLOCK_FONT_COLOR_TOKEN_V2}>${line}</font>`)
         .join("\n");
+}
+
+/**
+ * Render the progress summary as one card block per field.
+ *
+ * Real-device finding: with all four fields inside a single multi-line markdown
+ * block, the DingTalk client only re-rendered the trailing line — the elapsed
+ * time ticked while "已完成：N 步" stayed pinned at its first value, even though
+ * the frame we sent contained the new count. Splitting the fields into separate
+ * blocks makes each field update independently, like the trailing line did.
+ *
+ * The fields deliberately avoid the quoted process-block style: a blockquote
+ * indents the text behind a quote bar, which reads poorly for a status summary.
+ * The footnote size/color tokens still mark these blocks as process metadata.
+ */
+function renderProgressBlocks(text: string): CardBlock[] {
+    return text
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line) => ({
+            type: 2 as const,
+            markdown: `<font sizeToken=${PROCESS_BLOCK_FONT_SIZE_TOKEN} colorTokenV2=${PROCESS_BLOCK_FONT_COLOR_TOKEN_V2}>${line}</font>`,
+        }));
 }
 
 export function createCardDraftController(params: {
@@ -201,6 +226,76 @@ export function createCardDraftController(params: {
         return timelineEntries.length - 1;
     };
 
+    const updateProgress = async (text: string) => {
+        await waitForPendingBoundary();
+        if (stopped || failed) {
+            return;
+        }
+        const normalized = normalizeProcessText(text);
+        if (!normalized) {
+            return;
+        }
+        const progressIndex = timelineEntries.findIndex((entry) => entry.kind === "progress");
+        if (progressIndex >= 0) {
+            timelineEntries[progressIndex] = { kind: "progress", text: normalized };
+        } else {
+            timelineEntries.unshift({ kind: "progress", text: normalized });
+            if (activeThinkingIndex !== null) {
+                activeThinkingIndex += 1;
+            }
+            if (activeAnswerIndex !== null) {
+                activeAnswerIndex += 1;
+            }
+        }
+        queueRender();
+    };
+
+    const clearRemoteBlocks = async () => {
+        // The normal render path intentionally skips empty block lists, so an
+        // explicit teardown has to push the empty state itself: otherwise the
+        // reader keeps seeing the last "⏳ 任务处理中" frame on a card that was
+        // never recalled (ask-user takeover with a failed recall).
+        clearPendingRender();
+        if (stopped || failed) {
+            return;
+        }
+        try {
+            const statusLine = params.getStatusLine?.();
+            await updateAICardBlockList(
+                params.card,
+                "[]",
+                params.log,
+                statusLine ? { statusLine } : undefined,
+            );
+            // Force the next render to re-send instead of trusting a stale cache.
+            lastSentContent = "";
+            lastAnswerContent = "";
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            params.log?.warn?.(`[DingTalk][AICard] Failed to clear stale card blocks: ${message}`);
+        }
+    };
+
+    const clearProgress = async (options: { clearRemoteWhenEmpty?: boolean } = {}) => {
+        await waitForPendingBoundary();
+        // A failed card never re-renders (the draft stream loop is stopped), but
+        // the timeline entry must still go away so a stale "任务处理中" block can
+        // never be picked up by a later render/fallback read.
+        if (stopped) {
+            return;
+        }
+        const progressIndex = timelineEntries.findIndex((entry) => entry.kind === "progress");
+        if (progressIndex < 0) {
+            return;
+        }
+        removeTimelineEntry(progressIndex);
+        if (timelineEntries.length === 0 && options.clearRemoteWhenEmpty) {
+            await clearRemoteBlocks();
+            return;
+        }
+        queueRender();
+    };
+
     const findCurrentSegmentAnswerIndex = (): number | null => {
         return activeAnswerIndex;
     };
@@ -251,6 +346,11 @@ export function createCardDraftController(params: {
         for (const entry of entries) {
             if (!entry) { continue; }
             switch (entry.kind) {
+                case "progress":
+                    if (entry.text?.trim()) {
+                        blocks.push(...renderProgressBlocks(entry.text));
+                    }
+                    break;
                 case "answer":
                     if (entry.text?.trim()) {
                         blocks.push({ type: 0, markdown: entry.text });
@@ -367,6 +467,14 @@ export function createCardDraftController(params: {
             try {
                 // Use instances API for blockList (not streaming API)
                 const statusLine = params.getStatusLine?.();
+                // Wire-level trace for real-device card debugging: how often a
+                // card is updated and how large each frame is. Deliberately
+                // metadata-only — the rendered body carries user content (card
+                // answers), so it must never be copied into application logs.
+                params.log?.debug?.(
+                    `[DingTalk][AICard] BlockList frame card=${params.card.outTrackId || params.card.cardInstanceId} ` +
+                        `len=${content.length}`,
+                );
                 await updateAICardBlockList(params.card, content, params.log, statusLine ? { statusLine } : undefined);
                 lastSentContent = content;
                 lastQueuedContent = "";
@@ -575,6 +683,8 @@ export function createCardDraftController(params: {
     };
 
     return {
+        updateProgress,
+        clearProgress,
         updateAnswer,
         updateReasoning,
         updateThinking: updateReasoning,

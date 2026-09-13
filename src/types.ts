@@ -23,6 +23,10 @@ export type AckReactionMode = "off" | "emoji" | "kaomoji";
 // explicit modes remain: "off" | "emoji" | "kaomoji".
 export type AckReactionConfigValue = string;
 export type CardStreamingMode = "off" | "answer" | "all";
+/** How tool-driven task-progress changes reach the card:
+ *  - `heartbeat` (default): coalesced into the 30s progress heartbeat
+ *  - `interval`: pushed on every correlated tool event, throttled by `cardStreamInterval` */
+export type CardTaskProgressRefresh = "heartbeat" | "interval";
 export type ContextVisibilityMode = "all" | "allowlist" | "allowlist_quote";
 
 /**
@@ -101,10 +105,23 @@ export interface DingTalkConfig extends OpenClawConfig {
    *  - answer: stream answer text
    *  - all: stream answer + reasoning text */
   cardStreamingMode?: CardStreamingMode;
+  /** Internal derived flag, not a user-facing config key: whether
+   *  `cardStreamingMode` came from an explicit user setting instead of the
+   *  runtime default. Written by config normalization only. */
+  cardStreamingModeConfigured?: boolean;
   /** @deprecated Use `cardStreamingMode` instead. */
   cardRealTimeStream?: boolean;
   /** Throttle interval in ms for card stream updates (default 1000) */
   cardStreamInterval?: number;
+  /** Live "task in progress" block on AI cards for long-running tasks.
+   *  `true` forces it on, `false` forces it off; when unset it is on unless
+   *  `cardStreamingMode` is explicitly `"off"`. */
+  cardTaskProgress?: boolean;
+  /** How stage/step changes reach the progress block. `heartbeat` (default)
+   *  keeps the documented "once on appearance, then once per 30s" budget;
+   *  `interval` pushes on every correlated tool event, throttled by
+   *  `cardStreamInterval`, trading card updates for a fresher stage label. */
+  cardTaskProgressRefresh?: CardTaskProgressRefresh;
   /** AICard degrade duration in milliseconds after trigger errors (default 30m) */
   aicardDegradeMs?: number;
   /** Enable local learning loop (events/reflections/session notes/global rules) */
@@ -183,10 +200,23 @@ export interface DingTalkChannelConfig {
    *  - answer: stream answer text
    *  - all: stream answer + reasoning text */
   cardStreamingMode?: CardStreamingMode;
+  /** Internal derived flag, not a user-facing config key: whether
+   *  `cardStreamingMode` came from an explicit user setting instead of the
+   *  runtime default. Written by config normalization only. */
+  cardStreamingModeConfigured?: boolean;
   /** @deprecated Use `cardStreamingMode` instead. */
   cardRealTimeStream?: boolean;
   /** Throttle interval in ms for card stream updates (default 1000) */
   cardStreamInterval?: number;
+  /** Live "task in progress" block on AI cards for long-running tasks.
+   *  `true` forces it on, `false` forces it off; when unset it is on unless
+   *  `cardStreamingMode` is explicitly `"off"`. */
+  cardTaskProgress?: boolean;
+  /** How stage/step changes reach the progress block. `heartbeat` (default)
+   *  keeps the documented "once on appearance, then once per 30s" budget;
+   *  `interval` pushes on every correlated tool event, throttled by
+   *  `cardStreamInterval`, trading card updates for a fresher stage label. */
+  cardTaskProgressRefresh?: CardTaskProgressRefresh;
   /** AICard degrade duration in milliseconds after trigger errors (default 30m) */
   aicardDegradeMs?: number;
   /** Enable local learning loop (events/reflections/session notes/global rules) */

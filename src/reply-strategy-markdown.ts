@@ -272,6 +272,10 @@ export function createMarkdownReplyStrategy(ctx: ReplyStrategyContext): ReplyStr
       // Nothing to clean up.
     },
 
+    async dispose(): Promise<void> {
+      // Markdown delivery owns no timers or subscriptions.
+    },
+
     getFinalText(): string | undefined {
       return finalText || activeAnswerText || undefined;
     },

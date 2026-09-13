@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { createCardDraftController } from "../../src/card-draft-controller";
+import { createCardTaskProgressController } from "../../src/card/card-task-progress";
 import * as cardService from "../../src/card-service";
 import { AICardStatus } from "../../src/types";
 import type { AICardInstance, CardBlock } from "../../src/types";
@@ -166,6 +167,196 @@ describe("card-draft-controller", () => {
             type: 2,
             markdown: getProcessBlockText("Exec: pwd"),
         });
+    });
+
+    it("replaces and clears a single live task progress block", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在验证服务");
+        await vi.advanceTimersByTimeAsync(0);
+
+        let blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(2);
+        expect(getBlockText(blocks, 1)).toContain("正在验证服务");
+        expect(getBlockText(blocks, 1)).not.toContain("正在检查配置");
+
+        await ctrl.clearProgress();
+        await vi.advanceTimersByTimeAsync(0);
+
+        blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(0);
+    });
+
+    it("renders every progress field as its own plain footnote block", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置\n已完成：2 步");
+        await vi.advanceTimersByTimeAsync(0);
+
+        const blocks = parseBlocks(ctrl.getRenderedBlocks());
+        // Real-device finding: inside one multi-line markdown block the DingTalk
+        // client only re-rendered the trailing line, so "已完成：N 步" froze at
+        // its first value. Each field is its own block now.
+        expect(blocks).toHaveLength(3);
+        const fields = blocks.map((_, index) => getBlockText(blocks, index));
+        expect(fields[0]).toContain("任务处理中");
+        expect(fields[1]).toContain("正在检查配置");
+        expect(fields[2]).toContain("已完成：2 步");
+
+        for (const field of fields) {
+            // Real-device feedback: the quoted process style indented the summary
+            // behind a quote bar and ran the fields together.
+            expect(field.startsWith(">")).toBe(false);
+            expect(field).not.toContain("\n");
+            expect(field.endsWith("  ")).toBe(false);
+        }
+    });
+
+    it("never copies the rendered card body into debug logs", async () => {
+        const card = makeCard();
+        const log = { debug: vi.fn(), warn: vi.fn() };
+        const ctrl = createCardDraftController({ card, throttleMs: 0, log });
+
+        await ctrl.updateProgress("执行检查中，已完成 1 步，耗时 2 秒");
+        await vi.advanceTimersByTimeAsync(0);
+
+        const frameLogs = log.debug.mock.calls
+            .map((call) => String(call[0]))
+            .filter((line) => line.includes("BlockList frame"));
+        expect(frameLogs).not.toHaveLength(0);
+        for (const line of frameLogs) {
+            // Card bodies carry user content; only metadata may be logged.
+            expect(line).not.toContain("已完成");
+            expect(line).not.toContain("markdown");
+            expect(line).not.toContain("<font");
+        }
+        expect(frameLogs.at(-1)).toContain("len=");
+    });
+
+    it("sends the completed step count in the frames handed to the card API", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+        let listener: ((event: unknown) => void) | undefined;
+        const runtimeEvents = {
+            onAgentEvent: vi.fn((next: (event: unknown) => void) => {
+                listener = next;
+                return vi.fn();
+            }),
+        };
+        const progress = createCardTaskProgressController({
+            sessionKey: "s1",
+            refresh: "interval",
+            runtimeEvents,
+            updateProgress: ctrl.updateProgress,
+            clearProgress: ctrl.clearProgress,
+        });
+
+        // End-to-end through the real controllers: runtime events -> timeline ->
+        // the exact blockList JSON handed to the DingTalk card API.
+        listener?.({ stream: "lifecycle", runId: "run-1", sessionKey: "s1", data: { phase: "start" } });
+        listener?.({
+            stream: "tool",
+            runId: "run-1",
+            data: { phase: "start", name: "exec", toolCallId: "tool-1" },
+        });
+        listener?.({
+            stream: "tool",
+            runId: "run-1",
+            data: { phase: "result", name: "exec", toolCallId: "tool-1", isError: false },
+        });
+        await progress.awaitDrain();
+        await vi.advanceTimersByTimeAsync(0);
+
+        const frames = updateAICardBlockListMock.mock.calls.map((call) => String(call[1] ?? ""));
+        expect(frames.at(-1)).toContain("已完成 1 步");
+    });
+
+    it("keeps an active answer block intact while a progress block is added and removed", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateAnswer("answer draft", { stream: false, renderBlocks: true });
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+
+        let blocks = parseBlocks(ctrl.getRenderedBlocks());
+        // Two progress fields render as two blocks, then the answer block.
+        expect(blocks).toHaveLength(3);
+        expect(getBlockText(blocks, 0)).toContain("任务处理中");
+        expect(getBlockText(blocks, 2)).toContain("answer draft");
+
+        await ctrl.clearProgress();
+        await vi.advanceTimersByTimeAsync(0);
+
+        blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(1);
+        expect(getBlockText(blocks, 0)).toContain("answer draft");
+
+        // The active answer index must still point at the surviving entry, so a
+        // later answer update replaces it instead of appending a second block.
+        await ctrl.updateAnswer("answer draft v2", { stream: false, renderBlocks: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(1);
+        expect(getBlockText(blocks, 0)).toContain("answer draft v2");
+        expect(getBlockText(blocks, 0)).not.toContain("任务处理中");
+    });
+
+    it("clears the remote card when the progress block was the last visible block", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        updateAICardBlockListMock.mockClear();
+
+        await ctrl.clearProgress({ clearRemoteWhenEmpty: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(parseBlocks(ctrl.getRenderedBlocks())).toHaveLength(0);
+        // An empty local timeline must still be pushed, otherwise the reader
+        // keeps seeing the last "任务处理中" frame on a card that was never recalled.
+        expect(updateAICardBlockListMock).toHaveBeenCalledTimes(1);
+        expect(updateAICardBlockListMock.mock.calls[0]?.[1]).toBe("[]");
+    });
+
+    it("keeps the remote card when other blocks survive the progress removal", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateAnswer("answer draft", { stream: false, renderBlocks: true });
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        updateAICardBlockListMock.mockClear();
+
+        await ctrl.clearProgress({ clearRemoteWhenEmpty: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(1);
+        expect(getBlockText(blocks, 0)).toContain("answer draft");
+        const sentFrames = updateAICardBlockListMock.mock.calls.map((call) => String(call[1] ?? ""));
+        expect(sentFrames.every((frame) => frame !== "[]")).toBe(true);
+    });
+
+    it("never wipes a failed card while clearing progress", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        ctrl.stop();
+        updateAICardBlockListMock.mockClear();
+
+        await ctrl.clearProgress({ clearRemoteWhenEmpty: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(updateAICardBlockListMock).not.toHaveBeenCalled();
     });
 
     it("answer rendering keeps the latest thinking block in the same timeline", async () => {

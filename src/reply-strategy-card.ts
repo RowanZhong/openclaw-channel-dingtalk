@@ -34,6 +34,10 @@ import { sendBySession, sendMessage, sendProactiveMedia, uploadMedia } from "./s
 import type { AICardInstance } from "./types";
 import { AICardStatus } from "./types";
 import { formatDingTalkErrorPayloadLog } from "./utils";
+import {
+  createCardTaskProgressController,
+  resolveCardTaskProgressEnabled,
+} from "./card/card-task-progress";
 
 const EMPTY_FINAL_REPLY = "✅ Done";
 const DEFAULT_CARD_FAILED_MESSAGE = "回复生成失败，请重试";
@@ -130,6 +134,15 @@ export function createCardReplyStrategy(
     realTimeStreamEnabled: streamAnswerLive,
     throttleMs: config.cardStreamInterval ?? 1000,
     getStatusLine: buildStatusLine,
+  });
+  const taskProgressController = createCardTaskProgressController({
+    sessionKey: ctx.sessionKey ?? "",
+    enabled: resolveCardTaskProgressEnabled(config),
+    refresh: config.cardTaskProgressRefresh,
+    runtimeEvents: ctx.runtimeEvents,
+    updateProgress: controller.updateProgress,
+    clearProgress: controller.clearProgress,
+    log,
   });
   const reasoningAssembler = createReasoningBlockAssembler();
   if (card.outTrackId) {
@@ -621,6 +634,7 @@ export function createCardReplyStrategy(
     },
 
     async finalize(): Promise<void> {
+      await taskProgressController.dispose();
       log?.info?.(
         `[DingTalk][Finalize] Step 5 entry — ` +
         `cardState=${card.state ?? "N/A"} ` +
@@ -832,6 +846,7 @@ export function createCardReplyStrategy(
     },
 
     async abort(_error: Error): Promise<void> {
+      await taskProgressController.dispose();
       lifecycleState = "sealed";
       if (card.accountId && card.conversationId) {
         clearRuns(ctx.taskMeta?.runIds);
@@ -852,6 +867,14 @@ export function createCardReplyStrategy(
           card.lastUpdated = Date.now();
         }
       }
+    },
+
+    async dispose(): Promise<void> {
+      // Release the progress heartbeat/subscription even when this strategy is
+      // dropped without finalize (for example ask-user question-card takeover).
+      // This path never commits the card, so a progress-only card must also
+      // clear its remote block list instead of leaving a live-looking card.
+      await taskProgressController.dispose({ clearRemoteWhenEmpty: true });
     },
 
     getFinalText(): string | undefined {

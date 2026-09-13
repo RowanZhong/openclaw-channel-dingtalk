@@ -93,6 +93,52 @@ describe("plugin manifest channel metadata", () => {
         }));
     });
 
+    it("publishes card task progress fields in both top-level and account-level DingTalk schema", () => {
+        const manifest = readJsonFile<{
+            channelConfigs?: Record<
+                string,
+                {
+                    schema?: {
+                        properties?: Record<string, any>;
+                    };
+                    uiHints?: Record<string, { label?: string; help?: string }>;
+                }
+            >;
+        }>("openclaw.plugin.json");
+
+        const topLevelProperties = manifest.channelConfigs?.dingtalk?.schema?.properties;
+        const accountLevelProperties = topLevelProperties?.accounts?.additionalProperties?.properties;
+
+        // The host validates channels.dingtalk against this schema with
+        // additionalProperties: false, so an undeclared key makes the documented
+        // config unusable before it ever reaches the runtime.
+        for (const properties of [topLevelProperties, accountLevelProperties]) {
+            expect(properties?.cardTaskProgress).toEqual(expect.objectContaining({ type: "boolean" }));
+            expect(properties?.cardTaskProgressRefresh).toEqual(
+                expect.objectContaining({ type: "string", enum: ["heartbeat", "interval"] }),
+            );
+            // No declared default on purpose: the host must keep "omitted"
+            // distinguishable from an explicit value, otherwise a named account
+            // could not inherit the channel-level setting.
+            expect(properties?.cardTaskProgress).not.toHaveProperty("default");
+            expect(properties?.cardTaskProgressRefresh).not.toHaveProperty("default");
+        }
+
+        expect(accountLevelProperties?.cardTaskProgress?.description).toBe(
+            topLevelProperties?.cardTaskProgress?.description,
+        );
+        expect(accountLevelProperties?.cardTaskProgressRefresh?.description).toBe(
+            topLevelProperties?.cardTaskProgressRefresh?.description,
+        );
+
+        expect(manifest.channelConfigs?.dingtalk?.uiHints?.cardTaskProgress?.help).toMatch(
+            /progress|card/i,
+        );
+        expect(manifest.channelConfigs?.dingtalk?.uiHints?.cardTaskProgressRefresh?.help).toMatch(
+            /heartbeat|interval|throttle/i,
+        );
+    });
+
     it("documents active and legacy DingTalk config fields for WebUI operators", () => {
         const manifest = readJsonFile<{
             channelConfigs?: Record<

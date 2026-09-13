@@ -251,6 +251,15 @@
             "default": 1000,
             "description": "Throttle interval in milliseconds between AI card streaming updates."
           },
+          "cardTaskProgress": {
+            "type": "boolean",
+            "description": "Live task-progress block on AI cards for long-running tasks. true forces it on, false forces it off; when unset it is on unless cardStreamingMode is explicitly set to off."
+          },
+          "cardTaskProgressRefresh": {
+            "type": "string",
+            "enum": ["heartbeat", "interval"],
+            "description": "How tool-driven progress changes reach the card. heartbeat (effective default) coalesces them into the 30-second refresh; interval pushes on every correlated tool event, throttled by cardStreamInterval."
+          },
           "aicardDegradeMs": {
             "type": "integer",
             "minimum": 60000,
@@ -605,6 +614,15 @@
                   "default": 1000,
                   "description": "Throttle interval in milliseconds between AI card streaming updates."
                 },
+                "cardTaskProgress": {
+                  "type": "boolean",
+                  "description": "Live task-progress block on AI cards for long-running tasks. true forces it on, false forces it off; when unset it is on unless cardStreamingMode is explicitly set to off."
+                },
+                "cardTaskProgressRefresh": {
+                  "type": "string",
+                  "enum": ["heartbeat", "interval"],
+                  "description": "How tool-driven progress changes reach the card. heartbeat (effective default) coalesces them into the 30-second refresh; interval pushes on every correlated tool event, throttled by cardStreamInterval."
+                },
                 "aicardDegradeMs": {
                   "type": "integer",
                   "minimum": 60000,
@@ -873,6 +891,14 @@
         "cardStreamInterval": {
           "label": "Card Stream Interval (ms)",
           "help": "Throttle interval in milliseconds between AI card incremental updates."
+        },
+        "cardTaskProgress": {
+          "label": "Card Task Progress",
+          "help": "Show a live task-progress block on AI cards for long-running tasks. Leave empty to keep the default (on unless cardStreamingMode is explicitly off)."
+        },
+        "cardTaskProgressRefresh": {
+          "label": "Card Task Progress Refresh",
+          "help": "heartbeat (default) refreshes the progress block every 30 seconds with a predictable update count; interval also pushes every tool-driven stage change, throttled by cardStreamInterval."
         },
         "aicardDegradeMs": {
           "label": "AI Card Degrade Window (ms)",

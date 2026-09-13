@@ -2,13 +2,15 @@ import { attachNativeAckReaction, recallNativeAckReactionWithRetry } from "../ac
 import type { DingTalkConfig } from "../types";
 import { getErrorMessage } from "../utils";
 import {
-  createDynamicAckReactionCorrelator,
+  createAgentEventCorrelator,
   describeEvent,
-  type DynamicAckReactionLogger,
   type RuntimeAgentEvent,
+  type RuntimeEventsLogger,
   type RuntimeEventsSurface,
-} from "./dynamic-ack-reaction-events";
+} from "../platform/runtime-events";
 import { resolveToolProgressReaction } from "./dynamic-ack-reaction-progress";
+
+const CORRELATION_CONSUMER = "ack-reaction";
 
 type DynamicAckReactionControllerParams = {
   enabled: boolean;
@@ -19,7 +21,7 @@ type DynamicAckReactionControllerParams = {
   msgId: string;
   conversationId: string;
   sessionKey: string;
-  log?: DynamicAckReactionLogger;
+  log?: RuntimeEventsLogger;
   runtimeEvents?: RuntimeEventsSurface;
   onReactionDisposed?: () => void;
 };
@@ -42,7 +44,8 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
   let lastDynamicReactionSwitchAt = 0;
   let disposed = false;
   const createdAt = Date.now();
-  const isCorrelatedEvent = createDynamicAckReactionCorrelator({
+  const isCorrelatedEvent = createAgentEventCorrelator({
+    consumer: CORRELATION_CONSUMER,
     sessionKey: params.sessionKey,
     enabled: params.enabled,
     createdAt,

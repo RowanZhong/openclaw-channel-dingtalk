@@ -7,6 +7,7 @@
  */
 
 import type { GetReplyOptions } from "openclaw/plugin-sdk/reply-runtime";
+import type { RuntimeEventsSurface } from "./platform/runtime-events";
 import type { DingTalkConfig, Logger, QuotedRef } from "./types";
 
 // ---- Internal helper type ----
@@ -57,6 +58,14 @@ export interface ReplyStrategy {
   /** Called when dispatch throws an error. */
   abort(error: Error): Promise<void>;
 
+  /**
+   * Release strategy-owned resources (timers, event subscriptions) without
+   * touching the delivery surface. Idempotent, and safe to call after
+   * `finalize()`/`abort()`. Callers must invoke this even on early-return
+   * paths so a strategy that never finalized cannot leak.
+   */
+  dispose(): Promise<void>;
+
   /** Last known final text (for external consumers such as logging). */
   getFinalText(): string | undefined;
 }
@@ -94,4 +103,5 @@ export interface ReplyStrategyContext {
   isStopRequested?: () => boolean;
   inboundText?: string;
   taskMeta?: TaskMeta;
+  runtimeEvents?: RuntimeEventsSurface;
 }
