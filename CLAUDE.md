@@ -31,6 +31,9 @@ pnpm run build:runtime
 # Format only (oxfmt)
 pnpm run format
 
+# Format check (oxfmt, CI gate)
+pnpm run format:check
+
 # Run all tests
 pnpm test
 

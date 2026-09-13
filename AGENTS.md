@@ -358,7 +358,7 @@ or any DingTalk real-device validation; otherwise the gateway may keep running s
 
 - Vitest test suite is initialized with unit + integration coverage under `tests/`
 - Network calls are mocked in tests (`vi.mock`), no real DingTalk API requests are made
-- CI should run `pnpm test` on every push and pull request
+- CI runs `pnpm run format:check`, `pnpm run type-check`, `pnpm run lint`, `pnpm test`, and `pnpm test:coverage` on every push and pull request
 - Coverage can be generated with `pnpm test:coverage`
 - Before applying code changes to a live DingTalk debugging session, run `pnpm run build:runtime` and then restart the gateway so `dist/index.js` matches the source.
 - When the task involves DingTalk real-device validation, PR-scoped test checklists, `验证 TODO` drafting, or contributor-workflow updates for that process, read and follow `skills/dingtalk-real-device-testing/SKILL.md` first.
