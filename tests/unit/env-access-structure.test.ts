@@ -57,3 +57,52 @@ describe("ambient environment access structure", () => {
         expect(source).not.toMatch(/process\s*\.\s*env/u);
     });
 });
+
+describe("ambient env guard", () => {
+    function violationsFor(source: string): string[] {
+        return findAmbientEnvAccess(source, { allowedEnvKeys: ALLOWED_STATIC_ENV_KEYS });
+    }
+
+    it.each([
+        ["dot access", 'const secret = process.env.DINGTALK_CLIENT_SECRET;'],
+        ["optional chain", 'const secret = process?.env?.DINGTALK_CLIENT_SECRET;'],
+        ["computed env key", 'const secret = process["env"].DINGTALK_CLIENT_SECRET;'],
+        ["global object", 'const secret = globalThis.process.env.DINGTALK_CLIENT_SECRET;'],
+        ["dynamic single key", "function read(id) { return process.env[id]; }"],
+        ["bare environment", "const ambient = process.env;"],
+        ["spread environment", "const copy = { ...process.env };"],
+        ["destructured env", "const { env } = process;"],
+        ["renamed destructured env", "const { env: e } = process;"],
+        ["string key destructuring", 'const { "env": e } = process;'],
+        ["computed string key destructuring", 'const { ["env"]: e } = process;'],
+        ["dynamic key destructuring", "const { [key]: e } = process;"],
+        ["object rest destructuring", "const { ...proc } = process;"],
+        ["object rest assignment", "({ ...proc } = process);"],
+        ["process alias", "const proc = process;"],
+        ["process hand-off", "consume(process);"],
+        ["process module env import", 'import { env } from "node:process";'],
+        ["process module default import", 'import proc from "node:process";'],
+        ["process module require", 'const proc = require("node:process");'],
+        ["process module dynamic import", 'const proc = await import("node:process");'],
+        ["dynamic process property key", "const key = \"env\"; const secret = process[key];"],
+        ["concatenated process property key", 'const secret = process["en" + "v"];'],
+    ])("rejects %s", (_label, source) => {
+        expect(violationsFor(source).length).toBeGreaterThan(0);
+    });
+
+    it.each([
+        [
+            "the documented template id override",
+            'const templateId = process.env.DINGTALK_CARD_TEMPLATE_ID || "builtin.schema";',
+        ],
+        [
+            "the documented template id override through bracket access",
+            'const templateId = process.env["DINGTALK_CARD_TEMPLATE_ID"] || "builtin.schema";',
+        ],
+        ["non-environment process access", "const cwd = process.cwd(); const os = process.platform;"],
+        ["destructuring non-environment properties", "const { platform, arch } = process;"],
+        ["a type-only process check", 'const hasProcess = typeof process !== "undefined";'],
+    ])("allows %s", (_label, source) => {
+        expect(violationsFor(source)).toEqual([]);
+    });
+});

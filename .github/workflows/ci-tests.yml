@@ -43,3 +43,12 @@ jobs:
 
       - name: Run coverage
         run: pnpm test:coverage
+
+      # The release gate must fail here, not at tag time: the runtime package
+      # verifier inspects the real bundle (ambient env guard, process execution,
+      # source maps), so pull requests build it too.
+      - name: Build runtime package
+        run: pnpm run build
+
+      - name: Verify package runtime output
+        run: pnpm run pack:check

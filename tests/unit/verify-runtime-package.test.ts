@@ -224,6 +224,34 @@ export { secret };
         );
     });
 
+    it("rejects object-rest destructuring of the process global", () => {
+        const packageDir = createRuntimePackageFixture(`
+const { ...proc } = process;
+const secret = proc.env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects a computed string env key destructured from the process global", () => {
+        const packageDir = createRuntimePackageFixture(`
+const { ["env"]: e } = process;
+const secret = e.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
     function runVerification(packageDir: string): void {
         execFileSync(process.execPath, [scriptPath], {
             cwd: packageDir,

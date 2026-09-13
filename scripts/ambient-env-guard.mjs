@@ -102,16 +102,37 @@ function skipParentheses(node) {
   return current;
 }
 
-/** Names bound by an object pattern element, covering `{ env }` and `{ env: e }`. */
-function boundPatternNames(pattern) {
-  const names = [];
-  for (const element of pattern.elements) {
-    const name = element.propertyName ?? element.name;
-    if (ts.isIdentifier(name)) {
-      names.push(name);
-    }
+/** Marks a property key that cannot be resolved statically (`{ [key]: e }`). */
+const DYNAMIC_PROPERTY_NAME = Symbol("dynamic property name");
+
+/**
+ * Static name of a property key, or `DYNAMIC_PROPERTY_NAME` for computed keys.
+ *
+ * Covers the spellings a binding pattern or assignment target can use:
+ * `{ env }`, `{ env: e }`, `{ "env": e }`, `{ ["env"]: e }`, `{ [key]: e }`.
+ */
+function staticPropertyName(node) {
+  if (!node) {
+    return undefined;
   }
-  return names;
+  if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) {
+    return node.text;
+  }
+  if (
+    ts.isStringLiteral(node) ||
+    ts.isNoSubstitutionTemplateLiteral(node) ||
+    ts.isNumericLiteral(node)
+  ) {
+    return node.text;
+  }
+  if (ts.isComputedPropertyName(node)) {
+    const expression = node.expression;
+    if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+      return expression.text;
+    }
+    return DYNAMIC_PROPERTY_NAME;
+  }
+  return DYNAMIC_PROPERTY_NAME;
 }
 
 /** True when the reference is the base of `process.x` / `process[x]` / `typeof process`. */
@@ -168,36 +189,86 @@ export function findAmbientEnvAccess(source, options = {}) {
     violations.add(`${kind} at line ${line + 1}: ${snippet}`);
   };
 
-  /** `const { env } = process` and `({ env } = process)`. */
-  const checkDestructuringFromProcess = (pattern, processNode) => {
-    for (const name of boundPatternNames(pattern)) {
-      if (name.text === "env") {
-        report(processNode, "destructured ambient environment");
+  /**
+   * Reports a pattern element or assignment target that reads (or may read) `env`
+   * off the process global.
+   *
+   * An object-rest target always resolves: in Node `process.env` is an enumerable
+   * property, so `const { ...proc } = process` really does hand the environment to
+   * `proc`. Computed keys that are not string literals are reported too, because
+   * the name cannot be proven safe statically.
+   */
+  const checkDestructuredName = (node, propertyName, isRest) => {
+    if (isRest) {
+      report(node, "object-rest destructuring of the process global");
+      return;
+    }
+    const name = staticPropertyName(propertyName);
+    if (name === "env") {
+      report(node, "destructured ambient environment");
+    } else if (name === DYNAMIC_PROPERTY_NAME) {
+      report(node, "dynamic destructured name from the process global");
+    }
+  };
+
+  /** `const { env } = process`, `const { ...proc } = process`. */
+  const checkObjectPatternFromProcess = (pattern, processNode) => {
+    for (const element of pattern.elements) {
+      const propertyName =
+        element.propertyName ?? (ts.isIdentifier(element.name) ? element.name : undefined);
+      checkDestructuredName(processNode, propertyName, Boolean(element.dotDotDotToken));
+    }
+  };
+
+  /** `({ env } = process)`, `({ ...proc } = process)`. */
+  const checkObjectLiteralFromProcess = (target, processNode) => {
+    for (const property of target.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        checkDestructuredName(processNode, undefined, true);
+        continue;
+      }
+      if (ts.isShorthandPropertyAssignment(property) || ts.isPropertyAssignment(property)) {
+        checkDestructuredName(processNode, property.name, false);
       }
     }
   };
 
-  /** `import process from "node:process"` / `import { env } from "node:process"`. */
-  const checkProcessModuleImport = (node) => {
-    if (!ts.isImportDeclaration(node)) {
+  /**
+   * `import process from "node:process"`, `import { env } from "node:process"`,
+   * `require("node:process")`, `import("node:process")`.
+   */
+  const checkProcessModuleAccess = (node) => {
+    if (ts.isImportDeclaration(node)) {
+      if (!PROCESS_MODULE_SPECIFIERS.has(stringLiteralText(node.moduleSpecifier) ?? "")) {
+        return;
+      }
+      const clause = node.importClause;
+      if (!clause) {
+        // Side-effect-only imports cannot read the environment.
+        return;
+      }
+      const bindings = clause.namedBindings;
+      const importsWholeModule =
+        Boolean(clause.name) || (bindings !== undefined && ts.isNamespaceImport(bindings));
+      const importsEnv =
+        bindings !== undefined &&
+        ts.isNamedImports(bindings) &&
+        bindings.elements.some((element) => (element.propertyName ?? element.name).text === "env");
+      if (importsWholeModule || importsEnv) {
+        report(node, "ambient environment import");
+      }
       return;
     }
-    if (!PROCESS_MODULE_SPECIFIERS.has(stringLiteralText(node.moduleSpecifier) ?? "")) {
+    if (!ts.isCallExpression(node) || node.arguments.length !== 1) {
       return;
     }
-    const clause = node.importClause;
-    if (!clause) {
+    const isRequire = ts.isIdentifier(node.expression) && node.expression.text === "require";
+    const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+    if (!isRequire && !isDynamicImport) {
       return;
     }
-    const bindings = clause.namedBindings;
-    const importsWholeModule =
-      Boolean(clause.name) || (bindings !== undefined && ts.isNamespaceImport(bindings));
-    const importsEnv =
-      bindings !== undefined &&
-      ts.isNamedImports(bindings) &&
-      bindings.elements.some((element) => (element.propertyName ?? element.name).text === "env");
-    if (importsWholeModule || importsEnv) {
-      report(node, "ambient environment import");
+    if (PROCESS_MODULE_SPECIFIERS.has(stringLiteralText(node.arguments[0]) ?? "")) {
+      report(node, "ambient environment module access");
     }
   };
 
@@ -215,14 +286,24 @@ export function findAmbientEnvAccess(source, options = {}) {
       }
     }
 
-    // `const { env } = process` / `({ env } = process)`.
+    // Dynamic keys (`process[key]`, `process["en" + "v"]`) cannot be proven safe, so
+    // they fail closed instead of relying on constant folding.
+    if (
+      ts.isElementAccessExpression(node) &&
+      stringLiteralText(node.argumentExpression) === undefined &&
+      isProcessGlobalReference(node.expression)
+    ) {
+      report(node, "dynamic property access on the process global");
+    }
+
+    // `const { env } = process` / `const { ...proc } = process` / `({ env } = process)`.
     if (
       ts.isVariableDeclaration(node) &&
       node.initializer &&
       ts.isObjectBindingPattern(node.name) &&
       isProcessGlobalReference(node.initializer)
     ) {
-      checkDestructuringFromProcess(node.name, node.initializer);
+      checkObjectPatternFromProcess(node.name, node.initializer);
     }
     if (
       ts.isBinaryExpression(node) &&
@@ -231,16 +312,7 @@ export function findAmbientEnvAccess(source, options = {}) {
     ) {
       const target = skipParentheses(node.left);
       if (ts.isObjectLiteralExpression(target)) {
-        for (const property of target.properties) {
-          const name = ts.isShorthandPropertyAssignment(property)
-            ? property.name
-            : ts.isPropertyAssignment(property)
-              ? property.name
-              : undefined;
-          if (name !== undefined && ts.isIdentifier(name) && name.text === "env") {
-            report(node.right, "destructured ambient environment");
-          }
-        }
+        checkObjectLiteralFromProcess(target, node.right);
       }
     }
 
@@ -255,7 +327,7 @@ export function findAmbientEnvAccess(source, options = {}) {
       report(node, "process global alias");
     }
 
-    checkProcessModuleImport(node);
+    checkProcessModuleAccess(node);
     ts.forEachChild(node, visit);
   };
 
