@@ -467,12 +467,13 @@ export function createCardDraftController(params: {
             try {
                 // Use instances API for blockList (not streaming API)
                 const statusLine = params.getStatusLine?.();
-                // Wire-level trace: this is the only place that shows what the
-                // reader's card actually receives, which is what real-device
-                // card debugging needs (the rendered text never hits the API logs).
+                // Wire-level trace for real-device card debugging: how often a
+                // card is updated and how large each frame is. Deliberately
+                // metadata-only — the rendered body carries user content (card
+                // answers), so it must never be copied into application logs.
                 params.log?.debug?.(
                     `[DingTalk][AICard] BlockList frame card=${params.card.outTrackId || params.card.cardInstanceId} ` +
-                        `len=${content.length} body=${content}`,
+                        `len=${content.length}`,
                 );
                 await updateAICardBlockList(params.card, content, params.log, statusLine ? { statusLine } : undefined);
                 lastSentContent = content;

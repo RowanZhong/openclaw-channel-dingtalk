@@ -216,6 +216,27 @@ describe("card-draft-controller", () => {
         }
     });
 
+    it("never copies the rendered card body into debug logs", async () => {
+        const card = makeCard();
+        const log = { debug: vi.fn(), warn: vi.fn() };
+        const ctrl = createCardDraftController({ card, throttleMs: 0, log });
+
+        await ctrl.updateProgress("执行检查中，已完成 1 步，耗时 2 秒");
+        await vi.advanceTimersByTimeAsync(0);
+
+        const frameLogs = log.debug.mock.calls
+            .map((call) => String(call[0]))
+            .filter((line) => line.includes("BlockList frame"));
+        expect(frameLogs).not.toHaveLength(0);
+        for (const line of frameLogs) {
+            // Card bodies carry user content; only metadata may be logged.
+            expect(line).not.toContain("已完成");
+            expect(line).not.toContain("markdown");
+            expect(line).not.toContain("<font");
+        }
+        expect(frameLogs.at(-1)).toContain("len=");
+    });
+
     it("sends the completed step count in the frames handed to the card API", async () => {
         const card = makeCard();
         const ctrl = createCardDraftController({ card, throttleMs: 0 });
