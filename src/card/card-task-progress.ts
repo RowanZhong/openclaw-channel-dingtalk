@@ -19,15 +19,28 @@ const CORRELATION_CONSUMER = "card-task-progress";
  * wins. When unset the block is on by default, except for an explicit
  * `cardStreamingMode: "off"` — that is a deliberate "keep card traffic
  * minimal" request, so progress stays quiet until the user opts back in.
- * (An unset `cardStreamingMode` is not the same as `"off"` here.)
+ *
+ * The runtime normalizes an omitted `cardStreamingMode` to `"off"` before the
+ * config reaches this point, so the effective value alone cannot tell "omitted"
+ * apart from "explicitly off". `cardStreamingModeConfigured` carries that
+ * distinction; configs that never went through normalization (hand-built test
+ * or embedded configs) fall back to "was a mode present at all".
  */
 export function resolveCardTaskProgressEnabled(
-  config: Pick<DingTalkConfig, "cardTaskProgress" | "cardStreamingMode">,
+  config: Pick<
+    DingTalkConfig,
+    "cardTaskProgress" | "cardStreamingMode" | "cardStreamingModeConfigured"
+  >,
 ): boolean {
   if (config.cardTaskProgress === false) {
     return false;
   }
   if (config.cardTaskProgress === true) {
+    return true;
+  }
+  const explicitlyConfigured =
+    config.cardStreamingModeConfigured ?? config.cardStreamingMode !== undefined;
+  if (!explicitlyConfigured) {
     return true;
   }
   return config.cardStreamingMode !== "off";
@@ -69,8 +82,18 @@ export interface CardTaskProgressController {
   /**
    * Release timers and the runtime-event subscription, then remove the
    * progress block. Idempotent, and safe to call when nothing was rendered.
+   *
+   * `clearRemoteWhenEmpty` is for teardown paths that will never commit the
+   * card (for example ask-user question-card takeover): when the progress block
+   * was the only visible block, the local removal must also clear the remote
+   * card, otherwise the reader keeps seeing a live-looking "任务处理中" card.
    */
-  dispose(): Promise<void>;
+  dispose(options?: { clearRemoteWhenEmpty?: boolean }): Promise<void>;
+}
+
+export interface ClearProgressOptions {
+  /** Clear the remote card when removing progress leaves no visible block. */
+  clearRemoteWhenEmpty?: boolean;
 }
 
 /**
@@ -85,7 +108,7 @@ export function createCardTaskProgressController(params: {
   enabled?: boolean;
   runtimeEvents?: RuntimeEventsSurface;
   updateProgress: (text: string) => Promise<void>;
-  clearProgress: () => Promise<void>;
+  clearProgress: (options?: ClearProgressOptions) => Promise<void>;
   startDelayMs?: number;
   heartbeatIntervalMs?: number;
   log?: RuntimeEventsLogger;
@@ -108,6 +131,7 @@ export function createCardTaskProgressController(params: {
   let disposed = false;
   let updatePromise: Promise<void> = Promise.resolve();
   let heartbeatTimer: NodeJS.Timeout | undefined;
+  let startTimer: NodeJS.Timeout | undefined;
   const completedToolCalls = new Set<string>();
   const isCorrelatedEvent = createAgentEventCorrelator({
     consumer: CORRELATION_CONSUMER,
@@ -132,25 +156,30 @@ export function createCardTaskProgressController(params: {
     await updatePromise.catch(() => undefined);
   };
 
+  const cancelStartTimer = () => {
+    if (startTimer) {
+      clearTimeout(startTimer);
+      startTimer = undefined;
+    }
+  };
+
   const ensureHeartbeat = () => {
     if (heartbeatTimer || disposed) {
       return;
     }
     heartbeatTimer = setInterval(() => {
       if (visible) {
-        void queueUpdate();
+        void enqueueUpdate();
       }
     }, params.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS);
     // Never keep the gateway process alive for a cosmetic heartbeat.
     heartbeatTimer.unref?.();
   };
 
-  const queueUpdate = () => {
+  const enqueueUpdate = () => {
     if (disposed) {
       return updatePromise;
     }
-    visible = true;
-    ensureHeartbeat();
     updatePromise = updatePromise
       .then(() => params.updateProgress(render()))
       .catch((error: unknown) => {
@@ -159,6 +188,25 @@ export function createCardTaskProgressController(params: {
         );
       });
     return updatePromise;
+  };
+
+  /**
+   * Make the block visible for the first time and start the heartbeat.
+   *
+   * Later stage/step changes are deliberately *not* pushed immediately: they are
+   * rendered by the next heartbeat. A tool-heavy task would otherwise issue one
+   * DingTalk card update per tool event (bounded only by `cardStreamInterval`),
+   * far above the documented "once when it appears, then once per 30s" budget.
+   */
+  const showProgress = () => {
+    if (disposed || visible) {
+      return;
+    }
+    visible = true;
+    // An early tool event already satisfied the startup delay.
+    cancelStartTimer();
+    ensureHeartbeat();
+    void enqueueUpdate();
   };
 
   const handleAgentEvent = (event: unknown) => {
@@ -176,7 +224,7 @@ export function createCardTaskProgressController(params: {
 
     if (agentEvent.data?.phase === "start") {
       currentStage = resolveSafeStage(agentEvent.data?.name);
-      void queueUpdate();
+      showProgress();
       return;
     }
     if (agentEvent.data?.phase === "end") {
@@ -187,32 +235,39 @@ export function createCardTaskProgressController(params: {
         }
         completedSteps += 1;
       }
-      void queueUpdate();
+      showProgress();
     }
   };
 
   const unsubscribe = params.runtimeEvents?.onAgentEvent?.(handleAgentEvent) ?? (() => {});
-  const startTimer = setTimeout(() => {
-    void queueUpdate();
+  startTimer = setTimeout(() => {
+    showProgress();
   }, params.startDelayMs ?? DEFAULT_START_DELAY_MS);
   startTimer.unref?.();
 
   return {
     awaitDrain,
-    async dispose(): Promise<void> {
+    async dispose(options: { clearRemoteWhenEmpty?: boolean } = {}): Promise<void> {
       if (disposed) {
         return;
       }
       disposed = true;
-      clearTimeout(startTimer);
+      cancelStartTimer();
       if (heartbeatTimer) {
         clearInterval(heartbeatTimer);
         heartbeatTimer = undefined;
       }
-      unsubscribe();
+      // A host-provided unsubscribe must not skip the card cleanup below.
+      try {
+        unsubscribe();
+      } catch (error: unknown) {
+        params.log?.warn?.(
+          `[DingTalk][TaskProgress] Unsubscribe failed: ${getErrorMessage(error)}`,
+        );
+      }
       await awaitDrain();
       if (visible) {
-        await params.clearProgress();
+        await params.clearProgress(options);
       }
     },
   };

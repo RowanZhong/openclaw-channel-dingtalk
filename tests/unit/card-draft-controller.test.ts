@@ -220,6 +220,58 @@ describe("card-draft-controller", () => {
         expect(getBlockText(blocks, 0)).not.toContain("任务处理中");
     });
 
+    it("clears the remote card when the progress block was the last visible block", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        updateAICardBlockListMock.mockClear();
+
+        await ctrl.clearProgress({ clearRemoteWhenEmpty: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(parseBlocks(ctrl.getRenderedBlocks())).toHaveLength(0);
+        // An empty local timeline must still be pushed, otherwise the reader
+        // keeps seeing the last "任务处理中" frame on a card that was never recalled.
+        expect(updateAICardBlockListMock).toHaveBeenCalledTimes(1);
+        expect(updateAICardBlockListMock.mock.calls[0]?.[1]).toBe("[]");
+    });
+
+    it("keeps the remote card when other blocks survive the progress removal", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateAnswer("answer draft", { stream: false, renderBlocks: true });
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        updateAICardBlockListMock.mockClear();
+
+        await ctrl.clearProgress({ clearRemoteWhenEmpty: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        const blocks = parseBlocks(ctrl.getRenderedBlocks());
+        expect(blocks).toHaveLength(1);
+        expect(getBlockText(blocks, 0)).toContain("answer draft");
+        const sentFrames = updateAICardBlockListMock.mock.calls.map((call) => String(call[1] ?? ""));
+        expect(sentFrames.every((frame) => frame !== "[]")).toBe(true);
+    });
+
+    it("never wipes a failed card while clearing progress", async () => {
+        const card = makeCard();
+        const ctrl = createCardDraftController({ card, throttleMs: 0 });
+
+        await ctrl.updateProgress("⏳ 任务处理中\n当前阶段：正在检查配置");
+        await vi.advanceTimersByTimeAsync(0);
+        ctrl.stop();
+        updateAICardBlockListMock.mockClear();
+
+        await ctrl.clearProgress({ clearRemoteWhenEmpty: true });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(updateAICardBlockListMock).not.toHaveBeenCalled();
+    });
+
     it("answer rendering keeps the latest thinking block in the same timeline", async () => {
         const card = makeCard();
         const ctrl = createCardDraftController({ card, throttleMs: 0 });

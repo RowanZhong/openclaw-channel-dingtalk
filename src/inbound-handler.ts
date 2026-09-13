@@ -2568,25 +2568,36 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       }
       await strategy.finalize();
     } finally {
-      // Only remove the registry entry if no stop was requested. When a stop is
-      // in progress, card-stop-handler may still be running async operations
-      // (finalize card, hide button, gateway abort) that read the record.
-      // In that case, let the 30-minute TTL sweep handle cleanup.
-      if (currentOutTrackId && !isCardRunStopRequested(currentOutTrackId)) {
-        removeCardRun(currentOutTrackId);
+      try {
+        // Only remove the registry entry if no stop was requested. When a stop is
+        // in progress, card-stop-handler may still be running async operations
+        // (finalize card, hide button, gateway abort) that read the record.
+        // In that case, let the 30-minute TTL sweep handle cleanup.
+        if (currentOutTrackId && !isCardRunStopRequested(currentOutTrackId)) {
+          removeCardRun(currentOutTrackId);
+        }
+        // Guarantee strategy-owned cleanup on every exit path, including the
+        // question-card takeover return above. `dispose()` is idempotent, so a
+        // prior finalize()/abort() already having disposed is harmless. A
+        // failing dispose is logged and swallowed: it must not skip the
+        // remaining cleanup below.
+        if (strategyForCleanup) {
+          await strategyForCleanup.dispose().catch((disposeErr: unknown) => {
+            log?.warn?.(
+              `[DingTalk] Reply strategy cleanup failed for session ${route.sessionKey}: ${getErrorMessage(disposeErr)}`,
+            );
+          });
+        }
+        await waitForDynamicAckDispose({
+          dispose: () => dynamicAckReactionController.dispose(MIN_THINKING_REACTION_VISIBLE_MS),
+          log,
+          sessionKey: route.sessionKey,
+        });
+      } finally {
+        // Unconditional: a session lock that never releases blocks every later
+        // message on this session, so nothing above may prevent it.
+        releaseSessionLock();
       }
-      // Guarantee strategy-owned cleanup on every exit path, including the
-      // question-card takeover return above. `dispose()` is idempotent, so a
-      // prior finalize()/abort() already having disposed is harmless.
-      if (strategyForCleanup) {
-        await strategyForCleanup.dispose();
-      }
-      await waitForDynamicAckDispose({
-        dispose: () => dynamicAckReactionController.dispose(MIN_THINKING_REACTION_VISIBLE_MS),
-        log,
-        sessionKey: route.sessionKey,
-      });
-      releaseSessionLock();
     }
   } finally {
     if (cardFlightKey) {

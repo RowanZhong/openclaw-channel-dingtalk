@@ -35,7 +35,7 @@ const PROCESS_BLOCK_FONT_COLOR_TOKEN_V2 = "common_level2_base_color";
 
 export interface CardDraftController {
     updateProgress: (text: string) => Promise<void>;
-    clearProgress: () => Promise<void>;
+    clearProgress: (options?: { clearRemoteWhenEmpty?: boolean }) => Promise<void>;
     updateAnswer: (text: string, options?: { stream?: boolean; renderBlocks?: boolean }) => Promise<void>;
     updateReasoning: (text: string) => Promise<void>;
     updateThinking: (text: string) => Promise<void>;
@@ -227,7 +227,33 @@ export function createCardDraftController(params: {
         queueRender();
     };
 
-    const clearProgress = async () => {
+    const clearRemoteBlocks = async () => {
+        // The normal render path intentionally skips empty block lists, so an
+        // explicit teardown has to push the empty state itself: otherwise the
+        // reader keeps seeing the last "⏳ 任务处理中" frame on a card that was
+        // never recalled (ask-user takeover with a failed recall).
+        clearPendingRender();
+        if (stopped || failed) {
+            return;
+        }
+        try {
+            const statusLine = params.getStatusLine?.();
+            await updateAICardBlockList(
+                params.card,
+                "[]",
+                params.log,
+                statusLine ? { statusLine } : undefined,
+            );
+            // Force the next render to re-send instead of trusting a stale cache.
+            lastSentContent = "";
+            lastAnswerContent = "";
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            params.log?.warn?.(`[DingTalk][AICard] Failed to clear stale card blocks: ${message}`);
+        }
+    };
+
+    const clearProgress = async (options: { clearRemoteWhenEmpty?: boolean } = {}) => {
         await waitForPendingBoundary();
         // A failed card never re-renders (the draft stream loop is stopped), but
         // the timeline entry must still go away so a stale "任务处理中" block can
@@ -240,6 +266,10 @@ export function createCardDraftController(params: {
             return;
         }
         removeTimelineEntry(progressIndex);
+        if (timelineEntries.length === 0 && options.clearRemoteWhenEmpty) {
+            await clearRemoteBlocks();
+            return;
+        }
         queueRender();
     };
 

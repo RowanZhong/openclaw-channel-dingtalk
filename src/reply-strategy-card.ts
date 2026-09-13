@@ -871,7 +871,9 @@ export function createCardReplyStrategy(
     async dispose(): Promise<void> {
       // Release the progress heartbeat/subscription even when this strategy is
       // dropped without finalize (for example ask-user question-card takeover).
-      await taskProgressController.dispose();
+      // This path never commits the card, so a progress-only card must also
+      // clear its remote block list instead of leaving a live-looking card.
+      await taskProgressController.dispose({ clearRemoteWhenEmpty: true });
     },
 
     getFinalText(): string | undefined {

@@ -559,4 +559,78 @@ describe("inbound-handler card lifecycle", () => {
       vi.useRealTimers();
     }
   });
+
+  it("clears the stale progress card when takeover cannot recall it", async () => {
+    const card = {
+      cardInstanceId: "card_takeover_clear",
+      state: "1",
+      lastUpdated: Date.now(),
+    } as unknown as { cardInstanceId: string; state: string; lastUpdated: number };
+    shared.createAICardMock.mockResolvedValueOnce(card);
+    // Recall fails, so the old card stays PROCESSING and keeps rendering.
+    shared.recallAICardMessageMock.mockResolvedValueOnce(false);
+    shared.isCardInTerminalStateMock.mockReturnValue(false);
+
+    let agentEventListener: ((event: unknown) => void) | undefined;
+    const runtime = buildRuntime();
+    (runtime as unknown as { events?: unknown }).events = {
+      onAgentEvent: vi.fn((listener: (event: unknown) => void) => {
+        agentEventListener = listener;
+        return vi.fn();
+      }),
+    };
+    runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher = vi
+      .fn()
+      .mockImplementation(async () => {
+        agentEventListener?.({
+          stream: "lifecycle",
+          runId: "run-clear",
+          sessionKey: "s1",
+          data: { phase: "start" },
+        });
+        agentEventListener?.({
+          stream: "tool",
+          runId: "run-clear",
+          sessionKey: "s1",
+          data: { phase: "start", name: "exec", toolCallId: "tool-clear" },
+        });
+        await getDingTalkQuestionContext()?.onQuestionCardSent?.({
+          questionId: "q_clear",
+          outTrackId: "ask_clear",
+        });
+        return { queuedFinal: false };
+      });
+    shared.getRuntimeMock.mockReturnValueOnce(runtime);
+
+    await handleDingTalkMessage({
+      cfg: {},
+      accountId: "main",
+      sessionWebhook: "https://session.webhook",
+      log: undefined,
+      dingtalkConfig: {
+        dmPolicy: "open",
+        messageType: "card",
+        ackReaction: "",
+      } as unknown as DingTalkConfig,
+      data: {
+        msgId: "question_takeover_clear",
+        msgtype: "text",
+        text: { content: "ask me" },
+        conversationType: "1",
+        conversationId: "cid_ok",
+        senderId: "user_1",
+        chatbotUserId: "bot_1",
+        sessionWebhook: "https://session.webhook",
+        createAt: Date.now(),
+      },
+    } as unknown as { data: unknown; dingtalkConfig: unknown });
+
+    const frames = shared.updateAICardBlockListMock.mock.calls.map((call: unknown[]) =>
+      String((call as unknown[])[1] ?? ""),
+    );
+    // The progress block was the only visible block, so the remote card must be
+    // cleared instead of silently keeping its last "⏳ 任务处理中" frame.
+    expect(frames.some((frame: string) => frame.includes("任务处理中"))).toBe(true);
+    expect(frames.at(-1)).toBe("[]");
+  });
 });
