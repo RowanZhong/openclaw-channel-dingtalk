@@ -55,7 +55,7 @@ vi.mock('dingtalk-stream', () => ({
     },
 }));
 
-vi.mock('../../src/connection-manager', () => ({
+vi.mock('../../src/gateway/connection-manager', () => ({
     ConnectionManager: class {
         connect: () => Promise<void>;
         waitForStop: () => Promise<void>;
@@ -72,8 +72,8 @@ vi.mock('../../src/connection-manager', () => ({
     },
 }));
 
-vi.mock('../../src/utils', async () => {
-    const actual = await vi.importActual<typeof import('../../src/utils')>('../../src/utils');
+vi.mock('../../src/shared/utils', async () => {
+    const actual = await vi.importActual<typeof import('../../src/shared/utils')>('../../src/shared/utils');
     return {
         ...actual,
         cleanupOrphanedTempFiles: shared.cleanupOrphanedTempFilesMock,
@@ -83,8 +83,8 @@ vi.mock('../../src/utils', async () => {
 });
 
 import { dingtalkPlugin } from '../../src/channel';
-import { clearPeerIdRegistry, resolveOriginalPeerId } from '../../src/peer-id-registry';
-import { setDingTalkRuntime } from '../../src/runtime';
+import { clearPeerIdRegistry, resolveOriginalPeerId } from '../../src/targeting/peer-id-registry';
+import { setDingTalkRuntime } from '../../src/platform/runtime';
 import {
     clearTargetDirectoryStateCache,
     upsertObservedGroupTarget,

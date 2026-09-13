@@ -5,7 +5,7 @@ import {
   getTaskTimeSeconds,
   initSessionState,
   updateSessionState,
-} from "../../src/session-state";
+} from "../../src/platform/session-state";
 
 const mainScope = {
   accountId: "main",

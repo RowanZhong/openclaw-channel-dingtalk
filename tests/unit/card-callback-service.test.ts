@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeCardCallback, extractCardActionId } from "../../src/card-callback-service";
+import { analyzeCardCallback, extractCardActionId } from "../../src/card/card-callback-service";
 
 describe("card-callback-service", () => {
   it("extracts action id from embedded value payload", () => {

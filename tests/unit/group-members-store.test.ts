@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { formatGroupMembers, noteGroupMember } from "../../src/targeting/group-members-store";
-import { resolveNamespacePath } from "../../src/persistence-store";
+import { resolveNamespacePath } from "../../src/shared/persistence-store";
 
 function makeStorePath(): { rootDir: string; storePath: string } {
     const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "dingtalk-members-test-"));

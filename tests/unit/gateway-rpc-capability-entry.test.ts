@@ -7,15 +7,15 @@ vi.mock("../../src/channel", () => ({
   dingtalkPlugin: {},
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   setDingTalkRuntime: vi.fn(),
 }));
 
 // Only the handler-facing helpers are stubbed here. `resolveGatewayCapabilityConfig`
 // keeps its real implementation, and its internal `getConfig` call stays bound to the
 // real module, so the gate reads the `channels.dingtalk` fixture passed to `makeApi`.
-vi.mock("../../src/config", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/config")>();
+vi.mock("../../src/platform/config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/platform/config")>();
   return {
     ...actual,
     getConfig: vi.fn(() => ({ clientId: "id", clientSecret: "secret" })),
@@ -24,7 +24,7 @@ vi.mock("../../src/config", async (importOriginal) => {
   };
 });
 
-vi.mock("../../src/docs-service", () => ({
+vi.mock("../../src/gateway/docs-service", () => ({
   createDoc: vi.fn(async () => ({ docId: "doc1", title: "t", docType: "alidoc" })),
   appendToDoc: vi.fn(async () => ({ success: true })),
   searchDocs: vi.fn(async () => []),
@@ -32,11 +32,11 @@ vi.mock("../../src/docs-service", () => ({
   DocCreateAppendError: class extends Error {},
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendMessage: vi.fn(async () => ({ ok: true, messageId: "m1" })),
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn(async () => "token"),
 }));
 
@@ -44,7 +44,7 @@ vi.mock("../../src/card/ask-user-question", () => ({
   registerDingTalkAskUserQuestionTool: vi.fn(),
 }));
 
-vi.mock("../../src/run-usage-store", () => ({
+vi.mock("../../src/card/run-usage-store", () => ({
   accumulateUsage: vi.fn(),
 }));
 

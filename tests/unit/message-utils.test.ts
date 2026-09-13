@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectMarkdownAndExtractTitle, extractMessageContent } from '../../src/message-utils';
+import { detectMarkdownAndExtractTitle, extractMessageContent } from '../../src/messaging/message-utils';
 
 describe('message-utils', () => {
     it('detects markdown and extracts first-line title', () => {

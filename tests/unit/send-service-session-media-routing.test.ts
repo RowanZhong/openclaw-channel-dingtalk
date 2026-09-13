@@ -1,7 +1,7 @@
 import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
     getAccessToken: vi.fn().mockResolvedValue("token_abc"),
 }));
 
@@ -9,9 +9,9 @@ const messageContextMocks = vi.hoisted(() => ({
     upsertOutboundMessageContextMock: vi.fn(),
 }));
 
-vi.mock("../../src/message-context-store", async () => {
-    const actual = await vi.importActual<typeof import("../../src/message-context-store")>(
-        "../../src/message-context-store",
+vi.mock("../../src/messaging/message-context-store", async () => {
+    const actual = await vi.importActual<typeof import("../../src/messaging/message-context-store")>(
+        "../../src/messaging/message-context-store",
     );
     return {
         ...actual,
@@ -19,7 +19,7 @@ vi.mock("../../src/message-context-store", async () => {
     };
 });
 
-vi.mock("../../src/media-utils", () => ({
+vi.mock("../../src/messaging/media-utils", () => ({
     uploadMedia: vi.fn(),
     detectMediaTypeFromExtension: vi.fn(),
     getVoiceDurationMs: vi.fn(),
@@ -35,9 +35,9 @@ vi.mock("axios", () => {
     };
 });
 
-import { sendBySession, sendMessage } from "../../src/send-service";
-import { uploadMedia as uploadMediaUtil } from "../../src/media-utils";
-import { AICardStatus } from "../../src/types";
+import { sendBySession, sendMessage } from "../../src/messaging/send-service";
+import { uploadMedia as uploadMediaUtil } from "../../src/messaging/media-utils";
+import { AICardStatus } from "../../src/platform/types";
 
 const mockedAxios = vi.mocked(axios);
 const mockedUploadMedia = vi.mocked(uploadMediaUtil);

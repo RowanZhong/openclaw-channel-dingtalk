@@ -3,7 +3,7 @@ import {
     SESSION_LOCK_NAMESPACE_POLICY,
     acquireSessionLock,
     _getLocksMapForTest,
-} from '../../src/session-lock';
+} from '../../src/gateway/session-lock';
 
 describe('session-lock', () => {
     beforeEach(() => {

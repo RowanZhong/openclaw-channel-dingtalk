@@ -11,7 +11,7 @@ import {
   resolveAskUserQuestion,
   terminateAskUserQuestion,
 } from "../../src/card/ask-user-question-store";
-import { resolveNamespacePath } from "../../src/persistence-store";
+import { resolveNamespacePath } from "../../src/shared/persistence-store";
 
 describe("ask-user-question-store", () => {
   const tempDirs: string[] = [];

@@ -10,14 +10,20 @@ export interface MarkdownImageCandidate {
 }
 
 const MARKDOWN_IMAGE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
-const PRIVATE_HOST_RE = /^(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/;
+const PRIVATE_HOST_RE =
+  /^(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/;
 
 function isLikelyPlainRelativePath(url: string): boolean {
   return !/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(url) && !url.startsWith("//");
 }
 
 function isLikelyLocalPath(url: string): boolean {
-  return url.startsWith("./") || url.startsWith("../") || url.startsWith("/") || isLikelyPlainRelativePath(url);
+  return (
+    url.startsWith("./") ||
+    url.startsWith("../") ||
+    url.startsWith("/") ||
+    isLikelyPlainRelativePath(url)
+  );
 }
 
 function safeFileNameFromUrl(url: string): string {

@@ -11,19 +11,19 @@ const mockedAxiosPost = vi.mocked(axios.post);
 
 async function loadAuthModule() {
   vi.resetModules();
-  return import("../../src/auth");
+  return import("../../src/platform/auth");
 }
 
 describe("auth.getAccessToken SecretInput cache path", () => {
   beforeEach(() => {
     mockedAxiosPost.mockReset();
-    vi.doUnmock("../../src/config");
+    vi.doUnmock("../../src/platform/config");
   });
 
   it("does not resolve runtime secret config on cache hit", async () => {
     const resolveRuntimeConfig = vi.fn((config) => config);
-    vi.doMock("../../src/config", async () => {
-      const actual = await vi.importActual<typeof import("../../src/config")>("../../src/config");
+    vi.doMock("../../src/platform/config", async () => {
+      const actual = await vi.importActual<typeof import("../../src/platform/config")>("../../src/platform/config");
       return { ...actual, resolveRuntimeConfig };
     });
     const { getAccessToken } = await loadAuthModule();

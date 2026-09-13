@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -13,7 +13,7 @@ vi.mock('axios', () => {
     };
 });
 
-vi.mock('../../src/card-service', () => ({
+vi.mock('../../src/card/card-service', () => ({
     getActiveCardIdByTarget: vi.fn().mockReturnValue(undefined),
     getCardById: vi.fn().mockReturnValue(undefined),
     isCardInTerminalState: vi.fn().mockReturnValue(false),
@@ -21,7 +21,7 @@ vi.mock('../../src/card-service', () => ({
     deleteActiveCardByTarget: vi.fn(),
 }));
 
-import { sendMessage } from '../../src/send-service';
+import { sendMessage } from '../../src/messaging/send-service';
 
 const mockedAxios = vi.mocked(axios);
 

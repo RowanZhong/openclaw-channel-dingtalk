@@ -1,5 +1,5 @@
-import { readNamespaceJson, writeNamespaceJsonAtomic } from "../persistence-store";
-import type { Logger } from "../types";
+import type { Logger } from "../platform/types";
+import { readNamespaceJson, writeNamespaceJsonAtomic } from "../shared/persistence-store";
 
 const ASK_USER_LIFECYCLE_NAMESPACE = "cards.ask-user.lifecycle";
 const ACTIVE_TTL_MS = 5 * 60 * 1_000;

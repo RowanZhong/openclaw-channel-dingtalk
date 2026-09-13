@@ -26,11 +26,11 @@ vi.mock("axios", () => ({
   isAxiosError: shared.http.isAxiosError,
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_abc"),
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   getDingTalkRuntime: shared.getRuntimeMock,
 }));
 
@@ -40,10 +40,10 @@ vi.mock("openclaw/plugin-sdk/reply-runtime", () => ({
 }));
 
 import { clearCardRunRegistryForTest } from "../../src/card/card-run-registry";
-import { handleDingTalkMessage, resetProactivePermissionHintStateForTest } from "../../src/inbound-handler";
-import { clearMessageContextCacheForTest } from "../../src/message-context-store";
+import { handleDingTalkMessage, resetProactivePermissionHintStateForTest } from "../../src/gateway/inbound-handler";
+import { clearMessageContextCacheForTest } from "../../src/messaging/message-context-store";
 import { clearTargetDirectoryStateCache } from "../../src/targeting/target-directory-store";
-import type { DingTalkConfig, Logger } from "../../src/types";
+import type { DingTalkConfig, Logger } from "../../src/platform/types";
 
 const TEST_TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "dingtalk-group-card-lifecycle-"));
 const STORE_PATH = path.join(TEST_TMP_DIR, "store.json");

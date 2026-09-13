@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getLogger, setCurrentLogger } from '../../src/logger-context';
+import { getLogger, setCurrentLogger } from '../../src/platform/logger-context';
 
 describe('logger-context', () => {
     it('keeps account-scoped loggers while preserving the latest global fallback', () => {

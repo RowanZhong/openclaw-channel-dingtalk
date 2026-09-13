@@ -68,8 +68,8 @@ English version: [`architecture.en.md`](architecture.en.md)
 示例：
 
 - `src/channel.ts`
-- `src/inbound-handler.ts`
-- `src/connection-manager.ts`
+- `src/gateway/inbound-handler.ts`
+- `src/gateway/connection-manager.ts`
 
 不负责：
 
@@ -88,9 +88,9 @@ English version: [`architecture.en.md`](architecture.en.md)
 
 示例：
 
-- `src/session-routing.ts`
-- `src/session-peer-store.ts`
-- `src/peer-id-registry.ts`
+- `src/targeting/session-routing.ts`
+- `src/targeting/session-peer-store.ts`
+- `src/targeting/peer-id-registry.ts`
 
 不负责：
 
@@ -109,11 +109,11 @@ English version: [`architecture.en.md`](architecture.en.md)
 
 示例：
 
-- `src/message-utils.ts`
-- `src/send-service.ts`
+- `src/messaging/message-utils.ts`
+- `src/messaging/send-service.ts`
 - `src/reply-strategy*.ts`
-- `src/message-context-store.ts`
-- `src/media-utils.ts`
+- `src/messaging/message-context-store.ts`
+- `src/messaging/media-utils.ts`
 
 ### Card
 
@@ -126,11 +126,11 @@ English version: [`architecture.en.md`](architecture.en.md)
 
 示例：
 
-- `src/card-service.ts`
-- `src/card-callback-service.ts`
-- `src/card-draft-controller.ts`
-- `src/draft-stream-loop.ts`
-- `src/run-usage-store.ts`
+- `src/card/card-service.ts`
+- `src/card/card-callback-service.ts`
+- `src/card/card-draft-controller.ts`
+- `src/card/draft-stream-loop.ts`
+- `src/card/run-usage-store.ts`
 
 ### Command
 
@@ -143,9 +143,9 @@ English version: [`architecture.en.md`](architecture.en.md)
 
 示例：
 
-- `src/learning-command-service.ts`
-- `src/feedback-learning-service.ts`
-- `src/feedback-learning-store.ts`
+- `src/command/learning-command-service.ts`
+- `src/command/feedback-learning-service.ts`
+- `src/command/feedback-learning-store.ts`
 
 ### Platform
 
@@ -160,33 +160,51 @@ English version: [`architecture.en.md`](architecture.en.md)
 
 示例：
 
-- `src/config.ts`
-- `src/config-schema.ts`
-- `src/auth.ts`
-- `src/runtime.ts`
-- `src/logger-context.ts`
-- `src/types.ts`
-- `src/device-registration.ts`
-- `src/onboarding.ts`
+- `src/platform/config.ts`
+- `src/platform/config-schema.ts`
+- `src/platform/auth.ts`
+- `src/platform/runtime.ts`
+- `src/platform/logger-context.ts`
+- `src/platform/types.ts`
+- `src/platform/device-registration.ts`
+- `src/platform/onboarding.ts`
 
-## 计划中的目录结构
+## 目录结构
 
-下面的目录结构是后续渐进迁移的目标态，用于指导新代码落位，不表示需要立即完成整体搬迁。
+下面的目录结构是当前仓库的物理布局，同时继续作为新代码落位的目标态。
 
 ```text
 src/
   channel.ts
 
+  ack-reaction/
+    ack-reaction-classifier.ts
+    ack-reaction-service.ts
+    dynamic-ack-reaction-controller.ts
+    dynamic-ack-reaction-progress.ts
+
   gateway/
+    channel-gateway.ts
     inbound-handler.ts
     connection-manager.ts
+    session-lock.ts
+    docs-service.ts
+    inbound-session-queue.ts
+    inbound-session-queue-dispatcher.ts
+    reply-session-conflict.ts
 
   targeting/
     session-routing.ts
     session-peer-store.ts
     peer-id-registry.ts
-    group-directory-store.ts
-    group-target-resolver.ts
+    agent-name-matcher.ts
+    agent-routing.ts
+    group-members-store.ts
+    target-input.ts
+    target-directory-store.ts
+    target-directory-adapter.ts
+    group-directory-store.ts      # 计划中的能力落点
+    group-target-resolver.ts      # 计划中的能力落点
 
   messaging/
     send-service.ts
@@ -197,6 +215,16 @@ src/
     reply-strategy-card.ts
     reply-strategy-markdown.ts
     reply-strategy-with-reaction.ts
+    reply-strategy-types.ts
+    proactive-risk-registry.ts
+    attachment-text-extractor.ts
+    btw-deliver.ts
+    channel-actions.ts
+    channel-outbound.ts
+    inline-directives.ts
+    quoted-context.ts
+    quoted-file-service.ts
+    quoted-ref.ts
 
   card/
     card-service.ts
@@ -204,11 +232,28 @@ src/
     card-draft-controller.ts
     draft-stream-loop.ts
     run-usage-store.ts
+    card-action-handler.ts
+    card-stop-handler.ts
+    card-run-registry.ts
+    card-streaming-mode.ts
+    card-task-progress.ts
+    card-template.ts
+    card-markdown-image-reroute.ts
+    reasoning-answer-split.ts
+    reasoning-block-assembler.ts
+    statusline-renderer.ts
+    task-model-metadata.ts
+    ask-user-question.ts
+    ask-user-question-context.ts
+    ask-user-question-store.ts
 
   command/
     learning-command-service.ts
     feedback-learning-service.ts
     feedback-learning-store.ts
+    session-command-service.ts
+    card-stop-command.ts
+    inbound-command-dispatch-service.ts
 
   platform/
     auth.ts
@@ -220,19 +265,27 @@ src/
     types.ts
     device-registration.ts
     onboarding.ts
+    access-control.ts
+    channel-status.ts
+    secret-input.ts
+    session-state.ts
+    signature.ts
+    plugin-sdk-channel-actions-augment.ts
 
   shared/
     persistence-store.ts
     dedup.ts
     utils.ts
+    http-client.ts
+    path-utils.ts
 ```
 
 说明：
 
 - `src/channel.ts` 继续作为装配根和底层公共导出入口。
-- 即使相邻旧文件还没有迁移，新模块也应优先参考这套领域结构落位。
-- 现有文件不需要为了“对齐目录”而强制搬迁，除非这次改动本身确实能显著改善边界或降低耦合。
-- `group-directory-store.ts`、`group-target-resolver.ts` 这类文件表示的是计划中的能力落点，不代表当前仓库已经存在这些文件。
+- 领域目录已按本文边界完成物理迁移；新模块应直接落在对应领域目录，不再新增 `src/` 根级文件。
+- 如果需要继续新增领域目录或调整现有落位，仍遵循“先逻辑分区，后物理迁移”，并尽量把文件搬迁与行为改动拆开。
+- `group-directory-store.ts`、`group-target-resolver.ts` 仍表示计划中的能力落点，当前仓库尚未存在这些文件。
 
 ## 重要既有边界
 
@@ -302,15 +355,15 @@ src/
 
 ## 渐进迁移策略
 
-当前仓库在 `src/` 下仍有较多根级文件，这是过渡期内可接受的状态。
+`src/` 根级文件的物理迁移已经完成，`src/channel.ts` 是唯一保留在根目录的模块；`src/` 下不再堆积领域无关的根级文件。
 
-迁移策略如下：
+后续策略如下：
 
 - 不要求贡献者为了交付一个 bug fix 先做全仓文件搬迁
-- 新功能应尽量沿着本文定义的目标边界落位
+- 新功能必须沿着本文定义的领域边界落位，不再新增 `src/` 根级文件
 - 只要不会明显扩大 PR 范围，欢迎做机会式的小幅边界整理
 - 文件迁移与行为改动最好拆成不同 PR
-- 不应仅因为仓库尚未完成物理重排，就阻塞进行中的 PR
+- 需要下一步结构调整时，先更新本文的领域定义，再落地文件搬迁
 
 ## Review Checklist
 

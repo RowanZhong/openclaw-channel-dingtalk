@@ -5,7 +5,7 @@ import {
   getUsageByRunId,
   clearRun,
   clearAllForTest,
-} from "../../src/run-usage-store";
+} from "../../src/card/run-usage-store";
 
 beforeEach(() => {
   clearAllForTest();

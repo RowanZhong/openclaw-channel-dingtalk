@@ -36,7 +36,7 @@ vi.mock("dingtalk-stream", () => ({
   },
 }));
 
-vi.mock("../../src/connection-manager", () => ({
+vi.mock("../../src/gateway/connection-manager", () => ({
   ConnectionManager: class {
     connect: () => Promise<void>;
     waitForStop: () => Promise<void>;
@@ -53,16 +53,16 @@ vi.mock("../../src/connection-manager", () => ({
   },
 }));
 
-vi.mock("../../src/dedup", () => ({
+vi.mock("../../src/shared/dedup", () => ({
   isMessageProcessed: shared.isMessageProcessedMock,
   markMessageProcessed: shared.markMessageProcessedMock,
 }));
 
-vi.mock("../../src/inbound-handler", () => ({
+vi.mock("../../src/gateway/inbound-handler", () => ({
   handleDingTalkMessage: shared.handleDingTalkMessageMock,
 }));
 
-vi.mock("../../src/send-service", () => ({
+vi.mock("../../src/messaging/send-service", () => ({
   sendMessage: vi.fn(),
   sendProactiveMedia: vi.fn(),
   sendProactiveTextOrMarkdown: shared.sendProactiveTextMock,

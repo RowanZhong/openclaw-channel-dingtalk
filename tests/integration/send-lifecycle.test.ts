@@ -18,7 +18,7 @@ vi.mock('dingtalk-stream', () => ({
     TOPIC_ROBOT: 'TOPIC_ROBOT',
 }));
 
-vi.mock('../../src/send-service', async () => ({
+vi.mock('../../src/messaging/send-service', async () => ({
     detectMediaTypeFromExtension: vi.fn().mockReturnValue('file'),
     sendMessage: sendMessageMock,
     sendProactiveTextOrMarkdown: vi.fn(),
@@ -27,10 +27,10 @@ vi.mock('../../src/send-service', async () => ({
     uploadMedia: vi.fn(),
 }));
 
-vi.mock('../../src/runtime', () => ({
+vi.mock('../../src/platform/runtime', () => ({
     getDingTalkRuntime: getRuntimeMock,
 }));
-vi.mock('../../src/logger-context', () => ({
+vi.mock('../../src/platform/logger-context', () => ({
     getLogger: getLoggerMock,
     setCurrentLogger: vi.fn(),
 }));

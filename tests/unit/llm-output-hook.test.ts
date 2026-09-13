@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
-import { clearAllForTest, getUsageByRunId, recordRunStart } from "../../src/run-usage-store";
+import { clearAllForTest, getUsageByRunId, recordRunStart } from "../../src/card/run-usage-store";
 
 const INDEX_IMPORT_TIMEOUT_MS = 15_000;
 
@@ -8,15 +8,15 @@ vi.mock("../../src/channel", () => ({
   dingtalkPlugin: {},
 }));
 
-vi.mock("../../src/runtime", () => ({
+vi.mock("../../src/platform/runtime", () => ({
   setDingTalkRuntime: vi.fn(),
 }));
 
-vi.mock("../../src/config", () => ({
+vi.mock("../../src/platform/config", () => ({
   getConfig: vi.fn(() => ({})),
 }));
 
-vi.mock("../../src/docs-service", () => ({
+vi.mock("../../src/gateway/docs-service", () => ({
   createDoc: vi.fn(),
   appendToDoc: vi.fn(),
   searchDocs: vi.fn(),

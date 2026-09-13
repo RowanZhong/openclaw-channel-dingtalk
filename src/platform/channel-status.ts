@@ -1,6 +1,6 @@
-import { getAccessToken } from "../auth";
-import type { DingTalkChannelPlugin } from "../types";
-import { getCurrentTimestamp } from "../utils";
+import { getCurrentTimestamp } from "../shared/utils";
+import { getAccessToken } from "./auth";
+import type { DingTalkChannelPlugin } from "./types";
 
 export function createDingTalkStatus(): NonNullable<DingTalkChannelPlugin["status"]> {
   return {

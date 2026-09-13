@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateDingTalkSignature } from '../../src/signature';
+import { generateDingTalkSignature } from '../../src/platform/signature';
 
 describe('generateDingTalkSignature', () => {
     it('should generate stable HmacSHA256 + Base64 signature for fixed timestamp/secret', () => {

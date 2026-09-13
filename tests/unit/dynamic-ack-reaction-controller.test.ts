@@ -5,7 +5,7 @@ const shared = vi.hoisted(() => ({
   recallNativeAckReactionWithRetryMock: vi.fn(),
 }));
 
-vi.mock("../../src/ack-reaction-service", () => ({
+vi.mock("../../src/ack-reaction/ack-reaction-service", () => ({
   attachNativeAckReaction: shared.attachNativeAckReactionMock,
   recallNativeAckReactionWithRetry: shared.recallNativeAckReactionWithRetryMock,
 }));

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { createDraftStreamLoop } from "../../src/draft-stream-loop";
+import { createDraftStreamLoop } from "../../src/card/draft-stream-loop";
 
 describe("draft-stream-loop", () => {
     beforeEach(() => {

@@ -11,14 +11,14 @@ vi.mock("axios", () => ({
   },
 }));
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: shared.getAccessTokenMock,
 }));
 
 import {
   attachNativeAckReaction,
   recallNativeAckReactionWithRetry,
-} from "../../src/ack-reaction-service";
+} from "../../src/ack-reaction/ack-reaction-service";
 
 describe("ack-reaction-service", () => {
   beforeEach(() => {

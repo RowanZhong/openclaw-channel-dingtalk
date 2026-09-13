@@ -11,13 +11,13 @@ vi.mock("axios", () => {
   return { default: mockAxios };
 });
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn().mockResolvedValue("token_recovery"),
 }));
 
-import { recoverPendingCardsForAccount, streamAICard } from "../../src/card-service";
-import { resolveNamespacePath } from "../../src/persistence-store";
-import { AICardStatus } from "../../src/types";
+import { recoverPendingCardsForAccount, streamAICard } from "../../src/card/card-service";
+import { resolveNamespacePath } from "../../src/shared/persistence-store";
+import { AICardStatus } from "../../src/platform/types";
 
 const mockedAxios = axios as any;
 const testDirs: string[] = [];

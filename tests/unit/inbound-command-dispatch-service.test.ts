@@ -3,18 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MessageContent } from "../../src/types";
-import * as feedbackLearningService from "../../src/feedback-learning-service";
+import type { MessageContent } from "../../src/platform/types";
+import * as feedbackLearningService from "../../src/command/feedback-learning-service";
 import {
   applyManualGlobalLearningRule,
   applyManualTargetLearningRule,
-} from "../../src/feedback-learning-service";
+} from "../../src/command/feedback-learning-service";
 import { handleInboundCommandDispatch } from "../../src/command/inbound-command-dispatch-service";
 import {
   clearSessionPeerOverride,
   getSessionPeerOverride,
   setSessionPeerOverride,
-} from "../../src/session-peer-store";
+} from "../../src/targeting/session-peer-store";
 
 describe("inbound-command-dispatch-service", () => {
   let tempDir = "";

@@ -29,10 +29,6 @@
     "LICENSE"
   ],
   "type": "module",
-  "engines": {
-    "node": ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"
-  },
-  "packageManager": "pnpm@10.33.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -49,14 +45,14 @@
     "build": "pnpm run build:runtime && pnpm run build:types",
     "build:runtime": "node scripts/build-runtime.mjs",
     "build:types": "tsc -p tsconfig.build.json",
-    "format": "oxfmt --write package.json tsconfig.json index.ts src/*.ts",
-    "format:check": "oxfmt --check package.json tsconfig.json index.ts src/*.ts",
+    "docs:build": "vitepress build docs",
+    "docs:dev": "vitepress dev docs --host 127.0.0.1 --port 8000",
+    "docs:preview": "vitepress preview docs --host 127.0.0.1 --port 4173",
+    "docs:serv": "vitepress dev docs --host 127.0.0.1 --port 8000",
+    "format": "oxfmt --write package.json tsconfig.json index.ts \"src/**/*.ts\"",
+    "format:check": "oxfmt --check package.json tsconfig.json index.ts \"src/**/*.ts\"",
     "lint": "oxlint --type-aware index.ts src",
     "lint:fix": "oxlint --type-aware --fix index.ts src && pnpm format",
-    "docs:dev": "vitepress dev docs --host 127.0.0.1 --port 8000",
-    "docs:serv": "vitepress dev docs --host 127.0.0.1 --port 8000",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs --host 127.0.0.1 --port 4173",
     "monitor:stream": "node scripts/dingtalk-stream-monitor.mjs",
     "pack:check": "node scripts/verify-runtime-package.mjs",
     "prepack": "pnpm run build",
@@ -92,6 +88,10 @@
       "optional": true
     }
   },
+  "engines": {
+    "node": ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"
+  },
+  "packageManager": "pnpm@10.33.0",
   "openclaw": {
     "compat": {
       "pluginApi": ">=2026.8.1"

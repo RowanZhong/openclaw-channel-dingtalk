@@ -1,3 +1,9 @@
+import type {
+  DingTalkConfig,
+  HandleDingTalkMessageParams,
+  MessageContent,
+} from "../platform/types";
+import type { SessionPeerSourceKind } from "../targeting/session-peer-store";
 import {
   applyManualGlobalLearningRule,
   applyManualSessionLearningNote,
@@ -10,7 +16,7 @@ import {
   listLearningTargetSets,
   listScopedLearningRules,
   resolveManualForcedReply,
-} from "../feedback-learning-service";
+} from "./feedback-learning-service";
 import {
   formatLearnAppliedReply,
   formatLearnCommandHelp,
@@ -24,7 +30,7 @@ import {
   formatWhoAmIReply,
   isLearningOwner,
   parseLearnCommand,
-} from "../learning-command-service";
+} from "./learning-command-service";
 import {
   formatSessionAliasBoundReply,
   formatSessionAliasClearedReply,
@@ -34,9 +40,7 @@ import {
   formatSessionAliasValidationErrorReply,
   parseSessionCommand,
   validateSessionAlias,
-} from "../session-command-service";
-import type { SessionPeerSourceKind } from "../session-peer-store";
-import type { DingTalkConfig, HandleDingTalkMessageParams, MessageContent } from "../types";
+} from "./session-command-service";
 
 type InboundCommandDispatchParams = {
   cfg: HandleDingTalkMessageParams["cfg"];
@@ -405,7 +409,9 @@ export async function handleInboundCommandDispatch(
         accountId: params.accountId,
       })
         .slice(0, 10)
-        .map((targetSet) => `- [target-set] ${targetSet.name} => ${targetSet.targetIds.join(", ")}`);
+        .map(
+          (targetSet) => `- [target-set] ${targetSet.name} => ${targetSet.targetIds.join(", ")}`,
+        );
       await params.sendReply(formatLearnListReply([...rules, ...targetSets]));
       return true;
     }

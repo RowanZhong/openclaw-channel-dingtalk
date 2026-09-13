@@ -1,7 +1,7 @@
 import axios from "axios";
 import { vi } from "vitest";
-import { getAccessToken } from "../../../src/auth";
-import * as messageContextStore from "../../../src/message-context-store";
+import { getAccessToken } from "../../../src/platform/auth";
+import * as messageContextStore from "../../../src/messaging/message-context-store";
 
 /**
  * Creates a shared mock object for inbound-handler tests.
@@ -56,15 +56,15 @@ export function applyInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
     isAxiosError: (err: unknown) => Boolean((err as { isAxiosError?: boolean })?.isAxiosError),
   }));
 
-  vi.mock("../../../src/auth", () => ({
+  vi.mock("../../../src/platform/auth", () => ({
     getAccessToken: vi.fn().mockResolvedValue("token_abc"),
   }));
 
-  vi.mock("../../../src/runtime", () => ({
+  vi.mock("../../../src/platform/runtime", () => ({
     getDingTalkRuntime: mocks.getRuntimeMock,
   }));
 
-  vi.mock("../../../src/message-utils", () => ({
+  vi.mock("../../../src/messaging/message-utils", () => ({
     extractMessageContent: mocks.extractMessageContentMock,
   }));
 
@@ -72,15 +72,15 @@ export function applyInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
     extractAttachmentText: mocks.extractAttachmentTextMock,
   }));
 
-  vi.mock("../../../src/send-service", () => ({
+  vi.mock("../../../src/messaging/send-service", () => ({
     sendBySession: mocks.sendBySessionMock,
     sendMessage: mocks.sendMessageMock,
     sendProactiveMedia: mocks.sendProactiveMediaMock,
     uploadMedia: mocks.uploadMediaMock,
   }));
 
-  vi.mock("../../../src/media-utils", async () => {
-    const actual = await vi.importActual<typeof import("../../../src/media-utils")>("../../../src/media-utils");
+  vi.mock("../../../src/messaging/media-utils", async () => {
+    const actual = await vi.importActual<typeof import("../../../src/messaging/media-utils")>("../../../src/messaging/media-utils");
     return {
       ...actual,
       prepareMediaInput: mocks.prepareMediaInputMock,
@@ -88,7 +88,7 @@ export function applyInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
     };
   });
 
-  vi.mock("../../../src/card-service", () => ({
+  vi.mock("../../../src/card/card-service", () => ({
     createAICard: mocks.createAICardMock,
     finishAICard: mocks.finishAICardMock,
     commitAICardBlocks: mocks.commitAICardBlocksMock,
@@ -100,7 +100,7 @@ export function applyInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
     clearAICardStreamingContent: mocks.clearAICardStreamingContentMock,
   }));
 
-  vi.mock("../../../src/session-lock", () => ({
+  vi.mock("../../../src/gateway/session-lock", () => ({
     acquireSessionLock: mocks.acquireSessionLockMock,
   }));
 
@@ -109,9 +109,9 @@ export function applyInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
     isBtwRequestText: vi.fn().mockReturnValue(false),
   }));
 
-  vi.mock("../../../src/message-context-store", async () => {
-    const actual = await vi.importActual<typeof import("../../../src/message-context-store")>(
-      "../../../src/message-context-store",
+  vi.mock("../../../src/messaging/message-context-store", async () => {
+    const actual = await vi.importActual<typeof import("../../../src/messaging/message-context-store")>(
+      "../../../src/messaging/message-context-store",
     );
     return {
       ...actual,

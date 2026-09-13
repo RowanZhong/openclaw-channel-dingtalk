@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -14,8 +14,8 @@ const cardRunRegistryMocks = vi.hoisted(() => ({
     resolveCardRunByOwnerMock: vi.fn(),
 }));
 
-vi.mock('../../src/message-context-store', async () => {
-    const actual = await vi.importActual<typeof import('../../src/message-context-store')>('../../src/message-context-store');
+vi.mock('../../src/messaging/message-context-store', async () => {
+    const actual = await vi.importActual<typeof import('../../src/messaging/message-context-store')>('../../src/messaging/message-context-store');
     return {
         ...actual,
         upsertOutboundMessageContext: messageContextMocks.upsertOutboundMessageContextMock,
@@ -27,7 +27,7 @@ vi.mock('../../src/card/card-run-registry', () => ({
     resolveCardRunByOwner: cardRunRegistryMocks.resolveCardRunByOwnerMock,
 }));
 
-vi.mock('../../src/media-utils', () => ({
+vi.mock('../../src/messaging/media-utils', () => ({
     uploadMedia: vi.fn(),
     detectMediaTypeFromExtension: vi.fn(),
     getVoiceDurationMs: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('../../src/media-utils', () => ({
     resolveOutboundMediaType: vi.fn(),
 }));
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -47,7 +47,7 @@ vi.mock('axios', () => {
     };
 });
 
-import { prepareMediaInput, resolveOutboundMediaType, uploadMedia as uploadMediaUtil } from '../../src/media-utils';
+import { prepareMediaInput, resolveOutboundMediaType, uploadMedia as uploadMediaUtil } from '../../src/messaging/media-utils';
 
 const mockedAxios = vi.mocked(axios);
 const mockedUploadMedia = vi.mocked(uploadMediaUtil);
@@ -74,7 +74,7 @@ describe('sendMedia owner-only fallback when conversationId is undefined', () =>
     });
 
     it('uses owner-only lookup when conversationId is undefined and expectedCardOwnerId is provided', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         const appendImageBlock = vi.fn().mockResolvedValue(undefined);
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image-owner-only.png',
@@ -110,7 +110,7 @@ describe('sendMedia owner-only fallback when conversationId is undefined', () =>
     });
 
     it('falls back to proactive media when conversationId is undefined and no owner match', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image-no-match.png',
             cleanup: vi.fn(),
@@ -147,7 +147,7 @@ describe('sendMedia owner-only fallback when conversationId is undefined', () =>
     });
 
     it('skips owner-only lookup when conversationId is undefined but no expectedCardOwnerId', async () => {
-        const sendMedia = (await import('../../src/send-service')).sendMedia;
+        const sendMedia = (await import('../../src/messaging/send-service')).sendMedia;
         mockedPrepareMediaInput.mockResolvedValueOnce({
             path: '/tmp/card-image-no-owner.png',
             cleanup: vi.fn(),

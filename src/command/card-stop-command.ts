@@ -1,7 +1,7 @@
 import { resolveNativeCommandSessionTargets } from "openclaw/plugin-sdk/command-auth";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
-import { getDingTalkRuntime } from "../runtime";
-import type { Logger } from "../types";
+import { getDingTalkRuntime } from "../platform/runtime";
+import type { Logger } from "../platform/types";
 
 /**
  * Dispatch a native targeted `/stop` command through the OpenClaw SDK,

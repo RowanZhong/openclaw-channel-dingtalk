@@ -1,4 +1,4 @@
-import { readNamespaceJson, writeNamespaceJsonAtomic } from "../persistence-store";
+import { readNamespaceJson, writeNamespaceJsonAtomic } from "../shared/persistence-store";
 
 const TARGET_DIRECTORY_NAMESPACE = "targets.directory";
 const MAX_HISTORICAL_NAMES = 20;

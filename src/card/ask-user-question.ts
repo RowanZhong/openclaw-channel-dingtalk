@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plugin-sdk/core";
-import { getAccessToken } from "../auth";
-import { updateCardVariables } from "../card-callback-service";
-import { resolveRobotCode } from "../config";
-import axios from "../http-client";
-import { handleDingTalkMessage } from "../inbound-handler";
-import type { DingTalkConfig, DingTalkInboundMessage, Logger } from "../types";
-import { formatDingTalkErrorPayloadLog, getProxyBypassOption, parseBooleanLike } from "../utils";
+import { handleDingTalkMessage } from "../gateway/inbound-handler";
+import { getAccessToken } from "../platform/auth";
+import { resolveRobotCode } from "../platform/config";
+import type { DingTalkConfig, DingTalkInboundMessage, Logger } from "../platform/types";
+import axios from "../shared/http-client";
+import {
+  formatDingTalkErrorPayloadLog,
+  getProxyBypassOption,
+  parseBooleanLike,
+} from "../shared/utils";
 import {
   getDingTalkQuestionContext,
   type DingTalkQuestionContext,
@@ -23,6 +26,7 @@ import {
   type AskUserStoreOptions,
   type AskUserTerminalReason,
 } from "./ask-user-question-store";
+import { updateCardVariables } from "./card-callback-service";
 import { DINGTALK_ASK_USER_CARD_TEMPLATE } from "./card-template";
 
 const DINGTALK_API = "https://api.dingtalk.com";

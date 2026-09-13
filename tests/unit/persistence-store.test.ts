@@ -6,7 +6,7 @@ import {
     readNamespaceJson,
     resolveNamespacePath,
     writeNamespaceJsonAtomic,
-} from "../../src/persistence-store";
+} from "../../src/shared/persistence-store";
 
 describe("persistence-store", () => {
     const tempDirs: string[] = [];

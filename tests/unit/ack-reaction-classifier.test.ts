@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { classifyAckReactionEmoji } from '../../src/ack-reaction-classifier';
+import { classifyAckReactionEmoji } from '../../src/ack-reaction/ack-reaction-classifier';
 
 describe('ack-reaction-classifier', () => {
     it('classifies praise content into praise emoji set', () => {

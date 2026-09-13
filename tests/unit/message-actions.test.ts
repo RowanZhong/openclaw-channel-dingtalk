@@ -35,11 +35,11 @@ vi.mock('dingtalk-stream', () => ({
     TOPIC_ROBOT: 'TOPIC_ROBOT',
 }));
 
-vi.mock('../../src/runtime', () => ({
+vi.mock('../../src/platform/runtime', () => ({
     getDingTalkRuntime: getRuntimeMock,
 }));
 
-vi.mock('../../src/send-service', async () => ({
+vi.mock('../../src/messaging/send-service', async () => ({
     sendMessage: sendMessageMock,
     sendMedia: sendMediaMock,
     sendProactiveMedia: sendProactiveMediaMock,
@@ -47,8 +47,8 @@ vi.mock('../../src/send-service', async () => ({
     uploadMedia: vi.fn(),
 }));
 
-vi.mock('../../src/media-utils', async () => {
-    const actual = await vi.importActual<typeof import('../../src/media-utils')>('../../src/media-utils');
+vi.mock('../../src/messaging/media-utils', async () => {
+    const actual = await vi.importActual<typeof import('../../src/messaging/media-utils')>('../../src/messaging/media-utils');
     return {
         ...actual,
         prepareMediaInput: prepareMediaInputMock,

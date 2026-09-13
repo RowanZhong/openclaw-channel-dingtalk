@@ -22,7 +22,10 @@ export function normalizeModelDisplayName(modelRef: string | undefined): string 
   if (!trimmed) {
     return undefined;
   }
-  const parts = trimmed.split("/").map((part) => part.trim()).filter(Boolean);
+  const parts = trimmed
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
   return parts.at(-1) || undefined;
 }
 
@@ -36,11 +39,13 @@ export function resolveConfiguredTaskModelMetadata(params: {
     ? agents.list.find((entry) => String(entry.id || "").trim() === agentId)
     : undefined;
 
-  const modelRef = readPrimaryModelRef(agent?.model) ?? readPrimaryModelRef(agents?.defaults?.model);
+  const modelRef =
+    readPrimaryModelRef(agent?.model) ?? readPrimaryModelRef(agents?.defaults?.model);
   const effort =
     typeof agent?.thinkingDefault === "string" && agent.thinkingDefault.trim()
       ? agent.thinkingDefault.trim()
-      : typeof agents?.defaults?.thinkingDefault === "string" && agents.defaults.thinkingDefault.trim()
+      : typeof agents?.defaults?.thinkingDefault === "string" &&
+          agents.defaults.thinkingDefault.trim()
         ? agents.defaults.thinkingDefault.trim()
         : undefined;
 

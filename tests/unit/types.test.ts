@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listDingTalkAccountIds, resolveDingTalkAccount } from '../../src/config';
+import { listDingTalkAccountIds, resolveDingTalkAccount } from '../../src/platform/config';
 
 describe('config onboarding helpers', () => {
     it('lists default and named account ids', () => {

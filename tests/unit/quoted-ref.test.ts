@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { upsertInboundMessageContext, resolveByMsgId } from '../../src/message-context-store';
+import { upsertInboundMessageContext, resolveByMsgId } from '../../src/messaging/message-context-store';
 import { buildInboundQuotedRef } from '../../src/messaging/quoted-ref';
 
 describe('quoted-ref', () => {

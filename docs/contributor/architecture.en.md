@@ -68,8 +68,8 @@ Responsible for:
 Examples:
 
 - `src/channel.ts`
-- `src/inbound-handler.ts`
-- `src/connection-manager.ts`
+- `src/gateway/inbound-handler.ts`
+- `src/gateway/connection-manager.ts`
 
 Not responsible for:
 
@@ -88,9 +88,9 @@ Responsible for:
 
 Examples:
 
-- `src/session-routing.ts`
-- `src/session-peer-store.ts`
-- `src/peer-id-registry.ts`
+- `src/targeting/session-routing.ts`
+- `src/targeting/session-peer-store.ts`
+- `src/targeting/peer-id-registry.ts`
 
 Not responsible for:
 
@@ -109,11 +109,11 @@ Responsible for:
 
 Examples:
 
-- `src/message-utils.ts`
-- `src/send-service.ts`
+- `src/messaging/message-utils.ts`
+- `src/messaging/send-service.ts`
 - `src/reply-strategy*.ts`
-- `src/message-context-store.ts`
-- `src/media-utils.ts`
+- `src/messaging/message-context-store.ts`
+- `src/messaging/media-utils.ts`
 
 ### Card
 
@@ -126,11 +126,11 @@ Responsible for:
 
 Examples:
 
-- `src/card-service.ts`
-- `src/card-callback-service.ts`
-- `src/card-draft-controller.ts`
-- `src/draft-stream-loop.ts`
-- `src/run-usage-store.ts`
+- `src/card/card-service.ts`
+- `src/card/card-callback-service.ts`
+- `src/card/card-draft-controller.ts`
+- `src/card/draft-stream-loop.ts`
+- `src/card/run-usage-store.ts`
 
 ### Command
 
@@ -143,9 +143,9 @@ Responsible for:
 
 Examples:
 
-- `src/learning-command-service.ts`
-- `src/feedback-learning-service.ts`
-- `src/feedback-learning-store.ts`
+- `src/command/learning-command-service.ts`
+- `src/command/feedback-learning-service.ts`
+- `src/command/feedback-learning-store.ts`
 
 ### Platform
 
@@ -160,33 +160,51 @@ Responsible for:
 
 Examples:
 
-- `src/config.ts`
-- `src/config-schema.ts`
-- `src/auth.ts`
-- `src/runtime.ts`
-- `src/logger-context.ts`
-- `src/types.ts`
-- `src/device-registration.ts`
-- `src/onboarding.ts`
+- `src/platform/config.ts`
+- `src/platform/config-schema.ts`
+- `src/platform/auth.ts`
+- `src/platform/runtime.ts`
+- `src/platform/logger-context.ts`
+- `src/platform/types.ts`
+- `src/platform/device-registration.ts`
+- `src/platform/onboarding.ts`
 
-## Planned Directory Layout
+## Directory Layout
 
-The following layout is the planned target structure for future incremental migration. It is a direction, not an immediate requirement.
+The following layout is the current physical structure of the repository and remains the target for where new code lands.
 
 ```text
 src/
   channel.ts
 
+  ack-reaction/
+    ack-reaction-classifier.ts
+    ack-reaction-service.ts
+    dynamic-ack-reaction-controller.ts
+    dynamic-ack-reaction-progress.ts
+
   gateway/
+    channel-gateway.ts
     inbound-handler.ts
     connection-manager.ts
+    session-lock.ts
+    docs-service.ts
+    inbound-session-queue.ts
+    inbound-session-queue-dispatcher.ts
+    reply-session-conflict.ts
 
   targeting/
     session-routing.ts
     session-peer-store.ts
     peer-id-registry.ts
-    group-directory-store.ts
-    group-target-resolver.ts
+    agent-name-matcher.ts
+    agent-routing.ts
+    group-members-store.ts
+    target-input.ts
+    target-directory-store.ts
+    target-directory-adapter.ts
+    group-directory-store.ts      # planned capability
+    group-target-resolver.ts      # planned capability
 
   messaging/
     send-service.ts
@@ -197,6 +215,16 @@ src/
     reply-strategy-card.ts
     reply-strategy-markdown.ts
     reply-strategy-with-reaction.ts
+    reply-strategy-types.ts
+    proactive-risk-registry.ts
+    attachment-text-extractor.ts
+    btw-deliver.ts
+    channel-actions.ts
+    channel-outbound.ts
+    inline-directives.ts
+    quoted-context.ts
+    quoted-file-service.ts
+    quoted-ref.ts
 
   card/
     card-service.ts
@@ -204,11 +232,28 @@ src/
     card-draft-controller.ts
     draft-stream-loop.ts
     run-usage-store.ts
+    card-action-handler.ts
+    card-stop-handler.ts
+    card-run-registry.ts
+    card-streaming-mode.ts
+    card-task-progress.ts
+    card-template.ts
+    card-markdown-image-reroute.ts
+    reasoning-answer-split.ts
+    reasoning-block-assembler.ts
+    statusline-renderer.ts
+    task-model-metadata.ts
+    ask-user-question.ts
+    ask-user-question-context.ts
+    ask-user-question-store.ts
 
   command/
     learning-command-service.ts
     feedback-learning-service.ts
     feedback-learning-store.ts
+    session-command-service.ts
+    card-stop-command.ts
+    inbound-command-dispatch-service.ts
 
   platform/
     auth.ts
@@ -220,19 +265,27 @@ src/
     types.ts
     device-registration.ts
     onboarding.ts
+    access-control.ts
+    channel-status.ts
+    secret-input.ts
+    session-state.ts
+    signature.ts
+    plugin-sdk-channel-actions-augment.ts
 
   shared/
     persistence-store.ts
     dedup.ts
     utils.ts
+    http-client.ts
+    path-utils.ts
 ```
 
 Notes:
 
 - `src/channel.ts` remains the composition root and public entry for low-level exports.
-- New modules should prefer this domain layout even if neighboring legacy files have not moved yet.
-- Existing files do not need to be relocated unless the change meaningfully improves clarity or reduces coupling.
-- Planned modules such as `group-directory-store.ts` and `group-target-resolver.ts` describe intended placement for future capabilities, not guaranteed current files.
+- The domain directories have completed their physical migration; new modules must land in the matching domain directory, and no new root-level `src/` files should be added.
+- Further structural changes should still follow "logical partition first, physical migration second", keeping file moves separate from behavior changes.
+- `group-directory-store.ts` and `group-target-resolver.ts` remain planned capability placeholders; those files do not exist yet.
 
 ## Important Existing Boundaries
 
@@ -302,15 +355,15 @@ When adding new code, follow these rules:
 
 ## Incremental Migration Policy
 
-This repository currently has many root-level files under `src/`. That is acceptable during transition.
+The physical migration of root-level `src/` files is complete; `src/channel.ts` is the only module left at the root, and no domain-unrelated files remain flat under `src/`.
 
-The migration policy is:
+The policy going forward is:
 
 - No contributor is required to perform a repo-wide file move before shipping a bug fix.
-- New features should prefer the target domain boundaries described here.
+- New features must land inside the domain boundaries described here; no new root-level `src/` files.
 - Opportunistic refactors are welcome when they reduce confusion without expanding PR scope too much.
 - File moves and behavior changes should preferably be separated into different PRs.
-- In-flight PRs should not be blocked solely because the repository has not yet been physically reorganized.
+- Further structural moves should start by updating the domain definitions in this document, then move files.
 
 ## Review Checklist
 

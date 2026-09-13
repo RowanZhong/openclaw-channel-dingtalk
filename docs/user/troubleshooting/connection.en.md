@@ -229,7 +229,7 @@ If group chat replies appear as empty cards or fallback markdown messages instea
 
 - `scripts/dingtalk-connection-check.sh`
 - `scripts/dingtalk-connection-check.ps1`
-- `src/connection-manager.ts`
+- `src/gateway/connection-manager.ts`
 - `README.md`
 Proxy notes:
 - Scripts inherit HTTP_PROXY / HTTPS_PROXY / NO_PROXY from your environment.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractMessageContent } from '../../src/message-utils';
+import { extractMessageContent } from '../../src/messaging/message-utils';
 
 describe('message-utils advanced extraction', () => {
     it('extracts picture/audio/video/file payloads', () => {

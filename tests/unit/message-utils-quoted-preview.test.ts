@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractMessageContent } from '../../src/message-utils';
+import { extractMessageContent } from '../../src/messaging/message-utils';
 import { buildInboundQuotedRef } from '../../src/messaging/quoted-ref';
 import { resolveQuotedRuntimeContext } from '../../src/messaging/quoted-context';
 

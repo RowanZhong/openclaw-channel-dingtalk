@@ -1,9 +1,9 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
-import { finalizeStoppedAICard } from "../card-service";
 import { dispatchDingTalkCardStopCommand } from "../command/card-stop-command";
-import type { DingTalkConfig, Logger } from "../types";
-import { AICardStatus } from "../types";
+import type { DingTalkConfig, Logger } from "../platform/types";
+import { AICardStatus } from "../platform/types";
 import { markCardRunStopRequested, resolveCardRun } from "./card-run-registry";
+import { finalizeStoppedAICard } from "./card-service";
 
 export interface StopCardRunResult {
   ok: boolean;
@@ -68,11 +68,15 @@ export async function stopCardRun(params: {
   // --- Phase 2: Finalize card via instances API so V2 blockList/content stay consistent ---
   if (record.card) {
     try {
-      await finalizeStoppedAICard(record.card, {
-        reason: "⏹️ 已停止",
-        previousContent: lastContent,
-        previousBlockListJson: lastBlockListJson,
-      }, params.log);
+      await finalizeStoppedAICard(
+        record.card,
+        {
+          reason: "⏹️ 已停止",
+          previousContent: lastContent,
+          previousBlockListJson: lastBlockListJson,
+        },
+        params.log,
+      );
     } catch (error) {
       params.log?.warn?.(
         `[${params.accountId}] [DingTalk][CardStop] failed to finalize stopped card: ${error instanceof Error ? error.message : String(error)}`,

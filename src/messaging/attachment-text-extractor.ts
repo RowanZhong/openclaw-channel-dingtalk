@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { AttachmentTextSource } from "../types";
+import type { AttachmentTextSource } from "../platform/types";
 
 const MAX_EXTRACTED_TEXT_CHARS = 6000;
 const MAX_ATTACHMENT_EXTRACT_BYTES = 2 * 1024 * 1024;
@@ -37,7 +37,8 @@ function isTextLikeMimeType(mimeType: string | undefined): boolean {
 function normalizeWhitespace(text: string): string {
   return text
     .replace(/\r\n/g, "\n")
-    .split("\u0000").join("")
+    .split("\u0000")
+    .join("")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -50,7 +51,9 @@ function limitExtractedText(text: string): AttachmentTextExtractionResult | null
     return null;
   }
   const truncated = normalized.length > MAX_EXTRACTED_TEXT_CHARS;
-  const limited = truncated ? `${normalized.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n\n[内容已截断]` : normalized;
+  const limited = truncated
+    ? `${normalized.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n\n[内容已截断]`
+    : normalized;
   return {
     text: limited,
     truncated,
@@ -68,10 +71,12 @@ function stripHtml(html: string): string {
     .replace(/&gt;/gi, ">")
     .replace(/&amp;/gi, "&")
     .replace(/&#39;/gi, "'")
-    .replace(/&quot;/gi, "\"");
+    .replace(/&quot;/gi, '"');
 }
 
-async function extractTextLikeFile(filePath: string): Promise<AttachmentTextExtractionResult | null> {
+async function extractTextLikeFile(
+  filePath: string,
+): Promise<AttachmentTextExtractionResult | null> {
   const raw = await fs.readFile(filePath, "utf8");
   return limitExtractedText(raw);
 }
@@ -108,7 +113,11 @@ export async function extractAttachmentText(
   const mimeType = input.mimeType?.toLowerCase();
   const fileName = (input.fileName || path.basename(input.path)).toLowerCase();
 
-  if (mimeType?.startsWith("image/") || mimeType?.startsWith("audio/") || mimeType?.startsWith("video/")) {
+  if (
+    mimeType?.startsWith("image/") ||
+    mimeType?.startsWith("audio/") ||
+    mimeType?.startsWith("video/")
+  ) {
     return null;
   }
 
@@ -127,7 +136,12 @@ export async function extractAttachmentText(
     return extractPdf(input.path);
   }
 
-  if (mimeType === "text/html" || mimeType === "application/xhtml+xml" || fileName.endsWith(".html") || fileName.endsWith(".htm")) {
+  if (
+    mimeType === "text/html" ||
+    mimeType === "application/xhtml+xml" ||
+    fileName.endsWith(".html") ||
+    fileName.endsWith(".htm")
+  ) {
     return extractHtml(input.path);
   }
 

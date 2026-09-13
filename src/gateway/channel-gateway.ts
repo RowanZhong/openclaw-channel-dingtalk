@@ -7,28 +7,19 @@ import {
   sessionDeliveryRoute,
 } from "openclaw/plugin-sdk/session-store-runtime";
 import type { SessionEntry } from "openclaw/plugin-sdk/session-store-runtime";
-import { analyzeCardCallback } from "../card-callback-service";
-import { finalizeActiveCardsForAccount, recoverPendingCardsForAccount } from "../card-service";
 import { recoverAskUserQuestionsForAccount } from "../card/ask-user-question";
 import { handleCardAction } from "../card/card-action-handler";
-import { resolveRobotCode, resolveRuntimeConfig } from "../config";
-import { ConnectionManager } from "../connection-manager";
-import { isMessageProcessed, markMessageProcessed } from "../dedup";
+import { analyzeCardCallback } from "../card/card-callback-service";
+import { finalizeActiveCardsForAccount, recoverPendingCardsForAccount } from "../card/card-service";
 import {
   isLearningAutoApplyEnabled,
   isLearningEnabled,
   recordExplicitFeedbackLearning,
-} from "../feedback-learning-service";
-import { handleDingTalkMessage } from "../inbound-handler";
-import { setCurrentLogger } from "../logger-context";
-import { registerPeerId } from "../peer-id-registry";
-import { getDingTalkRuntime } from "../runtime";
-import { sendProactiveTextOrMarkdown } from "../send-service";
-import {
-  listKnownGroupTargets,
-  listKnownUserTargets,
-  upsertObservedGroupTarget,
-} from "../targeting/target-directory-store";
+} from "../command/feedback-learning-service";
+import { sendProactiveTextOrMarkdown } from "../messaging/send-service";
+import { resolveRobotCode, resolveRuntimeConfig } from "../platform/config";
+import { setCurrentLogger } from "../platform/logger-context";
+import { getDingTalkRuntime } from "../platform/runtime";
 import type {
   ConnectionManagerConfig,
   DingTalkChannelPlugin,
@@ -36,8 +27,9 @@ import type {
   GatewayStartContext,
   GatewayStopResult,
   StreamClientFactory,
-} from "../types";
-import { ConnectionState } from "../types";
+} from "../platform/types";
+import { ConnectionState } from "../platform/types";
+import { isMessageProcessed, markMessageProcessed } from "../shared/dedup";
 import {
   closePluginDebugLog,
   cleanupOrphanedTempFiles,
@@ -45,7 +37,15 @@ import {
   formatDingTalkConnectionErrorLog,
   getCurrentTimestamp,
   resolvePluginDebugLog,
-} from "../utils";
+} from "../shared/utils";
+import { registerPeerId } from "../targeting/peer-id-registry";
+import {
+  listKnownGroupTargets,
+  listKnownUserTargets,
+  upsertObservedGroupTarget,
+} from "../targeting/target-directory-store";
+import { ConnectionManager } from "./connection-manager";
+import { handleDingTalkMessage } from "./inbound-handler";
 
 type InstrumentedDWClient = {
   getEndpoint?: () => Promise<unknown>;

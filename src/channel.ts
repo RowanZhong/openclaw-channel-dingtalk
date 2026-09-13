@@ -1,22 +1,27 @@
 import { buildJsonChannelConfigSchema } from "openclaw/plugin-sdk/channel-config-schema";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import pluginManifest from "../openclaw.plugin.json";
-import { getConfig, isConfigured, mergeAccountWithDefaults, resolveGroupConfig } from "./config";
 import {
   CHANNEL_INFLIGHT_NAMESPACE_POLICY,
   createDingTalkGateway,
 } from "./gateway/channel-gateway";
-import { dingtalkSetupAdapter, dingtalkSetupWizard } from "./onboarding.js";
 import { createDingTalkMessageActions } from "./messaging/channel-actions";
 import { createDingTalkOutbound } from "./messaging/channel-outbound";
 import { createDingTalkStatus } from "./platform/channel-status";
-import { hasConfiguredSecretInput } from "./secret-input";
+import {
+  getConfig,
+  isConfigured,
+  mergeAccountWithDefaults,
+  resolveGroupConfig,
+} from "./platform/config";
+import { dingtalkSetupAdapter, dingtalkSetupWizard } from "./platform/onboarding.js";
+import { hasConfiguredSecretInput } from "./platform/secret-input";
+import type { DingTalkChannelPlugin, ResolvedAccount } from "./platform/types";
 import {
   listDingTalkDirectoryGroups,
   listDingTalkDirectoryUsers,
 } from "./targeting/target-directory-adapter";
 import { looksLikeDingTalkTargetId, normalizeDingTalkTarget } from "./targeting/target-input";
-import type { DingTalkChannelPlugin, ResolvedAccount } from "./types";
 
 // DingTalk Channel Definition (assembly layer).
 // Heavy logic is delegated to service modules for maintainability.
@@ -121,13 +126,13 @@ export const dingtalkPlugin: DingTalkChannelPlugin = {
 };
 
 export { CHANNEL_INFLIGHT_NAMESPACE_POLICY };
-export { getAccessToken } from "./auth";
-export { createAICard, finishAICard, streamAICard } from "./card-service";
-export { detectMediaTypeFromExtension } from "./media-utils";
-export { getLogger } from "./logger-context";
+export { getAccessToken } from "./platform/auth";
+export { createAICard, finishAICard, streamAICard } from "./card/card-service";
+export { detectMediaTypeFromExtension } from "./messaging/media-utils";
+export { getLogger } from "./platform/logger-context";
 export {
   sendBySession,
   sendMessage,
   sendProactiveMedia,
   uploadMedia,
-} from "./send-service";
+} from "./messaging/send-service";

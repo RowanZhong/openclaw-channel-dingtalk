@@ -4,7 +4,7 @@ import {
   resolveByMsgId,
   upsertInboundMessageContext,
   upsertOutboundMessageContext,
-} from "../../src/message-context-store";
+} from "../../src/messaging/message-context-store";
 import { resolveQuotedRuntimeContext } from "../../src/messaging/quoted-context";
 
 describe("quoted-context", () => {

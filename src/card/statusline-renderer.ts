@@ -67,8 +67,16 @@ const SEGMENTS: Segment[] = [
   { key: "effort", defaultOn: true, render: (d) => d.effort || undefined },
   { key: "agent", defaultOn: true, render: (d) => d.agent || undefined },
   { key: "tokens", defaultOn: false, render: renderTokenSegment },
-  { key: "taskTime", defaultOn: false, render: (d) => typeof d.taskTime === "number" ? formatDuration(d.taskTime) : undefined },
-  { key: "dapiUsage", defaultOn: false, render: (d) => typeof d.dapi_usage === "number" ? `DAPI+${d.dapi_usage}` : undefined },
+  {
+    key: "taskTime",
+    defaultOn: false,
+    render: (d) => (typeof d.taskTime === "number" ? formatDuration(d.taskTime) : undefined),
+  },
+  {
+    key: "dapiUsage",
+    defaultOn: false,
+    render: (d) => (typeof d.dapi_usage === "number" ? `DAPI+${d.dapi_usage}` : undefined),
+  },
 ];
 
 const SEGMENTS_PER_LINE = 3;
@@ -79,12 +87,13 @@ function resolveSegmentEnabled(seg: Segment, config: StatusLineConfig): boolean 
 }
 
 export function renderStatusLine(data: StatusLineData, config: StatusLineConfig): string {
-  const rendered = SEGMENTS
-    .filter((seg) => resolveSegmentEnabled(seg, config))
+  const rendered = SEGMENTS.filter((seg) => resolveSegmentEnabled(seg, config))
     .map((seg) => seg.render(data))
     .filter(Boolean) as string[];
 
-  if (rendered.length === 0) { return ""; }
+  if (rendered.length === 0) {
+    return "";
+  }
 
   const lines: string[] = [];
   for (let i = 0; i < rendered.length; i += SEGMENTS_PER_LINE) {

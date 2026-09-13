@@ -1,6 +1,6 @@
 # Persistence API 使用指南（DingTalk 插件）
 
-本文档细化 `src/persistence-store.ts` 的使用方法，覆盖接口说明、命名规范、scope 设计、迁移模板与常见坑。
+本文档细化 `src/shared/persistence-store.ts` 的使用方法，覆盖接口说明、命名规范、scope 设计、迁移模板与常见坑。
 
 ## 1. 设计目标
 
@@ -11,7 +11,7 @@
 
 ## 2. 核心接口
 
-文件：`src/persistence-store.ts`
+文件：`src/shared/persistence-store.ts`
 
 ```ts
 type NamespaceFormat = "json";

@@ -1,8 +1,8 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import type { ChannelDirectoryEntry } from "openclaw/plugin-sdk/directory-runtime";
-import { getConfig, stripTargetPrefix } from "../config";
-import { resolveOriginalPeerId } from "../peer-id-registry";
-import { getDingTalkRuntime } from "../runtime";
+import { getConfig, stripTargetPrefix } from "../platform/config";
+import { getDingTalkRuntime } from "../platform/runtime";
+import { resolveOriginalPeerId } from "./peer-id-registry";
 import { listKnownGroupTargets, listKnownUserTargets } from "./target-directory-store";
 
 export type DirectoryListParams = {

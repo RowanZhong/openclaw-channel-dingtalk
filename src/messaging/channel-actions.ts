@@ -3,12 +3,12 @@ import type { ChannelMessageActionAdapter } from "openclaw/plugin-sdk/channel-co
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { readStringParam } from "openclaw/plugin-sdk/param-readers";
 import { extractToolSend } from "openclaw/plugin-sdk/tool-send";
-import { getConfig, stripTargetPrefix } from "../config";
-import { getLogger } from "../logger-context";
-import { resolveOriginalPeerId } from "../peer-id-registry";
-import { hasConfiguredSecretInput } from "../secret-input";
-import { sendMedia, sendMessage } from "../send-service";
-import { parseBooleanLike } from "../utils";
+import { getConfig, stripTargetPrefix } from "../platform/config";
+import { getLogger } from "../platform/logger-context";
+import { hasConfiguredSecretInput } from "../platform/secret-input";
+import { parseBooleanLike } from "../shared/utils";
+import { resolveOriginalPeerId } from "../targeting/peer-id-registry";
+import { sendMedia, sendMessage } from "./send-service";
 
 function readBooleanLikeParam(params: Record<string, unknown>, key: string): boolean | undefined {
   return parseBooleanLike(params[key]);
@@ -67,7 +67,15 @@ export function createDingTalkMessageActions(): ChannelMessageActionAdapter {
     describeMessageTool: ({ cfg }) => describeDingTalkMessageTool(cfg),
     supportsAction: ({ action }) => action === "send",
     extractToolSend: ({ args }) => extractToolSend(args, "sendMessage"),
-    handleAction: async ({ action, params, cfg, accountId, dryRun, mediaLocalRoots, sessionKey }) => {
+    handleAction: async ({
+      action,
+      params,
+      cfg,
+      accountId,
+      dryRun,
+      mediaLocalRoots,
+      sessionKey,
+    }) => {
       if (action !== "send") {
         throw new Error(`Action ${action} is not supported for provider dingtalk.`);
       }

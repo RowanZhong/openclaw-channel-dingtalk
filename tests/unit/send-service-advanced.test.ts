@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('token_abc'),
 }));
 
@@ -23,26 +23,26 @@ const messageContextMocks = vi.hoisted(() => ({
     upsertOutboundMessageContextMock: vi.fn(),
 }));
 
-vi.mock('../../src/card-service', () => ({
+vi.mock('../../src/card/card-service', () => ({
     isCardInTerminalState: cardServiceMocks.isCardInTerminalStateMock,
     streamAICard: cardServiceMocks.streamAICardMock,
     sendProactiveCardText: cardServiceMocks.sendProactiveCardTextMock,
 }));
 
-vi.mock('../../src/message-context-store', async () => {
-    const actual = await vi.importActual<typeof import('../../src/message-context-store')>('../../src/message-context-store');
+vi.mock('../../src/messaging/message-context-store', async () => {
+    const actual = await vi.importActual<typeof import('../../src/messaging/message-context-store')>('../../src/messaging/message-context-store');
     return {
         ...actual,
         upsertOutboundMessageContext: messageContextMocks.upsertOutboundMessageContextMock,
     };
 });
 
-import { sendMessage } from '../../src/send-service';
+import { sendMessage } from '../../src/messaging/send-service';
 import {
     clearProactiveRiskObservationsForTest,
     getProactiveRiskObservation,
     recordProactiveRiskObservation,
-} from '../../src/proactive-risk-registry';
+} from '../../src/messaging/proactive-risk-registry';
 
 const mockedAxios = vi.mocked(axios);
 

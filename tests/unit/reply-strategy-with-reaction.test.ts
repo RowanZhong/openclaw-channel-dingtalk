@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { withDynamicReaction } from "../../src/reply-strategy-with-reaction";
-import type { ReplyStrategy } from "../../src/reply-strategy";
+import { withDynamicReaction } from "../../src/messaging/reply-strategy-with-reaction";
+import type { ReplyStrategy } from "../../src/messaging/reply-strategy";
 
 function buildInnerStrategy(overrides: Partial<ReplyStrategy> = {}): ReplyStrategy {
     return {

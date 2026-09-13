@@ -1,6 +1,3 @@
-import { attachNativeAckReaction, recallNativeAckReactionWithRetry } from "../ack-reaction-service";
-import type { DingTalkConfig } from "../types";
-import { getErrorMessage } from "../utils";
 import {
   createAgentEventCorrelator,
   describeEvent,
@@ -8,6 +5,9 @@ import {
   type RuntimeEventsLogger,
   type RuntimeEventsSurface,
 } from "../platform/runtime-events";
+import type { DingTalkConfig } from "../platform/types";
+import { getErrorMessage } from "../shared/utils";
+import { attachNativeAckReaction, recallNativeAckReactionWithRetry } from "./ack-reaction-service";
 import { resolveToolProgressReaction } from "./dynamic-ack-reaction-progress";
 
 const CORRELATION_CONSUMER = "ack-reaction";
@@ -58,7 +58,7 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
     if (disposed || !normalizedReaction || !params.enabled || !ackReactionAttached) {
       params.log?.debug?.(
         `[DingTalk] Dynamic ack reaction update skipped reaction=${normalizedReaction || "-"} ` +
-        `enabled=${params.enabled} ackReactionAttached=${ackReactionAttached} disposed=${disposed}`,
+          `enabled=${params.enabled} ackReactionAttached=${ackReactionAttached} disposed=${disposed}`,
       );
       return;
     }
@@ -73,12 +73,12 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
       return;
     }
     if (
-      lastDynamicReactionSwitchAt > 0
-      && Date.now() - lastDynamicReactionSwitchAt < DYNAMIC_REACTION_MIN_SWITCH_INTERVAL_MS
+      lastDynamicReactionSwitchAt > 0 &&
+      Date.now() - lastDynamicReactionSwitchAt < DYNAMIC_REACTION_MIN_SWITCH_INTERVAL_MS
     ) {
       params.log?.debug?.(
         `[DingTalk] Dynamic ack reaction update throttled previous=${currentAckReaction} next=${normalizedReaction} ` +
-        `minIntervalMs=${DYNAMIC_REACTION_MIN_SWITCH_INTERVAL_MS}`,
+          `minIntervalMs=${DYNAMIC_REACTION_MIN_SWITCH_INTERVAL_MS}`,
       );
       return;
     }
@@ -153,7 +153,9 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
     dynamicReactionUpdatePromise = dynamicReactionUpdatePromise
       .then(() => updateDynamicAckReaction(nextReaction))
       .catch((err: unknown) => {
-        params.log?.warn?.(`[DingTalk] Dynamic ack reaction update failed: ${getErrorMessage(err)}`);
+        params.log?.warn?.(
+          `[DingTalk] Dynamic ack reaction update failed: ${getErrorMessage(err)}`,
+        );
       });
     return dynamicReactionUpdatePromise;
   };
@@ -163,7 +165,9 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
     if (!params.enabled || disposed) {
       return;
     }
-    params.log?.debug?.(`[DingTalk] Dynamic reaction observed agent event ${describeEvent(agentEvent)}`);
+    params.log?.debug?.(
+      `[DingTalk] Dynamic reaction observed agent event ${describeEvent(agentEvent)}`,
+    );
     if (agentEvent?.stream === "lifecycle" && agentEvent.data?.phase === "start") {
       void isCorrelatedEvent(agentEvent);
       return;
@@ -177,7 +181,8 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
       );
       return;
     }
-    const toolCallId = typeof agentEvent.data?.toolCallId === "string" ? agentEvent.data.toolCallId : "-";
+    const toolCallId =
+      typeof agentEvent.data?.toolCallId === "string" ? agentEvent.data.toolCallId : "-";
     params.log?.debug?.(
       `[DingTalk] Tool event received for dynamic ack reaction: name=${agentEvent.data?.name || "-"} toolCallId=${toolCallId}`,
     );
@@ -186,26 +191,31 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
     );
   };
 
-  const unsubscribeAgentEvents = params.enabled && params.runtimeEvents?.onAgentEvent
-    ? params.runtimeEvents.onAgentEvent((event: unknown) => {
-        void handleAgentEvent(event).catch((err: unknown) => {
-          params.log?.warn?.(`[DingTalk] Dynamic ack reaction event handling failed: ${getErrorMessage(err)}`);
-        });
-      })
-    : () => {};
+  const unsubscribeAgentEvents =
+    params.enabled && params.runtimeEvents?.onAgentEvent
+      ? params.runtimeEvents.onAgentEvent((event: unknown) => {
+          void handleAgentEvent(event).catch((err: unknown) => {
+            params.log?.warn?.(
+              `[DingTalk] Dynamic ack reaction event handling failed: ${getErrorMessage(err)}`,
+            );
+          });
+        })
+      : () => {};
 
   if (params.enabled && !params.runtimeEvents?.onAgentEvent) {
-    params.log?.debug?.("[DingTalk] onAgentEvent not available, dynamic reaction tracking disabled");
+    params.log?.debug?.(
+      "[DingTalk] onAgentEvent not available, dynamic reaction tracking disabled",
+    );
   }
 
   if (params.enabled) {
     progressHeartbeatTimer = setInterval(() => {
       if (
-        disposed
-        || !ackReactionAttached
-        || progressHeartbeatInFlight
-        || dynamicReactionStartedAt === 0
-        || lastDynamicReactionAt === 0
+        disposed ||
+        !ackReactionAttached ||
+        progressHeartbeatInFlight ||
+        dynamicReactionStartedAt === 0 ||
+        lastDynamicReactionAt === 0
       ) {
         return;
       }
@@ -214,7 +224,7 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
       }
       params.log?.debug?.(
         `[DingTalk] Dynamic ack reaction heartbeat triggered currentReaction=${currentAckReaction} ` +
-        `lastDynamicReactionAt=${lastDynamicReactionAt}`,
+          `lastDynamicReactionAt=${lastDynamicReactionAt}`,
       );
       progressHeartbeatInFlight = true;
       void queueDynamicAckReactionUpdate(TOOL_HEARTBEAT_REACTION).finally(() => {
@@ -251,7 +261,7 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
         const elapsedMs = ackReactionAttachedAt > 0 ? Date.now() - ackReactionAttachedAt : 0;
         const remainingVisibleMs = shouldRespectMinVisible ? minVisibleMs - elapsedMs : 0;
         if (remainingVisibleMs > 0) {
-          await new Promise(resolve => setTimeout(resolve, remainingVisibleMs));
+          await new Promise((resolve) => setTimeout(resolve, remainingVisibleMs));
         }
         await recallNativeAckReactionWithRetry(
           params.dingtalkConfig,
@@ -263,7 +273,9 @@ export function createDynamicAckReactionController(params: DynamicAckReactionCon
           params.log,
         );
       } catch (err: unknown) {
-        params.log?.warn?.(`[DingTalk] Dynamic ack reaction dispose recall failed: ${getErrorMessage(err)}`);
+        params.log?.warn?.(
+          `[DingTalk] Dynamic ack reaction dispose recall failed: ${getErrorMessage(err)}`,
+        );
       } finally {
         ackReactionAttached = false;
         params.onReactionDisposed?.();

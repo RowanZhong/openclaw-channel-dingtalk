@@ -1,5 +1,5 @@
-import type { MessageRecord } from "../message-context-store";
-import type { Logger, QuotedRef } from "../types";
+import type { Logger, QuotedRef } from "../platform/types";
+import type { MessageRecord } from "./message-context-store";
 import { resolveQuotedRecord } from "./quoted-ref";
 
 const DEFAULT_MAX_DEPTH = 3;

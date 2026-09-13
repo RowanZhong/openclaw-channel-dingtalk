@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { extractMessageContent } from "../../src/message-utils";
+import { extractMessageContent } from "../../src/messaging/message-utils";
 import { resolveAtAgents } from "../../src/targeting/agent-name-matcher";
-import type { DingTalkInboundMessage } from "../../src/types";
+import type { DingTalkInboundMessage } from "../../src/platform/types";
 
 function message(overrides: Partial<DingTalkInboundMessage>): DingTalkInboundMessage {
   return {

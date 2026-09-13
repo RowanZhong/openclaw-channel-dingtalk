@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { updateCardVariables } from "../../src/card-callback-service";
+import { updateCardVariables } from "../../src/card/card-callback-service";
 import {
   clearPendingQuestionsForTest,
   handleDingTalkAskUserCardCallback,
   registerPendingQuestionForTest,
 } from "../../src/card/ask-user-question";
-import { handleDingTalkMessage } from "../../src/inbound-handler";
+import { handleDingTalkMessage } from "../../src/gateway/inbound-handler";
 
-vi.mock("../../src/auth", () => ({
+vi.mock("../../src/platform/auth", () => ({
   getAccessToken: vi.fn(async () => "access-token"),
 }));
 
-vi.mock("../../src/card-callback-service", () => ({
+vi.mock("../../src/card/card-callback-service", () => ({
   updateCardVariables: vi.fn(async () => undefined),
 }));
 
-vi.mock("../../src/inbound-handler", () => ({
+vi.mock("../../src/gateway/inbound-handler", () => ({
   handleDingTalkMessage: vi.fn(async () => undefined),
 }));
 

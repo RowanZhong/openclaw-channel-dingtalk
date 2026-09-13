@@ -17,7 +17,7 @@ import {
   QUEUE_BUSY_ACK_PHRASES,
 } from "../../src/gateway/inbound-session-queue";
 import { dispatchInboundViaSessionQueue } from "../../src/gateway/inbound-session-queue-dispatcher";
-import { handleDingTalkMessage } from "../../src/inbound-handler";
+import { handleDingTalkMessage } from "../../src/gateway/inbound-handler";
 
 describe('inbound session queue (钉钉"确认"无响应 regression)', () => {
   beforeEach(resetInboundSessionQueueIntegrationTest);

@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/auth', () => ({
+vi.mock('../../src/platform/auth', () => ({
     getAccessToken: vi.fn().mockResolvedValue('mock-access-token'),
 }));
 
-vi.mock('../../src/media-utils', async () => {
-    const actual = await vi.importActual<typeof import('../../src/media-utils')>('../../src/media-utils');
+vi.mock('../../src/messaging/media-utils', async () => {
+    const actual = await vi.importActual<typeof import('../../src/messaging/media-utils')>('../../src/messaging/media-utils');
     return {
         ...actual,
         uploadMedia: vi.fn(),
@@ -21,10 +21,10 @@ vi.mock('axios', () => {
     };
 });
 
-import { convertMarkdownTablesToPlainText } from '../../src/message-utils';
-import { sendBySession, sendProactiveTextOrMarkdown } from '../../src/send-service';
-import { uploadMedia } from '../../src/media-utils';
-import type { DingTalkConfig } from '../../src/types';
+import { convertMarkdownTablesToPlainText } from '../../src/messaging/message-utils';
+import { sendBySession, sendProactiveTextOrMarkdown } from '../../src/messaging/send-service';
+import { uploadMedia } from '../../src/messaging/media-utils';
+import type { DingTalkConfig } from '../../src/platform/types';
 
 const mockedAxios = vi.mocked(axios);
 const mockedUploadMedia = vi.mocked(uploadMedia);
