@@ -2,6 +2,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DingTalkConfigSchema } from '../../src/config-schema';
+import { resolveCardTaskProgressEnabled } from '../../src/card/card-task-progress';
 import {
     getConfig,
     isConfigured,
@@ -129,6 +130,69 @@ describe('config advanced', () => {
 
         const resolved = getConfig(cfg);
         expect(resolved.cardStreamingMode).toBe('off');
+    });
+
+    it('preserves cardStreamingMode explicitness through runtime normalization', () => {
+        const omitted = getConfig({
+            channels: { dingtalk: { clientId: 'top_id', clientSecret: 'top_sec' } },
+        } as any);
+        // Effective value still resolves to off, but the injected default must
+        // stay distinguishable from a user-written "off".
+        expect(omitted.cardStreamingMode).toBe('off');
+        expect(omitted.cardStreamingModeConfigured).toBe(false);
+        expect(resolveCardTaskProgressEnabled(omitted)).toBe(true);
+
+        const explicit = getConfig({
+            channels: {
+                dingtalk: { clientId: 'top_id', clientSecret: 'top_sec', cardStreamingMode: 'off' },
+            },
+        } as any);
+        expect(explicit.cardStreamingModeConfigured).toBe(true);
+        expect(resolveCardTaskProgressEnabled(explicit)).toBe(false);
+    });
+
+    it('keeps channel-level cardStreamingMode explicitness for named accounts that omit it', () => {
+        const cfg = {
+            channels: {
+                dingtalk: {
+                    clientId: 'top_id',
+                    clientSecret: 'top_sec',
+                    cardStreamingMode: 'off',
+                    accounts: {
+                        bot2: {
+                            clientId: 'bot2_id',
+                            clientSecret: 'bot2_sec',
+                        },
+                    },
+                },
+            },
+        } as any;
+
+        const resolved = getConfig(cfg, 'bot2');
+        expect(resolved.cardStreamingModeConfigured).toBe(true);
+        expect(resolveCardTaskProgressEnabled(resolved)).toBe(false);
+    });
+
+    it('lets a named account re-enable card task progress without an explicit cardStreamingMode', () => {
+        const cfg = {
+            channels: {
+                dingtalk: {
+                    clientId: 'top_id',
+                    clientSecret: 'top_sec',
+                    accounts: {
+                        bot2: {
+                            clientId: 'bot2_id',
+                            clientSecret: 'bot2_sec',
+                            cardTaskProgress: true,
+                        },
+                    },
+                },
+            },
+        } as any;
+
+        const resolved = getConfig(cfg, 'bot2');
+        expect(resolved.cardStreamingModeConfigured).toBe(false);
+        expect(resolveCardTaskProgressEnabled(resolved)).toBe(true);
     });
 
     it('named account inherits top-level cardStreamingMode when account-level value is omitted', () => {

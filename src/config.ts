@@ -31,6 +31,10 @@ function normalizeLearningConfig(
     cardStreamingMode: options.applyDefaults
       ? (config.cardStreamingMode ?? (config.cardRealTimeStream === true ? "all" : "off"))
       : config.cardStreamingMode,
+    // Derived, internal-only: defaults below turn an omitted mode into "off",
+    // which would otherwise be indistinguishable from an explicit "off".
+    cardStreamingModeConfigured:
+      config.cardStreamingModeConfigured ?? config.cardStreamingMode !== undefined,
   };
 }
 
@@ -111,6 +115,11 @@ export function mergeAccountWithDefaults(
     ...defaults,
     ...overrides,
   };
+  // Explicitness is inherited: the account opt-out only counts when the account
+  // (or the channel) actually wrote `cardStreamingMode` in its config.
+  merged.cardStreamingModeConfigured =
+    normalizedAccountCfg.cardStreamingModeConfigured === true ||
+    channelCfg.cardStreamingMode !== undefined;
   const gatewayCapabilities = mergeGatewayCapabilitiesConfig(
     defaults.gatewayCapabilities,
     overrides.gatewayCapabilities,

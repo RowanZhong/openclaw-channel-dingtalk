@@ -101,6 +101,10 @@ export interface DingTalkConfig extends OpenClawConfig {
    *  - answer: stream answer text
    *  - all: stream answer + reasoning text */
   cardStreamingMode?: CardStreamingMode;
+  /** Internal derived flag, not a user-facing config key: whether
+   *  `cardStreamingMode` came from an explicit user setting instead of the
+   *  runtime default. Written by config normalization only. */
+  cardStreamingModeConfigured?: boolean;
   /** @deprecated Use `cardStreamingMode` instead. */
   cardRealTimeStream?: boolean;
   /** Throttle interval in ms for card stream updates (default 1000) */
@@ -187,6 +191,10 @@ export interface DingTalkChannelConfig {
    *  - answer: stream answer text
    *  - all: stream answer + reasoning text */
   cardStreamingMode?: CardStreamingMode;
+  /** Internal derived flag, not a user-facing config key: whether
+   *  `cardStreamingMode` came from an explicit user setting instead of the
+   *  runtime default. Written by config normalization only. */
+  cardStreamingModeConfigured?: boolean;
   /** @deprecated Use `cardStreamingMode` instead. */
   cardRealTimeStream?: boolean;
   /** Throttle interval in ms for card stream updates (default 1000) */
