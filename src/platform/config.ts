@@ -163,12 +163,13 @@ export function isConfigured(cfg: OpenClawConfig, accountId?: string): boolean {
 
 /**
  * Resolved Gateway RPC capability settings (Issue #608, 问题 3).
- * All capabilities default to enabled; allowlists default to unrestricted.
+ * All capabilities default to disabled and require an explicit opt-in;
+ * allowlists default to unrestricted.
  */
 export interface ResolvedGatewayCapabilities {
-  /** `dingtalk.docs.*` / `dingtalk-connector.docs.*` RPCs enabled (default: true) */
+  /** `dingtalk.docs.*` / `dingtalk-connector.docs.*` RPCs enabled (default: false) */
   docsEnabled: boolean;
-  /** `dingtalk-connector.sendToUser/sendToGroup/send` RPCs enabled (default: true) */
+  /** `dingtalk-connector.sendToUser/sendToGroup/send` RPCs enabled (default: false) */
   proactiveSendEnabled: boolean;
   /** When set, docs RPCs only accept these spaceId values */
   allowedSpaceIds?: string[];

@@ -32,13 +32,13 @@ export type ContextVisibilityMode = "all" | "allowlist" | "allowlist_quote";
 /**
  * Gateway RPC capability configuration (Issue #608, 问题 3).
  * Aligns with the official connector's `tools: { docs, media }` gate shape.
- * All capabilities default to enabled for backward compatibility.
+ * All capabilities default to disabled and must be opted into explicitly.
  */
 export interface DingTalkGatewayCapabilitiesConfig {
   tools?: {
-    /** Enable `dingtalk.docs.*` and `dingtalk-connector.docs.*` Gateway RPCs (default: true) */
+    /** Enable `dingtalk.docs.*` and `dingtalk-connector.docs.*` Gateway RPCs (default: false) */
     docs?: boolean;
-    /** Enable proactive-send Gateway RPCs: `dingtalk-connector.sendToUser/sendToGroup/send` (default: true) */
+    /** Enable proactive-send Gateway RPCs: `dingtalk-connector.sendToUser/sendToGroup/send` (default: false) */
     proactiveSend?: boolean;
   };
   /** Optional doc-space allowlist; when set, docs RPCs only accept these `spaceId` values */
