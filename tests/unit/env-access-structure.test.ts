@@ -86,6 +86,12 @@ describe("ambient env guard", () => {
         ["process module dynamic import", 'const proc = await import("node:process");'],
         ["dynamic process property key", "const key = \"env\"; const secret = process[key];"],
         ["concatenated process property key", 'const secret = process["en" + "v"];'],
+        ["plain assignment alias", "let proc;\nproc = process;\nconst secret = proc.env.X;"],
+        ["logical-or alias", "const proc = fallback || process;"],
+        ["nullish assignment alias", "let proc;\nproc ??= process;"],
+        ["conditional alias", "const proc = flag ? process : fallback;"],
+        ["sequence alias", "const proc = (0, process);"],
+        ["shorthand object alias", "const holder = { process };\nconst secret = holder.process.env.X;"],
     ])("rejects %s", (_label, source) => {
         expect(violationsFor(source).length).toBeGreaterThan(0);
     });
@@ -102,6 +108,15 @@ describe("ambient env guard", () => {
         ["non-environment process access", "const cwd = process.cwd(); const os = process.platform;"],
         ["destructuring non-environment properties", "const { platform, arch } = process;"],
         ["a type-only process check", 'const hasProcess = typeof process !== "undefined";'],
+        ["a type-level process reference", "type Env = typeof process.env;"],
+        [
+            "a non-environment destructuring assignment",
+            "let platform;\n({ platform } = process);",
+        ],
+        [
+            "a non-environment parameter default",
+            "function readPlatform({ platform } = process) { return platform; }",
+        ],
     ])("allows %s", (_label, source) => {
         expect(violationsFor(source)).toEqual([]);
     });

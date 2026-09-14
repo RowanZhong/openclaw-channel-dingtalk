@@ -70,7 +70,13 @@ function isProcessGlobalReference(node) {
   return false;
 }
 
-/** Excludes identifiers that are names (declarations, imports, property keys). */
+/**
+ * Excludes identifiers that are names (declarations, imports, property keys).
+ *
+ * A shorthand property (`{ process }`) is deliberately *not* excluded: there the
+ * identifier also reads the variable, so it copies the global into an object and
+ * must stay visible to the alias check.
+ */
 function isValueReference(node) {
   const parent = node.parent;
   if (!parent || parent.name !== node) {
@@ -79,7 +85,6 @@ function isValueReference(node) {
   return !(
     ts.isPropertyAccessExpression(parent) ||
     ts.isPropertyAssignment(parent) ||
-    ts.isShorthandPropertyAssignment(parent) ||
     ts.isBindingElement(parent) ||
     ts.isVariableDeclaration(parent) ||
     ts.isParameter(parent) ||
@@ -135,13 +140,15 @@ function staticPropertyName(node) {
   return DYNAMIC_PROPERTY_NAME;
 }
 
-/** True when the reference is the base of `process.x` / `process[x]` / `typeof process`. */
+/** True when the reference is the base of `process.x` / `process[x]`. */
 function isProcessGlobalAccessBase(node) {
   const parent = node.parent;
   if (!parent) {
     return false;
   }
-  if (ts.isTypeOfExpression(parent)) {
+  // `typeof process` and type positions (`typeof process.env`) are erased or read
+  // no environment, so they must not be reported as aliases.
+  if (ts.isTypeOfExpression(parent) || ts.isTypeQueryNode(parent) || ts.isQualifiedName(parent)) {
     return true;
   }
   return (
@@ -150,16 +157,28 @@ function isProcessGlobalAccessBase(node) {
   );
 }
 
-/** True when the reference is only the source of a destructuring pattern. */
+/** True when the reference only seeds an object destructuring pattern. */
 function isDestructuringSource(node) {
   const parent = node.parent;
   if (!parent) {
     return false;
   }
-  if (ts.isVariableDeclaration(parent)) {
-    return parent.initializer === node && ts.isObjectBindingPattern(parent.name);
+  if (
+    (ts.isVariableDeclaration(parent) || ts.isParameter(parent) || ts.isBindingElement(parent)) &&
+    parent.initializer === node &&
+    ts.isObjectBindingPattern(parent.name)
+  ) {
+    return true;
   }
-  return ts.isBinaryExpression(parent) && parent.right === node;
+  // Only `({ ... } = process)` may skip the alias check: every other binary form
+  // (`proc = process`, `fallback || process`, `x ??= process`) copies the global
+  // itself and would otherwise launder the environment into another binding.
+  return (
+    ts.isBinaryExpression(parent) &&
+    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    parent.right === node &&
+    ts.isObjectLiteralExpression(skipParentheses(parent.left))
+  );
 }
 
 /**
