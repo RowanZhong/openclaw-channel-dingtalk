@@ -269,7 +269,7 @@ describe("targeted question delivery and collection", () => {
     expect(shared.inbound).toHaveBeenCalledTimes(1);
   });
 
-  it("does not revive a targeted card invalidated during delivery", async () => {
+  it("keeps a targeted card valid when a message arrives during delivery", async () => {
     let release!: () => void;
     shared.post.mockImplementationOnce(
       () =>
@@ -287,10 +287,10 @@ describe("targeted question delivery and collection", () => {
     });
     release();
     const result = await pending;
-    expect(result.details.status).toBe("failed");
-    expect(context.onQuestionCardSent).not.toHaveBeenCalled();
+    expect(result.details.status).toBe("pending");
     await submit(result, "staff_B");
-    expect(shared.inbound).not.toHaveBeenCalled();
+    await submit(result, "staff_C");
+    expect(shared.inbound).toHaveBeenCalledTimes(1);
   });
 
   it("keeps collecting after a failed progress update", async () => {
@@ -366,7 +366,7 @@ describe("targeted question delivery and collection", () => {
     });
   });
 
-  it("invalidates a collection on a new initiator message", async () => {
+  it("preserves a collection on a new initiator message", async () => {
     const result = await send(group);
     await submit(result, "staff_B");
     invalidateAskUserQuestionsForScope({
@@ -376,17 +376,17 @@ describe("targeted question delivery and collection", () => {
       reason: "superseded_by_message",
     });
     await submit(result, "staff_C");
-    expect(shared.inbound).not.toHaveBeenCalled();
-    expect(state(result)?.terminalReason).toBe("superseded_by_message");
+    expect(shared.inbound).toHaveBeenCalledTimes(1);
+    expect(state(result)?.terminalReason).toBe("submitted");
   });
 
-  it("supersedes a collection with a new ordinary question in the same origin scope", async () => {
+  it("preserves a collection alongside a new ordinary question in the same origin scope", async () => {
     const old = await send(group);
     await submit(old, "staff_B");
     await send();
     await submit(old, "staff_C");
-    expect(shared.inbound).not.toHaveBeenCalled();
-    expect(state(old)?.terminalReason).toBe("superseded_by_question");
+    expect(shared.inbound).toHaveBeenCalledTimes(1);
+    expect(state(old)?.terminalReason).toBe("submitted");
   });
 
   it("invalidates partial collections after restart without persisting answers or fabricating a continuation", async () => {

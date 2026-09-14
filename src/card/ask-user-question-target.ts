@@ -84,7 +84,7 @@ export function buildCollectionMessage(
   collection: QuestionCollection,
   questionId: string,
   title: string,
-  status: "submitted" | "expired",
+  status: "submitted" | "expired" | "cancelled",
 ): string {
   // Keep respondent identity separate from the origin identity used to resume the task.
   return [

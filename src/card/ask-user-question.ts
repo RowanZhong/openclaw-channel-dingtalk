@@ -108,6 +108,7 @@ type PendingQuestion = DingTalkQuestionContext & {
   submitted: boolean;
   ownerUserId?: string;
   collection?: QuestionCollection;
+  expiresAt?: number;
   ttlTimer?: ReturnType<typeof setTimeout>;
 };
 
@@ -438,6 +439,9 @@ function findHandledQuestionTombstone(
 }
 
 function supersedePendingQuestionsInScope(ctx: PendingQuestion): void {
+  if (ctx.collection) {
+    return;
+  }
   const scopeKey = readString(ctx.questionScopeKey);
   if (!scopeKey) {
     return;
@@ -451,7 +455,7 @@ function supersedePendingQuestionsInScope(ctx: PendingQuestion): void {
       continue;
     }
     const oldCtx = pendingQuestionsByTrackId.get(outTrackId);
-    if (!oldCtx || oldCtx.submitted) {
+    if (!oldCtx || oldCtx.submitted || oldCtx.collection) {
       continue;
     }
     oldCtx.submitted = true;
@@ -476,30 +480,33 @@ function storePendingQuestion(
   pendingQuestionsByTrackId.set(ctx.outTrackId, ctx);
   pendingQuestionsByQuestionId.set(ctx.questionId, ctx);
   addScopeIndex(ctx);
-  ctx.ttlTimer = setTimeout(() => {
-    if (!pendingQuestionsByTrackId.has(ctx.outTrackId) || ctx.submitted) {
-      return;
-    }
-    if (!claimPendingQuestionForDispatch(ctx, ctx.collection ? "live-timeout" : "answer")) {
-      return;
-    }
-    consumePendingQuestion(ctx);
-    addHandledQuestionTombstone(ctx, "expired");
-    void updateQuestionCardBestEffort(ctx, {
-      card_status: "expired",
-      question_desc: "问题已失效，请重新发起。",
-      form_btn_text: "已失效",
-    });
-    dispatchSyntheticAnswer({
-      ctx,
-      text: ctx.collection
-        ? buildCollectionMessage(ctx.collection, ctx.questionId, ctx.title, "expired")
-        : buildExpiredAnswerMessage(ctx),
-      suffix: "expired",
-      successReason: "expired",
-      log: ctx.log,
-    });
-  }, PENDING_QUESTION_TTL_MS);
+  ctx.ttlTimer = setTimeout(
+    () => {
+      if (!pendingQuestionsByTrackId.has(ctx.outTrackId) || ctx.submitted) {
+        return;
+      }
+      if (!claimPendingQuestionForDispatch(ctx, ctx.collection ? "live-timeout" : "answer")) {
+        return;
+      }
+      consumePendingQuestion(ctx);
+      addHandledQuestionTombstone(ctx, "expired");
+      void updateQuestionCardBestEffort(ctx, {
+        card_status: "expired",
+        question_desc: "问题已失效，请重新发起。",
+        form_btn_text: "已失效",
+      });
+      dispatchSyntheticAnswer({
+        ctx,
+        text: ctx.collection
+          ? buildCollectionMessage(ctx.collection, ctx.questionId, ctx.title, "expired")
+          : buildExpiredAnswerMessage(ctx),
+        suffix: "expired",
+        successReason: "expired",
+        log: ctx.log,
+      });
+    },
+    ctx.expiresAt ? Math.max(0, ctx.expiresAt - Date.now()) : PENDING_QUESTION_TTL_MS,
+  );
 }
 
 function consumePendingQuestion(ctx: PendingQuestion): void {
@@ -1068,6 +1075,9 @@ export async function handleDingTalkAskUserCardCallback(params: {
   const isCancel = parseBooleanLike(parsed.params.user_cancel) === true;
 
   if (ctx.collection) {
+    if (ctx.expiresAt && ctx.expiresAt <= Date.now()) {
+      return { handled: true };
+    }
     await handleCollectionResponse(ctx, parsed, params.clickerUserId!, isCancel);
     return { handled: true };
   }
@@ -1164,8 +1174,25 @@ export async function handleDingTalkAskUserCardCallback(params: {
 const AskUserQuestionSchema = {
   type: "object",
   additionalProperties: false,
-  anyOf: [{ required: ["questions"] }, { required: ["fields"] }],
+
   properties: {
+    action: {
+      type: "string",
+      enum: ["create", "list", "cancel"],
+      description:
+        "Default create. List your pending targeted collections or cancel one by questionId from its initiating conversation.",
+    },
+    questionId: {
+      type: "string",
+      description: "Required for cancel. Use an ID returned by create or list; never guess.",
+    },
+    timeoutMinutes: {
+      type: "integer",
+      minimum: 1,
+      maximum: 1440,
+      description:
+        "Targeted collections only: 1–1440 minutes, default 5. Ends early when all respondents reply. Restart terminates pending forms.",
+    },
     target: questionTargetSchema,
     title: {
       type: "string",
@@ -1330,6 +1357,63 @@ export function clearPendingQuestionsForTest(): void {
   handledQuestionTombstonesByQuestionId.clear();
 }
 
+async function manageQuestionCollections(
+  context: DingTalkQuestionContext,
+  action: "list" | "cancel",
+  questionId: unknown,
+) {
+  const owner =
+    normalizeUserId(context.data.senderStaffId) ?? normalizeUserId(context.data.senderId);
+  const owned = (ctx: PendingQuestion) =>
+    Boolean(
+      ctx.collection &&
+      owner &&
+      ctx.ownerUserId === owner &&
+      ctx.accountId === context.accountId &&
+      ctx.data.conversationId === context.data.conversationId &&
+      ctx.resolvedRoute?.agentId === context.resolvedRoute?.agentId &&
+      !ctx.submitted &&
+      (!ctx.expiresAt || ctx.expiresAt > Date.now()),
+    );
+  if (action === "list") {
+    return jsonToolResult({
+      status: "ok",
+      collections: [...pendingQuestionsByQuestionId.values()].filter(owned).map((ctx) => ({
+        questionId: ctx.questionId,
+        title: ctx.title,
+        deadline: ctx.expiresAt ? new Date(ctx.expiresAt).toISOString() : undefined,
+        received: ctx.collection!.responses.size,
+        total: ctx.collection!.target.respondentUserIds.length,
+      })),
+    });
+  }
+  const ctx =
+    typeof questionId === "string" ? pendingQuestionsByQuestionId.get(questionId) : undefined;
+  if (!ctx || !owned(ctx) || !claimPendingQuestionForDispatch(ctx)) {
+    return jsonToolResult({
+      status: "failed",
+      error:
+        "No cancellable targeted collection owned by you in this conversation. Use action=list.",
+    });
+  }
+  consumePendingQuestion(ctx);
+  addHandledQuestionTombstone(ctx, "cancelled");
+  const storeOptions = getAskUserStoreOptions(ctx);
+  if (storeOptions) {
+    terminateAskUserQuestion(storeOptions, ctx.questionId, "cancelled");
+  }
+  await updateQuestionCardBestEffort(ctx, {
+    card_status: "cancelled",
+    question_desc: "发起人已取消本次收集。",
+    form_btn_text: "已取消",
+  });
+  return jsonToolResult({
+    status: "cancelled",
+    questionId: ctx.questionId,
+    result: buildCollectionMessage(ctx.collection!, ctx.questionId, ctx.title, "cancelled"),
+  });
+}
+
 export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): void {
   const registerTool = (
     api as OpenClawPluginApi & { registerTool?: OpenClawPluginApi["registerTool"] }
@@ -1347,7 +1431,8 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
     label: "Ask User Question",
     description:
       "Ask the user a blocking question or collect structured input via an interactive DingTalk form card when the current task cannot continue without the user's answer. " +
-      "Returns immediately after sending the card. " +
+      "Returns immediately after sending the card. Targeted collections survive ordinary chat and new forms, but NOT gateway restart. " +
+      "Use action=list to find your pending collections in this conversation; action=cancel with questionId stops one and returns partial results directly. " +
       "To collect input from another person or named respondents in a group, use target with verified DingTalk IDs. " +
       "The user's answer will arrive as a new message in the conversation. " +
       "Do NOT poll or re-call this tool — just wait for the response message. " +
@@ -1367,9 +1452,28 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
       const templateId = DINGTALK_ASK_USER_CARD_TEMPLATE.templateId;
 
       const record = asRecord(params) ?? {};
+      const action = record.action ?? "create";
+      if (action === "list" || action === "cancel") {
+        return manageQuestionCollections(context, action, record.questionId);
+      }
+      if (action !== "create") {
+        return jsonToolResult({ status: "failed", error: "Unknown action" });
+      }
       let target;
+      let timeoutMinutes = 5;
       try {
         target = parseQuestionTarget(record.target);
+        if (record.timeoutMinutes !== undefined) {
+          if (
+            !target ||
+            !Number.isInteger(record.timeoutMinutes) ||
+            Number(record.timeoutMinutes) < 1 ||
+            Number(record.timeoutMinutes) > 1440
+          ) {
+            throw new Error("timeoutMinutes requires target and must be an integer from 1 to 1440");
+          }
+          timeoutMinutes = Number(record.timeoutMinutes);
+        }
       } catch (err) {
         return jsonToolResult({ status: "failed", error: String(err) });
       }
@@ -1384,6 +1488,7 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
         });
       }
 
+      const expiresAt = target ? Date.now() + timeoutMinutes * 60_000 : undefined;
       const questionId = `q_${randomUUID()}`;
       const outTrackId = `ask_${randomUUID()}`;
       const { title, desc, fields, parsed } =
@@ -1398,7 +1503,7 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
         question_id: questionId,
         question_title: title,
         question_desc: target
-          ? `${desc}\n由 ${context.data.senderNick || context.data.senderStaffId || context.data.senderId} 发起；仅指定填写人可提交。结果返回发起会话，5 分钟后截止。`
+          ? `${desc}\n由 ${context.data.senderNick || context.data.senderStaffId || context.data.senderId} 发起；仅指定填写人可提交。结果返回发起会话，${timeoutMinutes} 分钟后截止；收齐即结束，重启将终止收集。`
           : desc,
         card_status: "pending",
         form_btn_text: "提交",
@@ -1414,6 +1519,8 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
           questionScopeKey: context.questionScopeKey,
           outTrackId,
           title,
+          independent: Boolean(target),
+          expiresAt,
         });
       }
 
@@ -1454,6 +1561,7 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
         questions: parsed,
         submitted: false,
         collection: target ? { target, responses: new Map() } : undefined,
+        expiresAt,
       };
       storePendingQuestion(pendingQuestion, {
         supersedeExisting: !canPersistLifecycle,
@@ -1526,6 +1634,7 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
         status: "pending",
         questionId,
         outTrackId,
+        ...(expiresAt ? { deadline: new Date(expiresAt).toISOString(), timeoutMinutes } : {}),
         message:
           "Question card sent to the user. Their answer will arrive as a follow-up message in this conversation.",
       });
