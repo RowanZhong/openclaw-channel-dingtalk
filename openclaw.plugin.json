@@ -268,16 +268,19 @@
           },
           "learningEnabled": {
             "type": "boolean",
-            "description": "Enable the local feedback-learning loop for notes, reflections, and command-assisted learning."
+            "default": false,
+            "description": "Enable the local feedback-learning loop for notes, reflections, and command-assisted learning. Disabled by default; learned notes and rules persist under the OpenClaw state directory and are injected into later prompts while enabled."
           },
           "learningAutoApply": {
             "type": "boolean",
-            "description": "Automatically apply generated learning output into session notes or global rules when available."
+            "default": false,
+            "description": "Automatically apply generated learning output into session notes or global rules when available. Disabled by default and only effective while learningEnabled is enabled."
           },
           "learningNoteTtlMs": {
             "type": "integer",
             "minimum": 60000,
-            "description": "Retention window in milliseconds for temporary learning notes."
+            "default": 21600000,
+            "description": "Retention window in milliseconds for temporary learning notes. Defaults to 6 hours."
           },
           "convertMarkdownTables": {
             "type": "boolean",
@@ -353,11 +356,13 @@
                 "properties": {
                   "docs": {
                     "type": "boolean",
-                    "description": "Enable dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Defaults to true when omitted."
+                    "default": true,
+                    "description": "Enable dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Enabled by default; set false, or configure gatewayCapabilities.docs.allowedSpaceIds, to bound the document spaces callers can reach."
                   },
                   "proactiveSend": {
                     "type": "boolean",
-                    "description": "Enable dingtalk-connector.sendToUser/sendToGroup/send proactive-send RPCs. Defaults to true when omitted."
+                    "default": true,
+                    "description": "Enable dingtalk-connector.sendToUser/sendToGroup/send proactive-send RPCs. Enabled by default; set false, or configure gatewayCapabilities.send.allowedTargets, to bound the targets callers can message."
                   }
                 }
               },
@@ -638,16 +643,19 @@
                 },
                 "learningEnabled": {
                   "type": "boolean",
-                  "description": "Enable the local feedback-learning loop for notes, reflections, and command-assisted learning."
+                  "default": false,
+                  "description": "Enable the local feedback-learning loop for notes, reflections, and command-assisted learning. Disabled by default; learned notes and rules persist under the OpenClaw state directory and are injected into later prompts while enabled."
                 },
                 "learningAutoApply": {
                   "type": "boolean",
-                  "description": "Automatically apply generated learning output into session notes or global rules when available."
+                  "default": false,
+                  "description": "Automatically apply generated learning output into session notes or global rules when available. Disabled by default and only effective while learningEnabled is enabled."
                 },
                 "learningNoteTtlMs": {
                   "type": "integer",
                   "minimum": 60000,
-                  "description": "Retention window in milliseconds for temporary learning notes."
+                  "default": 21600000,
+                  "description": "Retention window in milliseconds for temporary learning notes. Defaults to 6 hours."
                 },
                 "convertMarkdownTables": {
                   "type": "boolean",
@@ -715,11 +723,13 @@
                       "properties": {
                         "docs": {
                           "type": "boolean",
-                          "description": "Enable dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Defaults to true when omitted."
+                          "default": true,
+                          "description": "Enable dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Enabled by default; set false, or configure gatewayCapabilities.docs.allowedSpaceIds, to bound the document spaces callers can reach."
                         },
                         "proactiveSend": {
                           "type": "boolean",
-                          "description": "Enable dingtalk-connector.sendToUser/sendToGroup/send proactive-send RPCs. Defaults to true when omitted."
+                          "default": true,
+                          "description": "Enable dingtalk-connector.sendToUser/sendToGroup/send proactive-send RPCs. Enabled by default; set false, or configure gatewayCapabilities.send.allowedTargets, to bound the targets callers can message."
                         }
                       }
                     },
@@ -920,15 +930,15 @@
         },
         "learningEnabled": {
           "label": "Learning Enabled",
-          "help": "Enable the local feedback-learning loop for notes, reflections, and learning commands."
+          "help": "Enable the local feedback-learning loop for notes, reflections, and learning commands. Disabled by default."
         },
         "learningAutoApply": {
           "label": "Learning Auto Apply",
-          "help": "Automatically apply generated learning output into session notes or global rules when available."
+          "help": "Automatically apply generated learning output into session notes or global rules when available. Disabled by default."
         },
         "learningNoteTtlMs": {
           "label": "Learning Note TTL (ms)",
-          "help": "Retention period for temporary learning notes."
+          "help": "Retention period for temporary learning notes. Defaults to 6 hours."
         },
         "convertMarkdownTables": {
           "label": "Convert Markdown Tables",
@@ -980,11 +990,11 @@
         },
         "gatewayCapabilities.tools.docs": {
           "label": "Docs RPC Enabled",
-          "help": "Allow dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Defaults to enabled."
+          "help": "Allow dingtalk.docs.* and dingtalk-connector.docs.* Gateway RPCs. Enabled by default; turn it off or restrict it to specific doc spaces."
         },
         "gatewayCapabilities.tools.proactiveSend": {
           "label": "Proactive Send RPC Enabled",
-          "help": "Allow dingtalk-connector.sendToUser/sendToGroup/send Gateway RPCs. Defaults to enabled."
+          "help": "Allow dingtalk-connector.sendToUser/sendToGroup/send Gateway RPCs. Enabled by default; turn it off or restrict it to specific targets."
         },
         "gatewayCapabilities.docs.allowedSpaceIds": {
           "label": "Allowed Doc Space IDs",

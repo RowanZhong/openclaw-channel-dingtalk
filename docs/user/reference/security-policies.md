@@ -2,6 +2,22 @@
 
 本页说明私聊、群聊和远程媒体下载相关的主要安全控制点。
 
+## 默认能力面速查表
+
+下表是插件的**默认暴露面**。标为"开启"的项依赖宿主 Gateway 信任模型，插件层不做二次调用方身份认证；标为"关闭"的项需要在配置中显式开启才会生效。
+
+| 配置项 | 默认值 | 风险面 | 收窄方式 |
+| --- | --- | --- | --- |
+| `gatewayCapabilities.tools.docs` | 开启 | 文档 RPC 可读写钉钉文档空间 | 设 `false`，或配置 `gatewayCapabilities.docs.allowedSpaceIds` |
+| `gatewayCapabilities.tools.proactiveSend` | 开启 | 主动发送 RPC 可向任意 `user:*` / `group:*` 发消息 | 设 `false`，或配置 `gatewayCapabilities.send.allowedTargets` |
+| `dmPolicy` | `open` | 任意用户可私聊机器人 | 改 `pairing` / `allowlist` |
+| `groupPolicy` | `open` | 任意群可 @机器人 | 改 `allowlist`，或用 `groups` 按群收窄 |
+| `learningEnabled` | 关闭 | 学习内容持久化并注入后续 prompt | 保持关闭，或在受控会话中开启 |
+| `learningAutoApply` | 关闭 | 自动把生成内容写入 note / 全局 rule | 保持关闭 |
+| `mediaUrlAllowlist` | 未配置 | 远程媒体下载范围（默认已拒绝内网与本地地址） | 需要时才显式配置 |
+
+插件的 manifest（`openclaw.plugin.json`）为上述字段声明了 `default`，因此即使不阅读源码，也能从元数据读出默认状态。
+
 ## 私聊策略 `dmPolicy`
 
 - `open`：任何人都可以私聊机器人

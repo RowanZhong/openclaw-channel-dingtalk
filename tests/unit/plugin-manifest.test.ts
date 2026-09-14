@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { describe, expect, it } from "vitest";
+
+import { getConfig, resolveGatewayCapabilityConfig } from "../../src/platform/config";
 
 const repoRoot = resolve(__dirname, "../..");
 
@@ -225,5 +228,95 @@ describe("plugin manifest channel metadata", () => {
         expect(packageJson.openclaw?.compat?.pluginApi).toBe(">=2026.8.1");
         expect(packageJson.openclaw?.build?.openclawVersion).toBe("2026.8.1");
         expect(packageJson.openclaw?.install?.minHostVersion).toBe(">=2026.8.1");
+    });
+});
+
+describe("plugin manifest declared defaults", () => {
+    type ManifestShape = {
+        channelConfigs?: Record<
+            string,
+            {
+                schema?: { properties?: Record<string, any> };
+                uiHints?: Record<string, { help?: string }>;
+            }
+        >;
+    };
+
+    function readSchemaProperties() {
+        const manifest = readJsonFile<ManifestShape>("openclaw.plugin.json");
+        const topLevel = manifest.channelConfigs?.dingtalk?.schema?.properties;
+        return {
+            manifest,
+            topLevel,
+            accountLevel: topLevel?.accounts?.additionalProperties?.properties,
+        };
+    }
+
+    function emptyDingTalkConfig(): OpenClawConfig {
+        return { channels: { dingtalk: {} } } as unknown as OpenClawConfig;
+    }
+
+    // ClawHub's audit reads declared authority from package metadata, so a
+    // capability that is off at runtime but undeclared in the manifest still
+    // reads as "always on" to scanners and to the host WebUI.
+    it("declares the learning defaults that the runtime resolves", () => {
+        const { topLevel, accountLevel } = readSchemaProperties();
+        const resolved = getConfig(emptyDingTalkConfig());
+
+        expect(resolved.learningEnabled).toBe(false);
+        expect(resolved.learningAutoApply).toBe(false);
+        expect(resolved.learningNoteTtlMs).toBe(6 * 60 * 60 * 1000);
+
+        for (const properties of [topLevel, accountLevel]) {
+            expect(properties?.learningEnabled?.default).toBe(resolved.learningEnabled);
+            expect(properties?.learningAutoApply?.default).toBe(resolved.learningAutoApply);
+            expect(properties?.learningNoteTtlMs?.default).toBe(resolved.learningNoteTtlMs);
+        }
+    });
+
+    it("declares the gateway capability defaults that the runtime resolves", () => {
+        const { topLevel, accountLevel } = readSchemaProperties();
+        const caps = resolveGatewayCapabilityConfig(emptyDingTalkConfig());
+
+        expect(caps.docsEnabled).toBe(true);
+        expect(caps.proactiveSendEnabled).toBe(true);
+
+        for (const properties of [topLevel, accountLevel]) {
+            const tools = properties?.gatewayCapabilities?.properties?.tools?.properties;
+            expect(tools?.docs?.default).toBe(caps.docsEnabled);
+            expect(tools?.proactiveSend?.default).toBe(caps.proactiveSendEnabled);
+        }
+    });
+
+    it("spells out the risky defaults in descriptions and WebUI hints", () => {
+        const { manifest, topLevel } = readSchemaProperties();
+        const tools = topLevel?.gatewayCapabilities?.properties?.tools?.properties;
+
+        expect(topLevel?.learningEnabled?.description).toMatch(/disabled by default/i);
+        expect(topLevel?.learningAutoApply?.description).toMatch(/disabled by default/i);
+        expect(tools?.docs?.description).toMatch(/enabled by default/i);
+        expect(tools?.proactiveSend?.description).toMatch(/enabled by default/i);
+        expect(manifest.channelConfigs?.dingtalk?.uiHints?.learningEnabled?.help).toMatch(
+            /disabled by default/i,
+        );
+        expect(manifest.channelConfigs?.dingtalk?.uiHints?.["gatewayCapabilities.tools.docs"]?.help).toMatch(
+            /enabled by default/i,
+        );
+    });
+
+    it("documents the default exposure surface in the README", () => {
+        const readme = readFileSync(resolve(repoRoot, "README.md"), "utf8");
+
+        expect(readme).toContain("默认能力面与最小权限配置");
+        for (const key of [
+            "gatewayCapabilities.tools.docs",
+            "gatewayCapabilities.tools.proactiveSend",
+            "dmPolicy",
+            "groupPolicy",
+            "learningEnabled",
+            "learningAutoApply",
+        ]) {
+            expect(readme).toContain(key);
+        }
     });
 });

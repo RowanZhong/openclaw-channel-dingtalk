@@ -31,6 +31,41 @@
 > [!IMPORTANT]
 > 根据钉钉开放平台公告《[关于限时开放钉钉PaaS资源不限量额度以助力企业AI智能体集成的公告](https://open.dingtalk.com/document/development/open-ai-paas-report)》（更新于 `2026-03-11`），OpenClaw 调用钉钉 `API/Webhook/Stream` 的免费“不限量”额度默认有效至 `2026-03-31`；如已通过官方申请通道获批，豁免权益最晚有效至 `2026-04-30`。部署前请前往“钉钉开发者后台 -> 资源管理”核对当前额度状态。
 
+## 默认能力面与最小权限配置
+
+插件默认按"开箱可用"取向配置，下表几项在默认状态下是**开启**的。它们依赖 OpenClaw 宿主的 Gateway 信任模型，插件层不做二次调用方身份认证，因此**已经拿到 Gateway 访问权的调用方即可使用**。生产部署前请按需收窄。
+
+| 配置项 | 默认值 | 作用 | 收窄方式 |
+| --- | --- | --- | --- |
+| `gatewayCapabilities.tools.docs` | `true` | 暴露 `dingtalk.docs.*` / `dingtalk-connector.docs.*` 文档 RPC，可读写钉钉文档 | 设为 `false` 关闭，或用 `gatewayCapabilities.docs.allowedSpaceIds` 限定文档空间 |
+| `gatewayCapabilities.tools.proactiveSend` | `true` | 暴露 `dingtalk-connector.sendToUser` / `sendToGroup` / `send` 主动发送 RPC | 设为 `false` 关闭，或用 `gatewayCapabilities.send.allowedTargets` 限定 `user:*` / `group:*` 目标 |
+| `dmPolicy` | `open` | 任何人都可以私聊机器人 | 改为 `pairing` 或 `allowlist` |
+| `groupPolicy` | `open` | 任何群都可以 @机器人 | 改为 `allowlist`，或按群配置 `groups` |
+| `learningEnabled` | `false` | 本地反馈学习回路。开启后学到的 note 与 rule 会写入 OpenClaw 状态目录，并注入后续 prompt | 保持关闭；确需使用时仅在受控会话中开启 |
+| `learningAutoApply` | `false` | 自动把生成的学习内容写入 session note 或全局 rule | 保持关闭；仅在 `learningEnabled` 开启时才有意义 |
+| `mediaUrlAllowlist` | 未配置 | 允许下载远程媒体的主机 / IP 范围。默认已拒绝内网与本地地址，并做 DNS 解析校验 | 仅在需要访问受控内网媒体服务时显式配置 |
+
+最小权限示例：
+
+```json5
+{
+  "channels": {
+    "dingtalk": {
+      "dmPolicy": "allowlist",
+      "groupPolicy": "allowlist",
+      "gatewayCapabilities": {
+        "tools": { "docs": false, "proactiveSend": false }
+        // 也可以保留能力但限定范围：
+        // "docs": { "allowedSpaceIds": ["<spaceId>"] },
+        // "send": { "allowedTargets": ["user:<staffId>", "group:<conversationId>"] }
+      }
+    }
+  }
+}
+```
+
+完整边界说明见[安全策略](docs/user/reference/security-policies.md)与 [Gateway RPC 兼容层](docs/user/reference/gateway-rpc.md)。
+
 ## 文档入口
 
 - 线上文档站点：<https://dingtalk-channel.nanoo.app/>
