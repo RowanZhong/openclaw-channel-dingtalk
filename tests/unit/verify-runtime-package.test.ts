@@ -67,18 +67,189 @@ export { resolved };
         }).toThrow("Runtime package must not pass the whole process.env to a secret resolver");
     });
 
-    it("allows reading a single allowlisted environment variable", () => {
+    it("allows the documented card template id override in runtime output", () => {
         const packageDir = createRuntimePackageFixture(`
 const templateId = process.env.DINGTALK_CARD_TEMPLATE_ID || "builtin.schema";
-function readSecret(id) {
-  return process.env[id];
-}
-export { templateId, readSecret };
+export { templateId };
 `);
 
         expect(() => {
             runVerification(packageDir);
         }).not.toThrow();
+    });
+
+    it("rejects a dynamic single-key environment read in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+function readSecret(id) {
+  return process.env[id];
+}
+export { readSecret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects an undocumented static environment read in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const secret = process.env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects handing the bare ambient environment around in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const ambient = process.env;
+export { ambient };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("allows the documented card template id override through bracket access", () => {
+        const packageDir = createRuntimePackageFixture(`
+const templateId = process.env["DINGTALK_CARD_TEMPLATE_ID"] || "builtin.schema";
+export { templateId };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).not.toThrow();
+    });
+
+    it("allows non-environment uses of the process global in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const isWindows = process.platform === "win32";
+const cwd = process.cwd();
+const pid = process.pid;
+export { isWindows, cwd, pid };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).not.toThrow();
+    });
+
+    it("rejects an optional-chained environment read in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const secret = process?.env?.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects a computed property environment read in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const secret = process["env"].DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects reading the environment off the global object in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const secret = globalThis.process.env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects destructuring the environment out of the process global", () => {
+        const packageDir = createRuntimePackageFixture(`
+const { env } = process;
+const secret = env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects aliasing the process global in runtime output", () => {
+        const packageDir = createRuntimePackageFixture(`
+const proc = process;
+const secret = proc.env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects importing the environment from the process module", () => {
+        const packageDir = createRuntimePackageFixture(`
+import { env } from "node:process";
+const secret = env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects object-rest destructuring of the process global", () => {
+        const packageDir = createRuntimePackageFixture(`
+const { ...proc } = process;
+const secret = proc.env.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
+    });
+
+    it("rejects a computed string env key destructured from the process global", () => {
+        const packageDir = createRuntimePackageFixture(`
+const { ["env"]: e } = process;
+const secret = e.DINGTALK_CLIENT_SECRET;
+export { secret };
+`);
+
+        expect(() => {
+            runVerification(packageDir);
+        }).toThrow(
+            "Runtime package must not read ambient environment state outside the documented allowlist",
+        );
     });
 
     function runVerification(packageDir: string): void {

@@ -82,7 +82,8 @@
   - provider 声明为 `source: "env"` 但**省略 `allowlist`** → 该 provider 对**任意** `id` 放行，**不做白名单限制**
   - provider 是宿主内置的默认 env provider（`secrets.providers` 中无同名项）→ 按宿主内置默认规则判定
   - 都不满足 → 未授权
-- 通过授权后，插件只读取该引用对应的**单个**环境变量；插件不会读取、也不会把整个 `process.env` 交给解析器
+- 通过授权后，**环境变量的实际读取由宿主 SDK 完成**：插件只把引用本身交给
+  `openclaw/plugin-sdk/secret-ref-readonly` 的 `resolveReadOnlyEnvSecretRef`，由宿主读取该引用对应的**单个**变量并交回结果。插件代码不会自己访问进程环境，也不会把整个 `process.env` 交给任何解析器
 - 未通过授权的引用判定为 blocked；已授权但变量未设置或为空判定为未解析。两者都在发起任何 DingTalk API 请求前抛出本地错误，并在日志中给出 `source` / `provider` / `id` 与对应的修复指引
 - `file` 引用只通过 `secrets.providers` 的文件 provider 读取，`id` 不会被当作本地路径；密钥文件需要位于受信状态目录并满足宿主权限校验
 
@@ -90,14 +91,15 @@
 
 ## 环境变量读取范围
 
-插件**源码中直接读取**的环境变量限于两类，均为显式且非凭据用途或经授权的单键读取：
+插件**源码中直接读取**的环境变量只剩一项非凭据例外：
 
 | 环境变量 | 用途 | 说明 |
 | --- | --- | --- |
-| 经只读路径授权校验的单个 `env` SecretInput `id` | 解析 `clientSecret` | 每次只读取该引用对应的一个变量；是否授权及是否配置白名单见上一节 |
 | `DINGTALK_CARD_TEMPLATE_ID` | 覆盖内置 AI 卡片模板 ID | **非凭据例外**：该值是钉钉卡片模板 ID，不是密钥；默认值为内置模板，未设置时不读取任何其它变量 |
 
-除上述两类外，插件源码不直接读取宿主环境变量。底层库（例如 HTTP 客户端）可能会按自身约定读取代理类环境变量，这属于宿主既有行为，不受本插件控制。
+`clientSecret` 的 `env` SecretInput 引用**不再由插件读取**：单键读取发生在宿主只读解析器内部（见上一节）。发布前的 `scripts/verify-runtime-package.mjs` 会用语法树校验构建产物（`scripts/ambient-env-guard.mjs`）：除上表例外外，任何进程环境读取都会直接失败，且 `process?.env`、`process["env"]`、`globalThis.process.env`、`const { env } = process` 等等价写法、以及 `node:process` 的 `env` 导入都在拒绝范围内。
+
+除该例外外，插件源码不直接读取宿主环境变量。底层库（例如 HTTP 客户端）可能会按自身约定读取代理类环境变量，这属于宿主既有行为，不受本插件控制。
 
 ## Gateway RPC 能力边界
 

@@ -4,7 +4,10 @@ import {
   hasConfiguredSecretInput as hasConfiguredOpenClawSecretInput,
   resolveConfiguredSecretInputString,
 } from "openclaw/plugin-sdk/secret-input-runtime";
-import { canResolveEnvSecretRefInReadOnlyPath } from "openclaw/plugin-sdk/secret-ref-readonly";
+import {
+  canResolveEnvSecretRefInReadOnlyPath,
+  resolveReadOnlyEnvSecretRef,
+} from "openclaw/plugin-sdk/secret-ref-readonly";
 import { z } from "zod";
 import { getDingTalkRuntime } from "./runtime";
 
@@ -58,11 +61,15 @@ function buildSecretInputFailure(
  *
  * Mirrors the official channel pattern (`openclaw/plugin-sdk/secret-ref-readonly`):
  * inspect the reference, require the host to authorize this provider/id for a
- * read-only path, and only then read the single `process.env[id]`. The SDK's
- * own `resolveReadOnlyEnvSecretRef` collapses "not authorized" and "authorized
- * but the variable is unset" into one `blocked` status, which would tell an
- * operator with a correct allowlist to change it; re-deriving the same checks
- * here keeps the failure reason actionable. Both branches fail closed.
+ * read-only path, and then let the host SDK read the single authorized value
+ * (`resolveReadOnlyEnvSecretRef`). The plugin never indexes ambient environment
+ * state itself, so credential ownership — and the read — stays with the host.
+ *
+ * The SDK's own `resolveReadOnlyEnvSecretRef` collapses "not authorized" and
+ * "authorized but the variable is unset" into one `blocked` status, which would
+ * tell an operator with a correct allowlist to change it; repeating the
+ * authorization check here keeps the failure reason actionable. Both branches
+ * fail closed.
  */
 function resolveEnvSecretInputRef(
   value: SecretInputRef,
@@ -113,13 +120,24 @@ function resolveEnvSecretInputRef(
     };
   }
 
-  const envValue = normalizeOptionalSecretString(process.env[ref.id]);
-  if (envValue) {
-    return { value: envValue };
+  const resolved = resolveReadOnlyEnvSecretRef({
+    value,
+    path: SECRET_INPUT_PATH,
+    cfg: hostConfig,
+    expectedEnvId: ref.id.trim(),
+    normalizeValue: normalizeOptionalSecretString,
+  });
+  if (resolved.status === "available") {
+    return { value: resolved.value };
   }
-  return {
-    failure: unresolved(`Environment variable "${value.id}" is authorized but unset or empty.`),
-  };
+  if (resolved.status === "blocked") {
+    // The authorization pre-check above already passed for this provider/id, so
+    // the host only blocks here because the authorized variable is unset or blank.
+    return {
+      failure: unresolved(`Environment variable "${value.id}" is authorized but unset or empty.`),
+    };
+  }
+  return { failure: unresolved("Secret reference did not resolve to a value.") };
 }
 
 /**
