@@ -250,4 +250,26 @@ describe("clawhub publish workflow wiring", () => {
         expect(workflow).toContain("Explain how to proceed when a tag release is blocked");
         expect(workflow).toContain("gh workflow run clawhub-publish.yml");
     });
+
+    it("binds the release job to the commit the audit job inspected", () => {
+        const publishSection = workflow.slice(workflow.indexOf("\n    publish:"));
+
+        expect(workflow).toContain("audited_commit: ${{ steps.release.outputs.audited_commit }}");
+        expect(publishSection).toContain("ref: ${{ needs.audit.outputs.audited_commit }}");
+        // The release checkout must not re-resolve the tag: a tag moved after the
+        // audit would otherwise publish a commit the gate never inspected.
+        expect(publishSection).not.toContain(
+            "ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}",
+        );
+        expect(publishSection).toContain('--source-commit "${AUDITED_COMMIT}"');
+    });
+
+    it("re-verifies the tag against the audited commit before publishing", () => {
+        const publishSection = workflow.slice(workflow.indexOf("\n    publish:"));
+
+        expect(publishSection).toContain("Verify the release ref still points at the audited commit");
+        expect(publishSection).toContain('git fetch --force origin "refs/tags/${TARGET_TAG}:refs/tags/${TARGET_TAG}"');
+        expect(publishSection).toContain('git rev-parse "refs/tags/${TARGET_TAG}^{commit}"');
+        expect(publishSection).toContain("re-run the audit before publishing");
+    });
 });

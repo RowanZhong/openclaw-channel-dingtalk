@@ -35,6 +35,11 @@ jobs:
         permissions:
             contents: read
 
+        # The release job publishes exactly the commit this job audited, so the
+        # gate result cannot be detached from the released tree by a moved tag.
+        outputs:
+            audited_commit: ${{ steps.release.outputs.audited_commit }}
+
         steps:
             - name: Checkout
               uses: actions/checkout@v4
@@ -80,6 +85,7 @@ jobs:
                   set -euo pipefail
                   PACKAGE_NAME="$(node -p "require('./package.json').name")"
                   PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+                  AUDITED_COMMIT="$(git rev-parse HEAD)"
 
                   if [[ "${AUDIT_ONLY}" == "true" ]]; then
                     BASE_VERSION="${PACKAGE_VERSION}"
@@ -109,11 +115,13 @@ jobs:
                   BETA_VERSION="${BASE_VERSION}-beta.${{ github.run_number }}.${{ github.run_attempt }}"
 
                   echo "audit_only=${AUDIT_ONLY}" >> "$GITHUB_OUTPUT"
+                  echo "audited_commit=${AUDITED_COMMIT}" >> "$GITHUB_OUTPUT"
                   echo "package_name=${PACKAGE_NAME}" >> "$GITHUB_OUTPUT"
                   echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
                   echo "beta_version=${BETA_VERSION}" >> "$GITHUB_OUTPUT"
                   echo "source_ref=${SOURCE_REF}" >> "$GITHUB_OUTPUT"
                   echo "Audit build version: ${BETA_VERSION}"
+                  echo "Audited commit: ${AUDITED_COMMIT}"
 
             - name: Verify audit version is unused
               if: ${{ steps.release.outputs.beta_version != '' }}
@@ -289,10 +297,12 @@ jobs:
             contents: read
 
         steps:
-            - name: Checkout
+            - name: Checkout the audited commit
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+                  # Pinned to the SHA the audit job inspected: re-resolving the tag
+                  # here would let a tag moved after the audit publish unaudited code.
+                  ref: ${{ needs.audit.outputs.audited_commit }}
                   fetch-depth: 0
 
             - name: Setup pnpm
@@ -333,6 +343,31 @@ jobs:
 
                   echo "Version check passed: ${TAG} -> ${PACKAGE_VERSION} (ClawHub tag: ${CLAWHUB_TAG})"
                   echo "clawhub_tag=${CLAWHUB_TAG}" >> "$GITHUB_OUTPUT"
+
+            - name: Verify the release ref still points at the audited commit
+              shell: bash
+              env:
+                  AUDITED_COMMIT: ${{ needs.audit.outputs.audited_commit }}
+                  TARGET_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+              run: |
+                  set -euo pipefail
+
+                  if [[ -z "${AUDITED_COMMIT}" ]]; then
+                    echo "::error::The audit job reported no audited commit; refusing to publish."
+                    exit 1
+                  fi
+
+                  # Re-read the tag from the remote rather than trusting the local
+                  # checkout, so a tag moved after the audit is detected here.
+                  git fetch --force origin "refs/tags/${TARGET_TAG}:refs/tags/${TARGET_TAG}"
+                  TAG_COMMIT="$(git rev-parse "refs/tags/${TARGET_TAG}^{commit}")"
+
+                  if [[ "${TAG_COMMIT}" != "${AUDITED_COMMIT}" ]]; then
+                    echo "::error::Tag ${TARGET_TAG} moved after the audit (audited ${AUDITED_COMMIT}, tag now ${TAG_COMMIT}); re-run the audit before publishing."
+                    exit 1
+                  fi
+
+                  echo "Tag ${TARGET_TAG} still points at the audited commit ${AUDITED_COMMIT}."
 
             - name: Install ClawHub CLI
               run: npm install --global clawhub@0.23.3
@@ -376,15 +411,15 @@ jobs:
                   CLAWHUB_TAGS: ${{ steps.release.outputs.clawhub_tag }}
                   SOURCE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
                   GITHUB_REPOSITORY: ${{ github.repository }}
+                  AUDITED_COMMIT: ${{ needs.audit.outputs.audited_commit }}
               run: |
                   set -euo pipefail
-                  SOURCE_COMMIT="$(git rev-parse HEAD)"
 
                   clawhub package publish . \
                     --tags "${CLAWHUB_TAGS}" \
                     --source-repo "${GITHUB_REPOSITORY}" \
-                    --source-commit "${SOURCE_COMMIT}" \
+                    --source-commit "${AUDITED_COMMIT}" \
                     --source-ref "${SOURCE_REF}" \
                     --source-path "." \
                     --json
-                  echo "ClawHub accepted the release. The beta audit gate for this commit already passed."
+                  echo "ClawHub accepted the release for ${AUDITED_COMMIT}, the commit the audit job inspected."
