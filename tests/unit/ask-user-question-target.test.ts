@@ -226,6 +226,32 @@ describe("targeted question delivery and collection", () => {
     expect(shared.inbound).toHaveBeenCalledTimes(1);
   });
 
+  it.each([false, true])("preserves instructions while updating progress (cancel=%s)", async (cancel) => {
+    const result = await withDingTalkQuestionContext(context, () =>
+      factory().execute("call", {
+        title: "收集原因",
+        description: "请填写原因，并注明日期。",
+        fields,
+        target: { ...group, respondentUserIds: ["staff_B", "staff_C", "staff_D"] },
+      }),
+    );
+    const initial = shared.post.mock.calls[0][1].cardData.cardParamMap;
+    expect(initial.question_desc).toContain("请填写原因，并注明日期。");
+    await submit(result, "staff_B", cancel ? { user_cancel: true } : { form: { reason: "private B" } });
+    expect(shared.update.mock.calls[0][1]).toEqual({ form_btn_text: "1/3" });
+    await submit(result, "staff_B");
+    expect(shared.update).toHaveBeenCalledTimes(1);
+    await submit(result, "staff_C", { form: { reason: "private C" } });
+    expect(shared.update.mock.calls[1][1]).toEqual({ form_btn_text: "2/3" });
+    expect(shared.inbound).not.toHaveBeenCalled();
+    const rendered = { ...initial, ...shared.update.mock.calls[1][1] };
+    expect(rendered.question_desc).toBe(initial.question_desc);
+    expect(rendered.form).toBe(initial.form);
+    await submit(result, "staff_D");
+    expect(shared.update.mock.calls[2][1]).toMatchObject({ card_status: "submitted", form_btn_text: "已结束" });
+    expect(shared.inbound).toHaveBeenCalledTimes(1);
+  });
+
   it("returns partial responses and missing respondents at the persisted deadline", async () => {
     vi.useFakeTimers();
     const result = await send(group);

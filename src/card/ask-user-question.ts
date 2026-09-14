@@ -949,7 +949,9 @@ async function handleCollectionResponse(
   });
   if (collection.responses.size < collection.target.respondentUserIds.length) {
     await updateQuestionCardBestEffort(ctx, {
-      question_desc: `已收到 ${collection.responses.size}/${collection.target.respondentUserIds.length} 人的回应；每人仅接收首次提交或取消，等待其余填写人。`,
+      // The built-in template renders this variable as the header status tag.
+      // Keep the original instructions intact for respondents still filling in.
+      form_btn_text: `${collection.responses.size}/${collection.target.respondentUserIds.length}`,
     });
     return;
   }
