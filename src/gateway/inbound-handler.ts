@@ -12,6 +12,7 @@ import {
 import {
   getDingTalkQuestionContext,
   withDingTalkQuestionContext,
+  withDingTalkQuestionToolRun,
 } from "../card/ask-user-question-context";
 import { isCardRunStopRequested, registerCardRun, removeCardRun } from "../card/card-run-registry";
 import {
@@ -2443,10 +2444,13 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         });
 
       try {
-        const dispatchResult = await withReplySessionConflictRetry(runDispatch, {
-          log,
-          sessionKey: route.sessionKey,
-        });
+        const dispatchResult = await withReplySessionConflictRetry(
+          () => withDingTalkQuestionToolRun(questionContext, runDispatch),
+          {
+            log,
+            sessionKey: route.sessionKey,
+          },
+        );
 
         const bufferedFinal =
           dispatchResult && typeof dispatchResult === "object" && "queuedFinal" in dispatchResult

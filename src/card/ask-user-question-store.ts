@@ -209,14 +209,23 @@ export function activateAskUserQuestion(
 export function claimAskUserQuestion(
   options: AskUserStoreOptions,
   identifier: AskUserQuestionIdentifier,
+  purpose: "answer" | "live-timeout" = "answer",
 ): AskUserLifecycleRecord | undefined {
   const timestamp = now(options);
   const state = readCleanState(options);
   const record = findRecord(state, identifier);
-  if (!record || record.state !== "pending") {
+  // Lazy cleanup may expire the record just before its live timer dispatches
+  // the partial collection. Only that timer (with an unconsumed in-memory
+  // context) may claim an expired record; callbacks must never revive it.
+  const liveTimeout =
+    purpose === "live-timeout" &&
+    record?.state === "terminal" &&
+    record.terminalReason === "expired";
+  if (!record || (record.state !== "pending" && !liveTimeout)) {
     return undefined;
   }
   record.state = "dispatching";
+  delete record.terminalReason;
   record.updatedAt = timestamp;
   record.expiresAt = timestamp + ACTIVE_TTL_MS;
   persistState(options, state);
