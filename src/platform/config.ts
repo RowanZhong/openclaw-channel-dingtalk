@@ -176,23 +176,24 @@ export interface ResolvedGatewayCapabilities {
   allowedTargets?: string[];
 }
 
-/** Denial reason returned when `gatewayCapabilities.tools.docs` is explicitly false. */
+/** Denial reason returned when `gatewayCapabilities.tools.docs` is not enabled. */
 export const DOCS_GATE_DISABLED_REASON =
-  "dingtalk docs Gateway RPC is disabled by config (gatewayCapabilities.tools.docs = false)";
+  "dingtalk docs Gateway RPC is disabled (gatewayCapabilities.tools.docs defaults to false); set gatewayCapabilities.tools.docs = true to enable it";
 
-/** Denial reason returned when `gatewayCapabilities.tools.proactiveSend` is explicitly false. */
+/** Denial reason returned when `gatewayCapabilities.tools.proactiveSend` is not enabled. */
 export const PROACTIVE_SEND_GATE_DISABLED_REASON =
-  "dingtalk proactive-send Gateway RPC is disabled by config (gatewayCapabilities.tools.proactiveSend = false)";
+  "dingtalk proactive-send Gateway RPC is disabled (gatewayCapabilities.tools.proactiveSend defaults to false); set gatewayCapabilities.tools.proactiveSend = true to enable it";
 
 const DEFAULT_GATEWAY_CAPABILITIES: ResolvedGatewayCapabilities = Object.freeze({
-  docsEnabled: true,
-  proactiveSendEnabled: true,
+  docsEnabled: false,
+  proactiveSendEnabled: false,
 });
 
 /**
  * Resolve Gateway RPC capability configuration for an account.
  * Account-level `gatewayCapabilities` is merged with channel-level defaults by sub-key
- * (see `mergeGatewayCapabilitiesConfig`); both default to all capabilities enabled.
+ * (see `mergeGatewayCapabilitiesConfig`); both default to every capability disabled,
+ * so a host-callable RPC surface only exists after an explicit opt-in.
  */
 export function resolveGatewayCapabilityConfig(
   cfg: OpenClawConfig,
@@ -207,8 +208,8 @@ export function resolveGatewayCapabilityConfig(
   const docs = gatewayCapabilities.docs ?? {};
   const send = gatewayCapabilities.send ?? {};
   return {
-    docsEnabled: tools.docs !== false,
-    proactiveSendEnabled: tools.proactiveSend !== false,
+    docsEnabled: tools.docs === true,
+    proactiveSendEnabled: tools.proactiveSend === true,
     allowedSpaceIds: docs.allowedSpaceIds,
     allowedTargets: send.allowedTargets,
   };

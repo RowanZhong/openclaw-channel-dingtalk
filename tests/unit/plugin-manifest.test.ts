@@ -278,8 +278,8 @@ describe("plugin manifest declared defaults", () => {
         const { topLevel, accountLevel } = readSchemaProperties();
         const caps = resolveGatewayCapabilityConfig(emptyDingTalkConfig());
 
-        expect(caps.docsEnabled).toBe(true);
-        expect(caps.proactiveSendEnabled).toBe(true);
+        expect(caps.docsEnabled).toBe(false);
+        expect(caps.proactiveSendEnabled).toBe(false);
 
         for (const properties of [topLevel, accountLevel]) {
             const tools = properties?.gatewayCapabilities?.properties?.tools?.properties;
@@ -294,29 +294,23 @@ describe("plugin manifest declared defaults", () => {
 
         expect(topLevel?.learningEnabled?.description).toMatch(/disabled by default/i);
         expect(topLevel?.learningAutoApply?.description).toMatch(/disabled by default/i);
-        expect(tools?.docs?.description).toMatch(/enabled by default/i);
-        expect(tools?.proactiveSend?.description).toMatch(/enabled by default/i);
+        expect(tools?.docs?.description).toMatch(/disabled by default/i);
+        expect(tools?.proactiveSend?.description).toMatch(/disabled by default/i);
         expect(manifest.channelConfigs?.dingtalk?.uiHints?.learningEnabled?.help).toMatch(
             /disabled by default/i,
         );
         expect(manifest.channelConfigs?.dingtalk?.uiHints?.["gatewayCapabilities.tools.docs"]?.help).toMatch(
-            /enabled by default/i,
+            /disabled by default/i,
         );
     });
 
     it("documents the default exposure surface in the README", () => {
         const readme = readFileSync(resolve(repoRoot, "README.md"), "utf8");
 
-        expect(readme).toContain("默认能力面与最小权限配置");
-        for (const key of [
-            "gatewayCapabilities.tools.docs",
-            "gatewayCapabilities.tools.proactiveSend",
-            "dmPolicy",
-            "groupPolicy",
-            "learningEnabled",
-            "learningAutoApply",
-        ]) {
-            expect(readme).toContain(key);
-        }
+        // README stays a concise entry page: it points at the full matrix in
+        // docs/user/reference/security-policies.md instead of duplicating it.
+        expect(readme).toContain("默认能力面");
+        expect(readme).toContain("gatewayCapabilities.tools.docs");
+        expect(readme).toContain("docs/user/reference/security-policies.md");
     });
 });
