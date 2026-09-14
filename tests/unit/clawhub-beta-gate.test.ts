@@ -128,12 +128,33 @@ describe("clawhub beta gate policy", () => {
         ["quarantined release", { moderationState: "quarantined" }],
         ["revoked release", { moderationState: "revoked" }],
         ["unknown scan status", { scanStatus: "something-new" }],
+        ["string download block", { blockedFromDownload: "true" }],
+        ["numeric pending flag", { pending: 1 }],
+        ["string stale flag", { stale: "false" }],
+        ["non-string moderation state", { moderationState: 42 }],
     ])("fails closed on %s", (_label, trust) => {
         const run = runGate({ verdict: buildVerdict(trust) });
 
         expect(run.status).toBe(1);
         expect(run.result?.decision).toBe("fail");
         expect((run.result?.hardFailures as string[]).length).toBeGreaterThan(0);
+    });
+
+    it.each([
+        ["a missing download-block flag", "blockedFromDownload"],
+        ["a missing pending flag", "pending"],
+        ["a missing stale flag", "stale"],
+        ["a missing moderation state", "moderationState"],
+        ["a missing reasons list", "reasons"],
+    ])("fails closed when the verdict has %s", (_label, key) => {
+        const trust = buildVerdict({}).trust as Record<string, unknown>;
+        delete trust[key];
+
+        const run = runGate({ verdict: { ...buildVerdict({}), trust } });
+
+        expect(run.status).toBe(1);
+        expect(run.result?.decision).toBe("fail");
+        expect((run.result?.hardFailures as string[]).join(" ")).toContain(key);
     });
 
     it("fails closed when the response has no trust object", () => {
@@ -211,5 +232,22 @@ describe("clawhub publish workflow wiring", () => {
     it("uses the public version-exact security endpoint as the gate input", () => {
         expect(workflow).toContain("/versions/${AUDIT_VERSION}/security");
         expect(workflow).toContain("scripts/clawhub-beta-gate.mjs verdict.json");
+    });
+
+    it("keeps third-party execution out of the credentialed window", () => {
+        // The audit job runs a pinned CLI and never a mutable `@latest` reference,
+        // and the offline validation happens before the publish token is loaded.
+        expect(workflow).not.toContain("plugin-inspector@latest");
+        expect(workflow).toContain("clawhub package validate .");
+        expect(workflow.indexOf("Offline plugin validation")).toBeLessThan(
+            workflow.indexOf("Authenticate ClawHub CLI"),
+        );
+    });
+
+    it("keeps tag releases strict and routes the override through dispatch", () => {
+        // A tag push cannot set `allow_suspicious`, so the workflow must tell the
+        // operator how to release deliberately instead of failing silently.
+        expect(workflow).toContain("Explain how to proceed when a tag release is blocked");
+        expect(workflow).toContain("gh workflow run clawhub-publish.yml");
     });
 });

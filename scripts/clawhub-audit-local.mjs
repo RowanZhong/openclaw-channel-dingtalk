@@ -34,6 +34,8 @@ const DRY_RUN_PUBLISH_PATH = resolve(EVIDENCE_DIR, "publish-dry-run.json");
 const REPORT_PATH = resolve(EVIDENCE_DIR, "scan-report.zip");
 const GATE_SCRIPT = resolve(REPO_ROOT, "scripts/clawhub-beta-gate.mjs");
 const CLAWHUB_CLI_PIN = "0.23.3";
+/** `--wait` and restorable version withdrawal only exist from this release on. */
+const MIN_CLI_VERSION = "0.23.2";
 const AUDIT_TAG = "audit";
 const SECURITY_ENDPOINT = "https://clawhub.ai/api/v1/packages";
 const DEFAULT_TIMEOUT_SECONDS = 2400;
@@ -41,6 +43,10 @@ const VERDICT_RETRY_COUNT = 5;
 const VERDICT_RETRY_DELAY_MS = 6000;
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
+
+// `console` is this CLI's output contract: stdout carries the audit result and
+// stderr carries operator diagnostics. The runtime logger is a host-injected
+// service that only exists inside the plugin runtime, not in standalone scripts.
 const log = (message) => console.log(`[audit] ${message}`);
 const warn = (message) => console.warn(`[audit] ${message}`);
 
@@ -139,18 +145,70 @@ function detectSourceRepo() {
   return match?.groups?.repo ?? "";
 }
 
+/** Compare dotted numeric versions; true when `version` is at least `minimum`. */
+function isAtLeastVersion(version, minimum) {
+  const parse = (value) =>
+    String(value)
+      .split(".")
+      .map((part) => Number.parseInt(part, 10) || 0);
+  const left = parse(version);
+  const right = parse(minimum);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const current = left[index] ?? 0;
+    const required = right[index] ?? 0;
+    if (current !== required) {
+      return current > required;
+    }
+  }
+  return true;
+}
+
+/** Read `clawhub --cli-version`; returns null when the probe fails or prints nothing usable. */
+function probeCliVersion(bin, args) {
+  const probe = spawnSync(bin, [...args, "--cli-version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (probe.error || probe.status !== 0) {
+    return null;
+  }
+  const match = String(probe.stdout ?? "").match(/\d+\.\d+\.\d+/u);
+  return match ? match[0] : null;
+}
+
 function resolveClawhubCommand() {
+  const pinned = {
+    args: ["--yes", `clawhub@${CLAWHUB_CLI_PIN}`],
+    bin: "npx",
+    label: `npx clawhub@${CLAWHUB_CLI_PIN}`,
+  };
+
+  // An explicitly configured CLI is honored only when it can actually run the
+  // audit: older releases lack `--wait` and use different delete semantics, so
+  // silently accepting one would make the local audit unreliable.
   if (process.env.CLAWHUB_CLI) {
-    return { args: [], bin: process.env.CLAWHUB_CLI };
+    const explicit = { args: [], bin: process.env.CLAWHUB_CLI, label: process.env.CLAWHUB_CLI };
+    const version = probeCliVersion(explicit.bin, explicit.args);
+    if (!version || !isAtLeastVersion(version, MIN_CLI_VERSION)) {
+      throw new Error(
+        `CLAWHUB_CLI=${explicit.bin} 的版本为 ${version ?? "未知"}，低于审计所需的最低版本 ${MIN_CLI_VERSION}（--wait 与可撤回的版本删除语义从该版本开始提供）。`,
+      );
+    }
+    return explicit;
   }
-  const probe = spawnSync("clawhub", ["--cli-version"], { encoding: "utf8", stdio: "ignore" });
-  if (!probe.error) {
-    return { args: [], bin: "clawhub" };
+
+  const globalVersion = probeCliVersion("clawhub", []);
+  if (globalVersion && isAtLeastVersion(globalVersion, MIN_CLI_VERSION)) {
+    return { args: [], bin: "clawhub", label: `clawhub@${globalVersion}` };
   }
-  warn(
-    `未找到全局 clawhub，回退到 npx clawhub@${CLAWHUB_CLI_PIN}（如需加速：npm i -g clawhub@${CLAWHUB_CLI_PIN}）`,
-  );
-  return { args: ["--yes", `clawhub@${CLAWHUB_CLI_PIN}`], bin: "npx" };
+  if (globalVersion) {
+    warn(`全局 clawhub@${globalVersion} 低于最低要求 ${MIN_CLI_VERSION}，改用 ${pinned.label}`);
+  } else {
+    warn(
+      `未找到可用的全局 clawhub，回退到 ${pinned.label}（如需加速：npm i -g clawhub@${CLAWHUB_CLI_PIN}）`,
+    );
+  }
+  return pinned;
 }
 
 function runClawhub(command, args, { capture = false } = {}) {
@@ -249,6 +307,7 @@ async function main() {
 
   const clawhub = resolveClawhubCommand();
 
+  log(`ClawHub CLI：${clawhub.label}`);
   log(`包：${packageName}`);
   log(`基准版本：${baseVersion} → 审计版本：${auditVersion}`);
   log(`源码：${sourceRepo || "(未识别)"}@${sourceCommit.slice(0, 12)} (${sourceRef})`);

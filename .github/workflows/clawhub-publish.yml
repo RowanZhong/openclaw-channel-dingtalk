@@ -57,21 +57,17 @@ jobs:
             - name: Install ClawHub CLI
               run: npm install --global clawhub@0.23.3
 
-            - name: Authenticate ClawHub CLI
-              env:
-                  CLAWHUB_CONFIG_PATH: ${{ runner.temp }}/clawhub-config.json
-                  CLAWHUB_SITE: https://clawhub.ai
-                  CLAWHUB_REGISTRY: https://clawhub.ai
-                  CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+            - name: Build runtime package
+              run: pnpm run build
+
+            - name: Verify package runtime output
+              run: pnpm run pack:check
+
+            # Runs before any credential is loaded and uses the pinned CLI, so no
+            # mutable third-party reference executes next to the publish token.
+            - name: Offline plugin validation
               run: |
-                  set -euo pipefail
-
-                  if [[ -z "${CLAWHUB_TOKEN:-}" ]]; then
-                    echo "::error::CLAWHUB_TOKEN secret is required for the ClawHub beta audit."
-                    exit 1
-                  fi
-
-                  clawhub auth login --token "${CLAWHUB_TOKEN}" --no-browser
+                  clawhub package validate . --out "$RUNNER_TEMP/plugin-inspector" --json
 
             - name: Resolve audit versions
               id: release
@@ -135,14 +131,21 @@ jobs:
                   fi
                   echo "Audit version ${AUDIT_VERSION} is unused (HTTP 404)."
 
-            - name: Build runtime package
-              run: pnpm run build
+            - name: Authenticate ClawHub CLI
+              env:
+                  CLAWHUB_CONFIG_PATH: ${{ runner.temp }}/clawhub-config.json
+                  CLAWHUB_SITE: https://clawhub.ai
+                  CLAWHUB_REGISTRY: https://clawhub.ai
+                  CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
 
-            - name: Verify package runtime output
-              run: pnpm run pack:check
+                  if [[ -z "${CLAWHUB_TOKEN:-}" ]]; then
+                    echo "::error::CLAWHUB_TOKEN secret is required for the ClawHub beta audit."
+                    exit 1
+                  fi
 
-            - name: Offline plugin preflight
-              run: npx --yes @openclaw/plugin-inspector@latest inspect --no-openclaw --author-facing
+                  clawhub auth login --token "${CLAWHUB_TOKEN}" --no-browser
 
             - name: Stamp audit version
               if: ${{ steps.release.outputs.beta_version != '' }}
@@ -200,6 +203,14 @@ jobs:
                   AUDIT_MODE: ${{ steps.release.outputs.audit_only == 'true' && 'manual' || 'release-gate' }}
                   ALLOW_SUSPICIOUS: ${{ inputs.allow_suspicious == true && '1' || '0' }}
               run: node scripts/clawhub-beta-gate.mjs verdict.json
+
+            # A tag push has no `allow_suspicious` input, so the release path stays
+            # strict by design. The override is only reachable through an explicit
+            # workflow_dispatch run, which records who released and why.
+            - name: Explain how to proceed when a tag release is blocked
+              if: ${{ failure() && github.event_name == 'push' }}
+              run: |
+                  echo "::error::The ClawHub audit blocked this tag release. Fix the finding, or re-run the release through an explicit, recorded override: gh workflow run clawhub-publish.yml -f tag=${GITHUB_REF_NAME} -f allow_suspicious=true"
 
             - name: Download ClawHub audit report
               if: ${{ always() && steps.release.outputs.beta_version != '' }}

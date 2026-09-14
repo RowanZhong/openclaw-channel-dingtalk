@@ -103,7 +103,15 @@ ClawHub 的安全审计（ClawScan）只在服务端、对**已提交的版本**
 | --- | --- | --- |
 | 正式发版 | 推送 tag 或 `workflow_dispatch`（`audit_only=false`） | 审计通过后继续发布正式版本；审计版本**自动撤回** |
 | 手动审计 | `workflow_dispatch` + `audit_only=true`（`tag` 留空即审计当前分支 HEAD） | 只审计、**保留**审计版本，便于烟测 |
-| 放行 suspicious | 勾选 `allow_suspicious=true` | 让 `suspicious` 也能通过门禁（见下方 P2 策略） |
+| 放行 suspicious | `workflow_dispatch` 勾选 `allow_suspicious=true` | 让 `suspicious` 也能通过门禁（见下方 P2 策略） |
+
+> **tag push 不接受人工放行**：`allow_suspicious` 是 `workflow_dispatch` 的输入，tag push 无法提供，因此 tag 触发的发版在 `suspicious` 结论下会被**严格阻断**（这是有意为之：放行必须是一次显式、可追溯的 dispatch）。审计被阻断时 workflow 会打出提示，按提示改用：
+>
+> ```bash
+> gh workflow run clawhub-publish.yml -f tag=v3.8.0 -f allow_suspicious=true
+> ```
+>
+> 该 run 会记录触发者与输入值，构成放行的审计线索。
 
 ### 判定策略（P2）
 

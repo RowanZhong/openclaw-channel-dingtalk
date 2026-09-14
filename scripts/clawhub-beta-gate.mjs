@@ -1,5 +1,10 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
+// `console` is this CLI's output contract: the rendered verdict goes to stdout
+// for CI logs and the GitHub step summary, and blocking reasons go to stderr.
+// The runtime logger is a host-injected service that only exists inside the
+// plugin runtime, so it is not available to a standalone gate script.
+
 /**
  * ClawHub beta 审计门禁判定（P2：suspicious 需人工放行）。
  *
@@ -72,7 +77,25 @@ const evaluateTrust = (trust) => {
   const scanStatus = typeof trust.scanStatus === "string" ? trust.scanStatus : null;
   const moderationState = typeof trust.moderationState === "string" ? trust.moderationState : null;
 
-  if (trust.blockedFromDownload === true) {
+  // Every trust field the verdict depends on is validated for presence and type
+  // before it is used, so a malformed upstream payload can never read as "no
+  // blocking signal found".
+  const readBoolean = (key) => {
+    const value = trust[key];
+    if (typeof value !== "boolean") {
+      hardFailures.push(
+        `trust.${key} 缺失或不是布尔值（实际：${JSON.stringify(value ?? null)}），按 fail-closed 处理`,
+      );
+      return null;
+    }
+    return value;
+  };
+
+  const blockedFromDownload = readBoolean("blockedFromDownload");
+  const pending = readBoolean("pending");
+  const stale = readBoolean("stale");
+
+  if (blockedFromDownload === true) {
     hardFailures.push("trust.blockedFromDownload = true：ClawHub 已阻止该版本下载");
   }
   if (scanStatus === null) {
@@ -87,14 +110,24 @@ const evaluateTrust = (trust) => {
     hardFailures.push("trust.scanStatus = pending：安全审计尚未完成");
   }
 
-  if (trust.pending === true) {
+  if (pending === true) {
     hardFailures.push("trust.pending = true：仍有安全审计输入未完成");
   }
-  if (trust.stale === true) {
+  if (stale === true) {
     hardFailures.push("trust.stale = true：审计结论已过期，需重新扫描后再判定");
   }
-  if (moderationState !== null && BLOCKING_MODERATION_STATES.has(moderationState)) {
+  if (
+    !("moderationState" in trust) ||
+    (trust.moderationState !== null && moderationState === null)
+  ) {
+    hardFailures.push(
+      `trust.moderationState 缺失或不是字符串/null（实际：${JSON.stringify(trust.moderationState ?? null)}），按 fail-closed 处理`,
+    );
+  } else if (BLOCKING_MODERATION_STATES.has(moderationState)) {
     hardFailures.push(`trust.moderationState = ${moderationState}：人工审核状态已封锁该版本`);
+  }
+  if (!Array.isArray(trust.reasons)) {
+    hardFailures.push("trust.reasons 缺失或不是数组，按 fail-closed 处理");
   }
   if (scanStatus === "suspicious") {
     warnings.push("trust.scanStatus = suspicious：ClawScan 认为该版本需要人工复核");
