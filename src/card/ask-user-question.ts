@@ -861,12 +861,16 @@ async function injectAnswerSyntheticMessage(
     senderNick: ctx.data.senderNick,
     chatbotUserId: ctx.data.chatbotUserId,
     sessionWebhook: ctx.data.sessionWebhook,
+    sessionWebhookExpiredTime: ctx.data.sessionWebhookExpiredTime,
   };
   await handleDingTalkMessage({
     cfg: ctx.cfg,
     accountId: ctx.accountId,
     data: syntheticData,
     sessionWebhook: ctx.sessionWebhook,
+    ...(ctx.collection
+      ? { replySessionWebhookExpiresAt: ctx.data.sessionWebhookExpiredTime ?? 0 }
+      : {}),
     log: ctx.log,
     dingtalkConfig: ctx.dingtalkConfig,
     inboundOrigin: "ask-user",
@@ -1174,6 +1178,14 @@ export async function handleDingTalkAskUserCardCallback(params: {
 const AskUserQuestionSchema = {
   type: "object",
   additionalProperties: false,
+  anyOf: [
+    {
+      properties: { action: { enum: ["create"] } },
+      oneOf: [{ required: ["questions"] }, { required: ["fields"] }],
+    },
+    { properties: { action: { const: "list" } }, required: ["action"] },
+    { properties: { action: { const: "cancel" } }, required: ["action", "questionId"] },
+  ],
 
   properties: {
     action: {
@@ -1184,6 +1196,7 @@ const AskUserQuestionSchema = {
     },
     questionId: {
       type: "string",
+      minLength: 1,
       description: "Required for cancel. Use an ID returned by create or list; never guess.",
     },
     timeoutMinutes: {
@@ -1269,7 +1282,11 @@ const AskUserQuestionSchema = {
         required: ["name", "label", "type"],
         properties: {
           name: { type: "string", description: "Unique form field key" },
-          label: { type: "string", description: "Field label shown to the user" },
+          label: {
+            type: "string",
+            description:
+              "Human-readable field label in the user's language, also used in result summaries. Prefer a meaningful label over an internal field name (for example, 测试代号 instead of code).",
+          },
           type: {
             type: "string",
             enum: [
@@ -1628,7 +1645,10 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
       }
 
       context.log?.info?.(
-        `[DingTalk][AskUser] question card sent question=${questionId} outTrackId=${outTrackId}`,
+        `[DingTalk][AskUser] question card sent question=${questionId} outTrackId=${outTrackId}` +
+          (target
+            ? ` deadline=${expiresAt} sessionWebhookExpiresAt=${context.data.sessionWebhookExpiredTime ?? "unknown"}`
+            : ""),
       );
       return jsonToolResult({
         status: "pending",
