@@ -28,7 +28,10 @@ import {
 import { renderStatusLine } from "../card/statusline-renderer";
 import { resolveConfiguredTaskModelMetadata } from "../card/task-model-metadata";
 import { dispatchDingTalkCardStopCommand } from "../command/card-stop-command";
-import { buildLearningContextBlock, isLearningEnabled } from "../command/feedback-learning-service";
+import {
+  buildLearningContextBlock,
+  resolveLearnedRulePolicy,
+} from "../command/feedback-learning-service";
 import { handleInboundCommandDispatch } from "../command/inbound-command-dispatch-service";
 import { extractAttachmentText } from "../messaging/attachment-text-extractor";
 import { deliverBtwReply, stripLeadingMentions } from "../messaging/btw-deliver";
@@ -1023,6 +1026,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         senderStaffId: data.senderStaffId,
       },
       accountStorePath,
+      log,
       currentSessionSourceKind,
       currentSessionSourceId,
       peerIdOverride,
@@ -1805,14 +1809,15 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     // text as CommandBody so the framework command layer recognizes it, while
     // RawBody keeps the user's original input for audit/quote display.
     const commandBody = collectionResult ? "" : (subAgentOptions?.commandText ?? inboundText);
-    const learningEnabled = !collectionResult && isLearningEnabled(dingtalkConfig);
-    const learningContextBlock = buildLearningContextBlock({
-      enabled: learningEnabled,
-      storePath: accountStorePath,
-      accountId,
-      targetId: data.conversationId,
-      content,
-    });
+    const learningContextBlock = collectionResult
+      ? ""
+      : buildLearningContextBlock({
+          policy: resolveLearnedRulePolicy(dingtalkConfig),
+          storePath: accountStorePath,
+          accountId,
+          targetId: data.conversationId,
+          content,
+        });
     const envelopeOptions = rt.channel.reply.resolveEnvelopeFormatOptions(cfg);
     const previousTimestamp = rt.channel.session.readSessionUpdatedAt({
       storePath,

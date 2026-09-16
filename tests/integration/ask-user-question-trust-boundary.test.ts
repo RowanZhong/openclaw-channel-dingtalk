@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildMessage,
+  dispatch,
+  shared,
+  SESSION_KEY,
+  resetInboundSessionQueueIntegrationTest,
+  cleanupInboundSessionQueueIntegrationTest,
+} from "../unit/fixtures/inbound-session-queue-fixture";
+import {
   buildQuestionFormFromFields,
   clearPendingQuestionsForTest,
   handleDingTalkAskUserCardCallback,
@@ -12,17 +20,11 @@ import {
   QUESTION_COLLECTION_PROMPT,
 } from "../../src/card/ask-user-question-result";
 import { handleInboundCommandDispatch } from "../../src/command/inbound-command-dispatch-service";
+import { buildLearningContextBlock } from "../../src/command/feedback-learning-service";
 import { upsertInboundMessageContext } from "../../src/messaging/message-context-store";
 import type { DingTalkQuestionCollectionResult } from "../../src/platform/types";
 import { resolveMessageTarget } from "../../src/targeting/agent-routing";
-import {
-  buildMessage,
-  dispatch,
-  shared,
-  SESSION_KEY,
-  resetInboundSessionQueueIntegrationTest,
-  cleanupInboundSessionQueueIntegrationTest,
-} from "../unit/fixtures/inbound-session-queue-fixture";
+
 
 vi.mock("../../src/card/card-callback-service", () => ({
   updateCardVariables: vi.fn(async () => undefined),
@@ -30,6 +32,10 @@ vi.mock("../../src/card/card-callback-service", () => ({
 vi.mock("../../src/command/inbound-command-dispatch-service", () => ({
   handleInboundCommandDispatch: vi.fn(async () => false),
 }));
+vi.mock("../../src/command/feedback-learning-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/command/feedback-learning-service")>();
+  return { ...actual, buildLearningContextBlock: vi.fn(actual.buildLearningContextBlock) };
+});
 vi.mock("../../src/targeting/agent-routing", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/targeting/agent-routing")>()),
   resolveMessageTarget: vi.fn(() => ({ kind: "default" })),
@@ -47,6 +53,7 @@ let pending: Parameters<typeof registerPendingQuestionForTest>[0];
 
 beforeEach(() => {
   resetInboundSessionQueueIntegrationTest();
+  vi.mocked(buildLearningContextBlock).mockClear();
   runtime = shared.getRuntimeMock();
   runtime.channel.reply.finalizeInboundContext.mockImplementation(finalizeInboundContext);
   shared.dispatchMock.mockResolvedValue({ queuedFinal: false, counts: {} });
@@ -131,6 +138,7 @@ function checkBoundary(ctx: any) {
   );
   expect(ctx.SenderId).toBe(origin.data.senderId);
   expect(handleInboundCommandDispatch).not.toHaveBeenCalled();
+  expect(buildLearningContextBlock).not.toHaveBeenCalled();
   expect(resolveMessageTarget).not.toHaveBeenCalled();
   expect(shared.isAbortRequestTextMock).not.toHaveBeenCalled();
   expect(shared.isBtwRequestTextMock).not.toHaveBeenCalled();
@@ -292,5 +300,12 @@ describe("targeted form trust boundary through real callbacks, inbound handler a
     expect(ctx.CommandInterpretationSuppressed).toBeUndefined();
     expect(ctx.agentText).not.toContain("SECURITY NOTICE");
     expect(handleInboundCommandDispatch).toHaveBeenCalledOnce();
+    expect(buildLearningContextBlock).toHaveBeenCalledWith(expect.objectContaining({
+      policy: expect.objectContaining({
+        learningEnabled: expect.any(Boolean),
+        allowManualGlobalRules: false,
+        ruleTtlMs: expect.any(Number),
+      }),
+    }));
   });
 });
