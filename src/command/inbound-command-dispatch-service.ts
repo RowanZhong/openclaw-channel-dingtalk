@@ -1,6 +1,7 @@
 import type {
   DingTalkConfig,
   HandleDingTalkMessageParams,
+  Logger,
   MessageContent,
 } from "../platform/types";
 import type { SessionPeerSourceKind } from "../targeting/session-peer-store";
@@ -14,7 +15,11 @@ import {
   deleteManualRule,
   disableManualRule,
   listLearningTargetSets,
+  isLearningEnabled,
+  isManualGlobalRuleAllowed,
   listScopedLearningRules,
+  resolveLearnedRulePolicy,
+  resolveLearnedRuleState,
   resolveManualForcedReply,
 } from "./feedback-learning-service";
 import {
@@ -23,6 +28,9 @@ import {
   formatLearnDeletedReply,
   formatLearnDisabledReply,
   formatLearnListReply,
+  formatLearnedRuleStatus,
+  formatLearningDisabledReply,
+  formatManualGlobalRuleDisabledReply,
   formatOwnerOnlyDeniedReply,
   formatOwnerStatusReply,
   formatTargetSetSavedReply,
@@ -56,6 +64,8 @@ type InboundCommandDispatchParams = {
     senderStaffId?: string;
   };
   accountStorePath: string;
+  /** Channel log sink; used to make forced-reply overrides auditable. */
+  log?: Logger;
   currentSessionSourceKind: SessionPeerSourceKind;
   currentSessionSourceId: string;
   peerIdOverride?: string;
@@ -89,6 +99,10 @@ export async function handleInboundCommandDispatch(
     senderId: params.senderId,
     rawSenderId: params.data.senderId,
   });
+  // `learningEnabled` is the documented master switch for the whole learning
+  // loop, so it also gates rule writes and forced-reply execution below, not
+  // just prompt injection.
+  const learningEnabled = isLearningEnabled(params.dingtalkConfig);
 
   if (params.isDirect && parsedLearnCommand.scope === "whoami") {
     await params.sendReply(
@@ -148,6 +162,32 @@ export async function handleInboundCommandDispatch(
     !isOwner
   ) {
     await params.sendReply(formatOwnerOnlyDeniedReply());
+    return true;
+  }
+
+  // Writing or changing rules is refused while the master switch is off. Read-only
+  // and cleanup commands (list / disable / delete) stay available so an operator
+  // can still inspect and remove persisted rules without enabling the loop.
+  if (
+    !learningEnabled &&
+    (parsedLearnCommand.scope === "global" ||
+      parsedLearnCommand.scope === "session" ||
+      parsedLearnCommand.scope === "here" ||
+      parsedLearnCommand.scope === "target" ||
+      parsedLearnCommand.scope === "targets" ||
+      parsedLearnCommand.scope === "target-set-create" ||
+      parsedLearnCommand.scope === "target-set-apply")
+  ) {
+    await params.sendReply(formatLearningDisabledReply());
+    return true;
+  }
+
+  // Account-wide rules are an explicit opt-in: refusing the write keeps every
+  // accepted command effective, instead of storing a rule that would be ignored.
+  // Session-scoped forms (`here` / `target` / `targets` / `target-set`) stay
+  // available as the way to reach several conversations by default.
+  if (!isManualGlobalRuleAllowed(params.dingtalkConfig) && parsedLearnCommand.scope === "global") {
+    await params.sendReply(formatManualGlobalRuleDisabledReply());
     return true;
   }
 
@@ -394,6 +434,7 @@ export async function handleInboundCommandDispatch(
     }
 
     if (parsedLearnCommand.scope === "list") {
+      const listPolicy = resolveLearnedRulePolicy(params.dingtalkConfig);
       const rules = listScopedLearningRules({
         storePath: params.accountStorePath,
         accountId: params.accountId,
@@ -401,7 +442,12 @@ export async function handleInboundCommandDispatch(
         .slice(0, 20)
         .map((rule) => {
           const scope = rule.scope === "target" ? `target(${rule.targetId})` : "global";
-          const status = rule.enabled ? "enabled" : "disabled";
+          // Report the effective state rather than the stored switch: a rule can be
+          // enabled yet skipped by the master switch, the TTL window or the
+          // account-wide opt-in.
+          const status = formatLearnedRuleStatus(
+            resolveLearnedRuleState(rule, rule.scope, listPolicy),
+          );
           return `- [${scope}] ${rule.ruleId} (${status}) => ${rule.instruction}`;
         });
       const targetSets = listLearningTargetSets({
@@ -455,14 +501,21 @@ export async function handleInboundCommandDispatch(
     text: params.extractedText,
     messageType: params.messageType,
   };
+  const learningPolicy = resolveLearnedRulePolicy(params.dingtalkConfig);
   const manualForcedReply = resolveManualForcedReply({
     storePath: params.accountStorePath,
     accountId: params.accountId,
     targetId: params.data.conversationId,
     content: forcedContent,
+    policy: learningPolicy,
   });
   if (manualForcedReply) {
-    await params.sendReply(manualForcedReply);
+    // A forced reply bypasses the model entirely, so it is logged with the rule
+    // that produced it instead of being applied silently.
+    params.log?.info?.(
+      `[DingTalk][Learning][ForcedReply] ruleId=${manualForcedReply.ruleId} scope=${manualForcedReply.scope} target=${manualForcedReply.targetId ?? "-"}`,
+    );
+    await params.sendReply(manualForcedReply.reply);
     return true;
   }
 

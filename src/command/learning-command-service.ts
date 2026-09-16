@@ -1,5 +1,6 @@
 import { normalizeAllowFrom, isSenderOwner } from "../platform/access-control";
 import type { DingTalkConfig } from "../platform/types";
+import type { LearnedRuleEffectiveState } from "./feedback-learning-service";
 
 export interface ParsedLearnCommand {
   scope:
@@ -205,6 +206,51 @@ export function formatOwnerStatusReply(params: {
 
 export function formatOwnerOnlyDeniedReply(): string {
   return "这条学习/控制命令仅允许 owner 使用。先发送“我是谁”确认你的 senderId，再由宿主将该 senderId 加入 commands.ownerAllowFrom。";
+}
+
+export function formatLearningDisabledReply(): string {
+  return [
+    "反馈学习未启用（channels.dingtalk.learningEnabled 为 false），已拒绝写入或修改学习规则，也不会命中已存的规则。",
+    "",
+    "启用方式：在 channels.dingtalk 下设置 `learningEnabled: true` 后重新发送本命令。",
+    "未启用时仍可使用只读与清理命令：/learn list、/learn disable <ruleId>、/learn delete <ruleId>。",
+  ].join("\n");
+}
+
+export function formatManualGlobalRuleDisabledReply(): string {
+  return [
+    "account 级学习规则当前未启用（channels.dingtalk.learningAllowManualGlobalRules 为 false），已拒绝写入。",
+    "",
+    "启用方式：在 channels.dingtalk 下设置 `learningAllowManualGlobalRules: true` 后重新发送本命令。",
+    "",
+    "如果只是想让多个会话生效，不必打开该开关：",
+    "- /learn here #@# <规则>：当前会话",
+    "- /learn target <conversationId> #@# <规则>：单个指定会话",
+    "- /learn targets <id1,id2> #@# <规则>：显式列出的多个会话",
+    "- /learn target-set apply <名称> #@# <规则>：已保存的目标组",
+  ].join("\n");
+}
+
+/**
+ * Render a stored rule's effective state for `/learn list`. Kept next to the
+ * other reply formatters so the wording stays in one place.
+ */
+export function formatLearnedRuleStatus(state: LearnedRuleEffectiveState): string {
+  if (state.applied) {
+    return "enabled";
+  }
+  switch (state.reason) {
+    case "disabled":
+      return "disabled";
+    case "learning-disabled":
+      return "enabled, not applied (learning disabled)";
+    case "expired":
+      return "enabled, not applied (expired)";
+    case "global-rules-disabled":
+      return "enabled, not applied (global rules disabled)";
+    default:
+      return "enabled, not applied";
+  }
 }
 
 export function formatLearnCommandHelp(): string {
