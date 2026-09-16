@@ -3,7 +3,12 @@ import type { OpenClawPluginApi, OpenClawPluginToolContext } from "openclaw/plug
 import { handleDingTalkMessage } from "../gateway/inbound-handler";
 import { getAccessToken } from "../platform/auth";
 import { resolveRobotCode } from "../platform/config";
-import type { DingTalkConfig, DingTalkInboundMessage, Logger } from "../platform/types";
+import type {
+  DingTalkConfig,
+  DingTalkInboundMessage,
+  DingTalkQuestionCollectionResult,
+  Logger,
+} from "../platform/types";
 import axios from "../shared/http-client";
 import {
   formatDingTalkErrorPayloadLog,
@@ -15,6 +20,11 @@ import {
   resolveDingTalkQuestionToolContext,
   type DingTalkQuestionContext,
 } from "./ask-user-question-context";
+import {
+  buildCollectionResult,
+  formatCollectionResult,
+  QUESTION_COLLECTION_PROMPT,
+} from "./ask-user-question-result";
 import {
   activateAskUserQuestion,
   claimAskUserQuestion,
@@ -28,7 +38,6 @@ import {
   type AskUserTerminalReason,
 } from "./ask-user-question-store";
 import {
-  buildCollectionMessage,
   parseQuestionTarget,
   questionTargetSchema,
   resolveQuestionRespondent,
@@ -497,9 +506,10 @@ function storePendingQuestion(
       });
       dispatchSyntheticAnswer({
         ctx,
-        text: ctx.collection
-          ? buildCollectionMessage(ctx.collection, ctx.questionId, ctx.title, "expired")
-          : buildExpiredAnswerMessage(ctx),
+        text: ctx.collection ? QUESTION_COLLECTION_PROMPT : buildExpiredAnswerMessage(ctx),
+        collectionResult: ctx.collection
+          ? buildCollectionResult(ctx.collection, ctx.questionId, ctx.title, "expired")
+          : undefined,
         suffix: "expired",
         successReason: "expired",
         log: ctx.log,
@@ -844,6 +854,7 @@ async function injectAnswerSyntheticMessage(
   ctx: PendingQuestion,
   text: string,
   suffix: string,
+  collectionResult?: DingTalkQuestionCollectionResult,
 ): Promise<void> {
   const syntheticData: DingTalkInboundMessage = {
     // Keep this origin-derived synthetic id stable and unique. If inbound
@@ -874,6 +885,7 @@ async function injectAnswerSyntheticMessage(
     log: ctx.log,
     dingtalkConfig: ctx.dingtalkConfig,
     inboundOrigin: "ask-user",
+    questionCollectionResult: collectionResult,
     routeOverride: ctx.resolvedRoute,
     subAgentOptions: ctx.continuationSubAgentOptions,
   });
@@ -906,12 +918,13 @@ function claimPendingQuestionForDispatch(
 function dispatchSyntheticAnswer(params: {
   ctx: PendingQuestion;
   text: string;
+  collectionResult?: DingTalkQuestionCollectionResult;
   suffix: string;
   successReason: "submitted" | "cancelled" | "empty" | "expired";
   log?: Logger;
 }): void {
   const storeOptions = getAskUserStoreOptions(params.ctx);
-  void injectAnswerSyntheticMessage(params.ctx, params.text, params.suffix)
+  void injectAnswerSyntheticMessage(params.ctx, params.text, params.suffix, params.collectionResult)
     .then(() => {
       if (storeOptions) {
         terminateAskUserQuestion(storeOptions, params.ctx.questionId, params.successReason);
@@ -979,7 +992,8 @@ async function handleCollectionResponse(
   });
   dispatchSyntheticAnswer({
     ctx,
-    text: buildCollectionMessage(collection, ctx.questionId, ctx.title, "submitted"),
+    text: QUESTION_COLLECTION_PROMPT,
+    collectionResult: buildCollectionResult(collection, ctx.questionId, ctx.title, "submitted"),
     suffix: "submitted",
     successReason: "submitted",
     log: ctx.log,
@@ -1427,7 +1441,9 @@ async function manageQuestionCollections(
   return jsonToolResult({
     status: "cancelled",
     questionId: ctx.questionId,
-    result: buildCollectionMessage(ctx.collection!, ctx.questionId, ctx.title, "cancelled"),
+    result: formatCollectionResult(
+      buildCollectionResult(ctx.collection!, ctx.questionId, ctx.title, "cancelled"),
+    ),
   });
 }
 

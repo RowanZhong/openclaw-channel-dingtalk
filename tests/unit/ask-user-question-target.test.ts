@@ -114,7 +114,7 @@ async function submit(
 }
 
 function response() {
-  return JSON.parse(shared.inbound.mock.calls[0][0].data.text.content.split("\n")[1]);
+  return shared.inbound.mock.calls[0][0].questionCollectionResult;
 }
 
 function state(result: Result) {

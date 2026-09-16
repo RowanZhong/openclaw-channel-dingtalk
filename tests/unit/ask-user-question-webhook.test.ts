@@ -155,7 +155,7 @@ describe("targeted form webhook lifetime", () => {
     expect(shared.inbound.mock.calls[0][0].replySessionWebhookExpiresAt).toBe(
       context.data.sessionWebhookExpiredTime,
     );
-    expect(shared.inbound.mock.calls[0][0].data.text.content).toContain('"status":"expired"');
+    expect(shared.inbound.mock.calls[0][0].questionCollectionResult.status).toBe("expired");
   });
 
   it("uses proactive delivery when a targeted form has no known webhook expiry", async () => {

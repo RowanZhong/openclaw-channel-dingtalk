@@ -552,6 +552,19 @@ export interface ResolvedDingTalkRoute {
 /**
  * Message handler parameters
  */
+/** Third-party form data, never a user-authored command or routing input. */
+export interface DingTalkQuestionCollectionResult {
+  question_id: string;
+  question_title: string;
+  status: "submitted" | "expired" | "cancelled";
+  target: { type: "user" | "group"; id: string };
+  responses: Array<{
+    respondent_user_id: string;
+    status: "submitted" | "cancelled" | "empty" | "missing";
+    answers: Array<{ question: string; answer: string }>;
+  }>;
+}
+
 export interface HandleDingTalkMessageParams {
   cfg: OpenClawConfig;
   accountId: string;
@@ -563,6 +576,8 @@ export interface HandleDingTalkMessageParams {
   dingtalkConfig: DingTalkConfig;
   /** Distinguishes real Stream messages from Ask User callback reinjection. */
   inboundOrigin?: "stream" | "ask-user";
+  /** Internal ask-user continuation only; never read from a DingTalk wire payload. */
+  questionCollectionResult?: DingTalkQuestionCollectionResult;
   /**
    * Explicitly enables handler-owned queueing for a real gateway Stream
    * callback. Direct/synthetic callers must not be inferred from raw message

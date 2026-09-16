@@ -14,6 +14,10 @@ import {
   withDingTalkQuestionContext,
   withDingTalkQuestionToolRun,
 } from "../card/ask-user-question-context";
+import {
+  formatCollectionResult,
+  QUESTION_COLLECTION_PROMPT,
+} from "../card/ask-user-question-result";
 import { isCardRunStopRequested, registerCardRun, removeCardRun } from "../card/card-run-registry";
 import {
   createAICard,
@@ -623,6 +627,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     subAgentOptions,
     preDownloadedMedia,
   } = params;
+  const collectionResult =
+    inboundOrigin === "ask-user" ? params.questionCollectionResult : undefined;
   const replySession = {
     get sessionWebhook(): string {
       return resolveReplySessionWebhook(params.sessionWebhook, params.replySessionWebhookExpiresAt);
@@ -642,7 +648,9 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   }
 
   // Shallow copy: only .text is reassigned below; nested arrays (atMentions, mediaTypes) are read-only downstream.
-  const extractedContent = { ...extractMessageContent(data) };
+  const extractedContent: ReturnType<typeof extractMessageContent> = collectionResult
+    ? { text: QUESTION_COLLECTION_PROMPT, messageType: "text" }
+    : { ...extractMessageContent(data) };
   if (!extractedContent.text) {
     return;
   }
@@ -654,7 +662,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   // Add context hint for sub-agent content mode, stripping quoted prefix to avoid protocol noise
   // in agent context. Skipped for targeted slash commands (`commandText` set): the hint would
   // pollute RawBody, and the command never reaches the agent's LLM anyway.
-  if (subAgentOptions && !subAgentOptions.commandText) {
+  if (!collectionResult && subAgentOptions && !subAgentOptions.commandText) {
     const cleanText = extractedContent.text.replace(/^\[引用[^\]]*\]\s*/, "");
     const contextHint = `[你被 @ 为"${subAgentOptions.matchedName}"]\n\n`;
     extractedContent.text = contextHint + cleanText;
@@ -847,9 +855,10 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
 
   // Single routing decision for this message. Skipped for recursive sub-agent
   // calls, where routing is already fixed by subAgentOptions.
-  const messageTarget = subAgentOptions
-    ? null
-    : resolveMessageTarget({ extractedContent, cfg, isGroup });
+  const messageTarget =
+    collectionResult || subAgentOptions
+      ? null
+      : resolveMessageTarget({ extractedContent, cfg, isGroup });
 
   const invalidateQuestionRoutes = (routes: readonly ResolvedDingTalkRoute[]): void => {
     if (inboundOrigin === "ask-user") {
@@ -998,30 +1007,32 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   });
 
   const to = isDirect ? senderId : groupId;
-  const commandHandled = await handleInboundCommandDispatch({
-    cfg,
-    accountId,
-    dingtalkConfig,
-    senderId,
-    isDirect,
-    extractedText: subAgentOptions?.commandText ?? extractedContent.text,
-    messageType: extractedContent.messageType,
-    data: {
-      conversationId: data.conversationId,
-      senderId: data.senderId,
-      senderStaffId: data.senderStaffId,
-    },
-    accountStorePath,
-    currentSessionSourceKind,
-    currentSessionSourceId,
-    peerIdOverride,
-    sessionPeer,
-    sendReply: async (text: string) => {
-      await sendBySession(dingtalkConfig, replySession.sessionWebhook, text, { log });
-    },
-    clearSessionPeerOverride,
-    setSessionPeerOverride,
-  });
+  const commandHandled =
+    !collectionResult &&
+    (await handleInboundCommandDispatch({
+      cfg,
+      accountId,
+      dingtalkConfig,
+      senderId,
+      isDirect,
+      extractedText: subAgentOptions?.commandText ?? extractedContent.text,
+      messageType: extractedContent.messageType,
+      data: {
+        conversationId: data.conversationId,
+        senderId: data.senderId,
+        senderStaffId: data.senderStaffId,
+      },
+      accountStorePath,
+      currentSessionSourceKind,
+      currentSessionSourceId,
+      peerIdOverride,
+      sessionPeer,
+      sendReply: async (text: string) => {
+        await sendBySession(dingtalkConfig, replySession.sessionWebhook, text, { log });
+      },
+      clearSessionPeerOverride,
+      setSessionPeerOverride,
+    }));
   if (commandHandled) {
     return;
   }
@@ -1045,8 +1056,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   // the result below keeps /stop out of the FIFO queue without calling the SDK
   // classifier a second time after attachment/OCR enrichment.
   const controlText = stripLeadingMentions(content.text).trim();
-  const isBtwBypass = isBtwRequestText(controlText);
-  const isAbortBypass = isAbortRequestText(controlText);
+  const isBtwBypass = !collectionResult && isBtwRequestText(controlText);
+  const isAbortBypass = !collectionResult && isAbortRequestText(controlText);
 
   // Queue only after all access checks and the trusted route.sessionKey above.
   // Gateway-level queueing uses only raw conversationId, which can both
@@ -1793,8 +1804,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     // Targeted slash commands (`@agent /new`) pass the @mention-stripped command
     // text as CommandBody so the framework command layer recognizes it, while
     // RawBody keeps the user's original input for audit/quote display.
-    const commandBody = subAgentOptions?.commandText ?? inboundText;
-    const learningEnabled = isLearningEnabled(dingtalkConfig);
+    const commandBody = collectionResult ? "" : (subAgentOptions?.commandText ?? inboundText);
+    const learningEnabled = !collectionResult && isLearningEnabled(dingtalkConfig);
     const learningContextBlock = buildLearningContextBlock({
       enabled: learningEnabled,
       storePath: accountStorePath,
@@ -1846,6 +1857,10 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
 
     const ctx = rt.channel.reply.finalizeInboundContext({
       Body: body,
+      // ChannelPromptContext alone is dropped by the host's queued/history paths.
+      // Keep the explicitly wrapped data in the model-only body; commands, quote
+      // previews and inbound message storage retain only the fixed task text.
+      ...(collectionResult ? { BodyForAgent: formatCollectionResult(collectionResult) } : {}),
       RawBody: inboundText,
       CommandBody: commandBody,
       QuotedRef: quotedRef,
@@ -1879,7 +1894,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       GroupMembers: groupMembers,
       GroupSystemPrompt: extraSystemPrompt,
       GroupChannel: isDirect ? undefined : route.sessionKey,
-      CommandAuthorized: commandAuthorized,
+      CommandAuthorized: !collectionResult && commandAuthorized,
+      ...(collectionResult ? { CommandInterpretationSuppressed: true } : {}),
       OriginatingChannel: "dingtalk",
       OriginatingTo: to,
     });

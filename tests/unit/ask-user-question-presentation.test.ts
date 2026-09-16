@@ -7,9 +7,9 @@ import {
   handleDingTalkAskUserCardCallback,
 } from "../../src/card/ask-user-question";
 import {
-  buildCollectionMessage,
   type QuestionCollection,
 } from "../../src/card/ask-user-question-target";
+import { buildCollectionResult } from "../../src/card/ask-user-question-result";
 import { handleDingTalkMessage } from "../../src/gateway/inbound-handler";
 vi.mock("../../src/platform/auth", () => ({ getAccessToken: vi.fn(async () => "test-token") }));
 vi.mock("../../src/card/card-callback-service", () => ({
@@ -63,8 +63,7 @@ async function collect(
     clickerUserId: "person",
   });
   expect(handleDingTalkMessage).toHaveBeenCalledOnce();
-  const text = vi.mocked(handleDingTalkMessage).mock.calls[0][0].data.text!.content;
-  return JSON.parse(text.split("\n")[1]);
+  return vi.mocked(handleDingTalkMessage).mock.calls[0][0].questionCollectionResult!;
 }
 
 const cases = [
@@ -148,9 +147,7 @@ describe("question summary presentation data integrity", () => {
       // Completion only applies once everyone has responded; a fourth cancellation completes this case.
       if (status === "submitted")
         collection.responses.set("D", { status: "cancelled", answers: [] });
-      const result = JSON.parse(
-        buildCollectionMessage(collection, "q", "午餐", status).split("\n")[1],
-      );
+      const result = buildCollectionResult(collection, "q", "午餐", status);
       expect(result.status).toBe(status);
       expect(result.responses.map((r: { status: string }) => r.status)).toEqual([
         "submitted",
