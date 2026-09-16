@@ -100,15 +100,15 @@
 
 ## 出站媒体主机读取边界 `mediaLocalRoots`
 
-发送本地媒体时，OpenClaw 宿主会把允许读取的沙箱目录通过 `mediaLocalRoots` 传给插件。插件按以下规则决定是否直接读取主机文件：
+发送本地媒体时，OpenClaw 宿主会把允许读取的沙箱目录通过 `mediaLocalRoots` 传给插件。插件按以下规则决定媒体如何被读取：
 
-- **配置了 `mediaLocalRoots`**：仅当媒体文件的真实路径（解析符号链接后）位于其中某个允许目录内时才直接读取主机文件；允许目录内、但指向目录外的符号链接不会被跟随。读取会在打开文件后再次校验边界，缩小「校验 → 打开」之间的符号链接替换窗口。
-- **路径在允许目录之外**：不直接读取主机文件，改由受控的 runtime media bridge 处理，并继续把 `mediaLocalRoots` 传给 bridge。
-- **未配置 `mediaLocalRoots`**：保持历史行为，先尝试直接读取主机文件，文件在主机上不存在时再回退到 runtime media bridge。
-- **插件自身生成的临时媒体**：远程 URL 下载和语音转码产生在系统临时目录下的文件由插件直接读取（读取后清理），不受 `mediaLocalRoots` 限制；这些路径不是调用方提供的路径。
-- **语音消息**：需要转码时先通过边界读取源文件字节，再写入插件自有临时文件交给 ffmpeg/ffprobe，因此越界的语音源不会被 ffmpeg 直接读取；bridge 无法提供时该次发送直接失败。
-- **空数组 `[]`**：表示不允许任何直接主机读取（全部走 runtime media bridge），与「未配置」不同。
-- **文件系统根 `/`**：作为允许根目录条目无效，会被忽略并回退到 runtime media bridge，避免授权整个主机文件系统。
+- **调用方提供的路径一律不直读**：无论是否配置 `mediaLocalRoots`，插件都不会自行打开调用方（含模型产出）给出的主机路径，而是把路径与授权 roots 一起交给 runtime media bridge，由宿主执行边界判定 —— 包括目录包含性、`workspace-<agent>` 的 sibling 隔离、硬链接与文件系统根拒绝等规则。插件不再复刻这套策略，避免随宿主演进产生分歧。
+- **`mediaLocalRoots` 的作用**：作为授权参数传递给 bridge。回复链路（AI 卡片图片、Markdown 本地图片、附件投递）会带上宿主导出的 agent-scoped roots（`getAgentScopedMediaLocalRoots(cfg, agentId)`），因此工作区内的媒体可以正常发送。
+- **未配置 `mediaLocalRoots`**：bridge 按宿主默认 roots 判定；`workspace-<agent>` 这类需要显式 scoped 授权的路径会被 `path-not-allowed` 拒绝。
+- **未配置与显式空数组 `[]` 语义不同**：未配置时 bridge 回落到宿主默认 roots（`localRoots ?? getDefaultLocalRootsCore()`）；显式传 `[]` 表示**不授权任何普通本地 root**，不会启用默认 roots，对普通本地路径比未配置更严格。
+- **插件自身生成的临时媒体**：远程 URL 下载、语音转码与 staging 产生的文件由插件直接读取（`O_NOFOLLOW`，读取后清理）；这些路径由插件产出，不受调用方控制。
+- **语音消息**：需要转码时先经 bridge 读取源文件字节，再写入插件自有临时文件交给 ffmpeg/ffprobe；`.ogg` / `.amr` 的时长探测同样先把源文件落到插件自有临时文件再调用 ffprobe。
+- **升级注意（行为变更）**：此前配置了 `mediaLocalRoots` 时，位于允许目录内的主机文件由插件直接读取；现在统一经 runtime media bridge 读取，并把同一份 roots 传给 bridge。若升级后出现本地媒体发送失败，请检查宿主是否为出站与回复链路提供了正确的 roots（尤其是 agent workspace 的 scoped 授权）。
 
 > `mediaLocalRoots` 由 OpenClaw 宿主提供，不是 `channels.dingtalk` 的配置项；如需调整允许范围，请在宿主侧的媒体访问配置中修改。
 
