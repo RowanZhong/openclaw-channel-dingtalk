@@ -174,7 +174,7 @@ ALLOW_SUSPICIOUS=1 node scripts/clawhub-beta-gate.mjs verdict.json
 - **只覆盖 ClawHub 产物**：`npm-publish.yml` 走 registry.npmjs.org，ClawHub 审计对它无效
 - **每次发版消耗一个版本号**：撤回不退号，审计版本号必须单调递增
 - **审计是概率性判定**：同一份代码重跑可能出现 `suspicious` 与 `clean` 漂移，因此 `stale` / `pending` 一律按失败处理
-- **当前基线是 `suspicious`**：ClawScan 认为插件默认开放 `gatewayCapabilities`（docs / proactiveSend）值得复核。P2 策略下需要显式 `allow_suspicious=true` 才能发版；要消除该告警，需要调整这些默认值或强制配置 `allowedSpaceIds` / `allowedTargets`
+- **已知驱动已逐项消除，但结论仍可能漂移**：v3.7.0 时期的基线是 `suspicious`，驱动为"默认开放 `gatewayCapabilities`（docs / proactiveSend）"与"学习回路可静默改写回复"。这两项已在 `v3.8.0` 收敛（能力面默认关闭、学习回路 kill switch + 规则 TTL + 账号级 opt-in），出站媒体边界与随包依赖告警也已在同一轮清掉；此后针对 `PR #621` 与 `PR #623` 终态的审计均返回 `clean`。但因判定具备概率性，重跑仍可能得到 `suspicious`——遇到时先读 `reasons` 判断是不是已知驱动，若不是则按软失败走显式 `allow_suspicious=true` 放行并记录复核结论，**不要**因为"上一轮是 clean"就跳过判定
 - **首次上线需要 canary**：先用一个低于当前 `latest` 的审计版本验证"审计包不影响 `latest` / `beta`，且可撤回可恢复"，再放开正常发版
 
 ## 前置要求
