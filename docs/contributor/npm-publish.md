@@ -23,7 +23,9 @@ ClawHub 自动执行内容（`.github/workflows/clawhub-publish.yml`，单一 `p
 - 从远端重新解析 tag 并用 `^{commit}` 剥离，确认工作树就是该 tag 指向的提交，再以该提交作为 `--source-commit`
 - 当 tag 版本为标准 semver 预发布格式（如 `v2.8.0-beta.0`）时，自动使用 `beta` tag 发布到 ClawHub
 - 运行 `type-check`、`lint`、`test`
-- 通过后自动执行 `clawhub package publish`
+- 通过后执行 `clawhub package publish --wait --wait-timeout 2400`，并断言返回的 `publicationStatus` 为 `published`
+  - `--wait` 不能省：ClawHub 接受发布时返回的是 `status=pending-publication`，不等终态就会在版本仍 `404` 时报绿；等待让退出码成为发布判定（`blocked` / `failed` / `expired` / 超时均为非 0）
+  - job 的 `timeout-minutes`（50）必须大于 `--wait-timeout`（2400s / 40min），否则等待会先被 job 超时掐死，等于白等
 
 > [!IMPORTANT]
 > **ClawHub 发布不再由安全审计门禁。** 安全审计已拆分为**手动触发**的独立 workflow

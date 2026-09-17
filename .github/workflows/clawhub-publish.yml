@@ -21,7 +21,9 @@ concurrency:
 jobs:
     publish:
         runs-on: ubuntu-latest
-        timeout-minutes: 30
+        # Above the 2400s `--wait-timeout` below: a shorter job timeout would kill
+        # the wait before the CLI can report a terminal publication state.
+        timeout-minutes: 50
         permissions:
             contents: read
 
@@ -139,11 +141,39 @@ jobs:
               run: |
                   set -euo pipefail
 
+                  # Without `--wait` the CLI returns as soon as ClawHub queues the
+                  # release (publicationStatus=pending), so the step would report
+                  # success while `GET /versions/<version>` still answers 404. The
+                  # wait makes the exit code the publication verdict: blocked,
+                  # failed, expired and timeout all come back non-zero.
                   clawhub package publish . \
                     --tags "${CLAWHUB_TAGS}" \
+                    --wait \
+                    --wait-timeout 2400 \
                     --source-repo "${GITHUB_REPOSITORY}" \
                     --source-commit "${RELEASE_COMMIT}" \
                     --source-ref "${SOURCE_REF}" \
                     --source-path "." \
-                    --json
-                  echo "ClawHub accepted the release for ${RELEASE_COMMIT}."
+                    --json | tee publish.json
+
+                  # The wait is the contract, but assert the terminal status it is
+                  # supposed to produce: if a future CLI drops the `--wait`
+                  # semantics this turns back into a fire-and-forget publish, and
+                  # that regression must fail here rather than ship a green run.
+                  node -e "
+                    const { readFileSync } = require('node:fs');
+                    const raw = readFileSync('publish.json', 'utf8');
+                    const start = raw.indexOf('{');
+                    const end = raw.lastIndexOf('}');
+                    if (start === -1 || end <= start) {
+                      console.error('::error::ClawHub publish produced no JSON result to verify.');
+                      process.exit(1);
+                    }
+                    const { publicationStatus } = JSON.parse(raw.slice(start, end + 1));
+                    if (publicationStatus !== 'published') {
+                      console.error('::error::ClawHub did not reach a published release (publicationStatus=' + JSON.stringify(publicationStatus ?? null) + ').');
+                      process.exit(1);
+                    }
+                    console.log('ClawHub publicationStatus: published');
+                  "
+                  echo "ClawHub published the release for ${RELEASE_COMMIT}."

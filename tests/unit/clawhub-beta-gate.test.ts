@@ -270,6 +270,21 @@ describe("clawhub publish workflow wiring", () => {
         expect(workflow).toContain('CLAWHUB_TAG="beta"');
     });
 
+    it("waits for a terminal publication state instead of trusting the queue", () => {
+        // ClawHub accepts a publish as `pending-publication`, so without the wait
+        // the step reports success while the version still resolves to 404.
+        expect(workflow).toContain("--wait");
+        expect(workflow).toContain("--wait-timeout 2400");
+        expect(workflow).toContain("publicationStatus");
+
+        // A job timeout at or below the wait timeout would kill the wait before
+        // the CLI could ever report a terminal state, silently undoing the fix.
+        const waitTimeoutSeconds = Number(/--wait-timeout (\d+)/.exec(workflow)?.[1] ?? 0);
+        const jobTimeoutMinutes = Number(/timeout-minutes:\s*(\d+)/.exec(workflow)?.[1] ?? 0);
+        expect(waitTimeoutSeconds).toBeGreaterThan(0);
+        expect(jobTimeoutMinutes * 60).toBeGreaterThan(waitTimeoutSeconds);
+    });
+
     it("keeps the pinned CLI on the publish path", () => {
         expect(workflow).not.toContain("clawhub@0.23.1");
         expect(workflow).toContain("clawhub@0.23.3");
