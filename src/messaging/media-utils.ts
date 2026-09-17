@@ -427,9 +427,24 @@ export async function getVoiceDurationMs(
   }
 
   if (ext === ".ogg" || ext === ".amr") {
-    const durationMs = await getDurationMsWithFfprobe(filePath, log);
-    if (durationMs > 0) {
-      return durationMs;
+    // ffprobe must never open a caller-controlled path directly, so stage the
+    // source through the boundary-aware reader first — the same rule the voice
+    // transcoding path follows.
+    const staged = await stageHostMediaForExternalTool({
+      mediaPath: filePath,
+      preReadBuffer: options?.preReadBuffer,
+      options,
+      log,
+    });
+    if (staged) {
+      try {
+        const durationMs = await getDurationMsWithFfprobe(staged.path, log);
+        if (durationMs > 0) {
+          return durationMs;
+        }
+      } finally {
+        await staged.cleanup();
+      }
     }
   }
 
@@ -846,112 +861,28 @@ const FILE_SIZE_LIMITS: Record<DingTalkMediaType, number> = {
 };
 
 /**
- * Returns true when `target` is `root` itself or a descendant of it.
- * Uses `path.relative` so sibling paths sharing a prefix (for example
- * `/allowed` vs `/allowed-evil`) are not treated as contained.
+ * Whether this module may read a host path itself.
+ *
+ * Only plugin-owned temp media qualifies: remote downloads, voice transcodes and
+ * staged copies are produced here and are not caller-controlled. Every
+ * caller-supplied path — even one inside a configured root — goes to the runtime
+ * media bridge, which owns the boundary policy (root containment,
+ * sibling-workspace isolation, hardlink and filesystem-root rejection). Mirroring
+ * that policy here would drift from the host as it evolves, and a divergence is a
+ * security bug, not a performance detail.
  */
-function isPathWithinRoot(root: string, target: string): boolean {
-  const relative = path.relative(root, target);
-  return (
-    relative === "" ||
-    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
-  );
+function resolveDirectHostReadPath(mediaPath: string): string | undefined {
+  return isTrustedHostMediaPath(mediaPath) ? path.resolve(mediaPath) : undefined;
 }
 
 /**
- * Resolve a path for boundary comparison while tolerating paths that do not
- * exist yet on the host (sandbox/container paths). Mirrors the runtime media
- * bridge: prefer the fully resolved real path, fall back to resolving the
- * parent directory, and only then fall back to a plain path resolution.
+ * Read a plugin-owned temp file without following a final-component symlink, so a
+ * swapped symlink in a shared temp directory cannot redirect the read.
  */
-async function resolveCanonicalMediaPath(mediaPath: string): Promise<string> {
-  try {
-    return await fsPromises.realpath(mediaPath);
-  } catch {
-    try {
-      const parent = await fsPromises.realpath(path.dirname(mediaPath));
-      return path.join(parent, path.basename(mediaPath));
-    } catch {
-      return path.resolve(mediaPath);
-    }
-  }
-}
-
-/**
- * Canonicalize an allowed root, falling back to `path.resolve` when it is
- * absent. Filesystem roots are rejected: authorizing `/` would allow every host
- * path, so such an entry is treated as invalid (undefined).
- */
-async function resolveCanonicalRoot(root: string): Promise<string | undefined> {
-  const resolved = path.resolve(root);
-  if (resolved === path.parse(resolved).root) {
-    return undefined;
-  }
-  try {
-    const real = await fsPromises.realpath(resolved);
-    return real === path.parse(real).root ? undefined : real;
-  } catch {
-    return resolved;
-  }
-}
-
-/** A host path that passed the boundary check, plus roots to re-verify after open. */
-type AllowedHostRead = {
-  path: string;
-  /** Canonical roots re-checked after opening, when a boundary is configured. */
-  roots?: readonly string[];
-};
-
-/**
- * Resolve the host path a direct read may use, or undefined when the path falls
- * outside the configured roots and is not a plugin-owned temp file. With no
- * boundary configured the caller path is returned unchanged so the historical
- * direct-read behavior is preserved.
- */
-async function resolveAllowedHostReadPath(
-  mediaPath: string,
-  mediaLocalRoots?: string[],
-): Promise<AllowedHostRead | undefined> {
-  if (!mediaLocalRoots) {
-    return { path: mediaPath };
-  }
-  // Plugin-generated temp media (remote download / voice transcode) lives
-  // outside the roots but is not caller-controlled, so allow reading it.
-  if (isTrustedHostMediaPath(mediaPath)) {
-    return { path: path.resolve(mediaPath) };
-  }
-  // Compare canonical paths so a symlink inside an allowed root cannot redirect
-  // the read outside of it.
-  const [canonicalPath, canonicalRoots] = await Promise.all([
-    resolveCanonicalMediaPath(mediaPath),
-    Promise.all(mediaLocalRoots.map((root) => resolveCanonicalRoot(root))),
-  ]);
-  const usableRoots = canonicalRoots.filter((root): root is string => Boolean(root));
-  if (usableRoots.some((root) => isPathWithinRoot(root, canonicalPath))) {
-    return { path: canonicalPath, roots: usableRoots };
-  }
-  return undefined;
-}
-
-/**
- * Read a boundary-validated host file without following a final-component
- * symlink, then re-check containment while the handle is held. `O_NOFOLLOW`
- * alone leaves a check-to-open race on intermediate directories, so the path is
- * re-resolved against the frozen roots after opening.
- */
-async function readVerifiedHostFile(allowed: AllowedHostRead): Promise<Buffer> {
+async function readTrustedHostMediaFile(filePath: string): Promise<Buffer> {
   const noFollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
-  const handle = await fsPromises.open(allowed.path, fsConstants.O_RDONLY | noFollow);
+  const handle = await fsPromises.open(filePath, fsConstants.O_RDONLY | noFollow);
   try {
-    if (allowed.roots) {
-      const recheck = await fsPromises.realpath(allowed.path);
-      if (!allowed.roots.some((root) => isPathWithinRoot(root, recheck))) {
-        throw Object.assign(
-          new Error(`Media path escaped the allowed roots during read: ${allowed.path}`),
-          { code: "EACCES" },
-        );
-      }
-    }
     return await handle.readFile();
   } finally {
     await handle.close().catch(() => {});
@@ -959,32 +890,69 @@ async function readVerifiedHostFile(allowed: AllowedHostRead): Promise<Buffer> {
 }
 
 /**
- * Read a media file, resolving sandbox/container paths via the runtime bridge
- * when direct host filesystem access fails.
+ * Copy boundary-validated media into a plugin-owned temp file so external tools
+ * (ffmpeg / ffprobe) never open a caller-controlled path directly. Returns
+ * undefined when the boundary refuses the source.
+ */
+async function stageHostMediaForExternalTool(params: {
+  mediaPath: string;
+  preReadBuffer?: Buffer;
+  options?: { mediaLocalRoots?: string[] };
+  log?: Logger;
+}): Promise<{ path: string; cleanup: () => Promise<void> } | undefined> {
+  let buffer = params.preReadBuffer;
+  if (!buffer) {
+    try {
+      ({ buffer } = await readMediaBuffer(params.mediaPath, params.options, params.log));
+    } catch {
+      return undefined;
+    }
+  }
+  const stagedPath = path.join(
+    os.tmpdir(),
+    `dingtalk_media_stage_${randomUUID()}${path.extname(params.mediaPath).toLowerCase()}`,
+  );
+  try {
+    await fsPromises.writeFile(stagedPath, buffer);
+  } catch (err: unknown) {
+    // A staging failure must not fail the whole send: callers fall back to their
+    // own default instead (e.g. the default voice duration).
+    params.log?.debug?.(
+      `[DingTalk] Failed to stage media for external tool: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    await fsPromises.rm(stagedPath, { force: true }).catch(() => {});
+    return undefined;
+  }
+  markTrustedHostMediaPath(stagedPath);
+  return {
+    path: stagedPath,
+    cleanup: async () => {
+      unmarkTrustedHostMediaPath(stagedPath);
+      await fsPromises.rm(stagedPath, { force: true }).catch(() => {});
+    },
+  };
+}
+
+/**
+ * Read a media file.
  *
  * Precedence:
- *   1. Direct host read (works for host-local paths inside the allowed roots)
- *   2. rt.media.loadWebMedia (resolves sandbox workspace paths via bridge)
- *
- * When `mediaLocalRoots` is configured, a direct host read is only allowed for
- * paths whose canonical (symlink-resolved) location lives inside one of those
- * roots, plus plugin-owned temp files. Everything else goes through the runtime
- * media bridge so the host boundary stays enforced.
+ *   1. Direct read, plugin-owned trusted temp media only (never a caller path)
+ *   2. rt.media.loadWebMedia for every caller-supplied path, with the authorized
+ *      `mediaLocalRoots` passed through so the host applies its own boundary
  */
 async function readMediaBuffer(
   mediaPath: string,
   options?: { mediaLocalRoots?: string[] },
   log?: Logger,
 ): Promise<{ buffer: Buffer; size: number }> {
-  // Direct host reads are allowed only when no boundary is configured, the path
-  // is a plugin-owned temp file, or it canonicalizes inside an allowed root.
-  const allowed = await resolveAllowedHostReadPath(mediaPath, options?.mediaLocalRoots);
+  // Only plugin-owned temp media is read directly; caller paths go to the bridge,
+  // which applies the host's own boundary with the roots we pass along.
+  const directPath = resolveDirectHostReadPath(mediaPath);
 
-  if (allowed) {
+  if (directPath) {
     try {
-      const buffer = options?.mediaLocalRoots
-        ? await readVerifiedHostFile(allowed)
-        : await fsPromises.readFile(allowed.path);
+      const buffer = await readTrustedHostMediaFile(directPath);
       return { buffer, size: buffer.length };
     } catch (err: unknown) {
       const errno = err as NodeJS.ErrnoException;
@@ -997,7 +965,7 @@ async function readMediaBuffer(
     }
   } else {
     log?.debug?.(
-      `[DingTalk] Media path is outside configured local roots, using runtime media bridge: ${mediaPath}`,
+      `[DingTalk] Media path is not plugin-owned, using runtime media bridge: ${mediaPath}`,
     );
   }
 

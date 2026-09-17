@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import * as path from "node:path";
 import { formatInboundEnvelope } from "openclaw/plugin-sdk/channel-inbound";
+import { getAgentScopedMediaLocalRoots } from "openclaw/plugin-sdk/media-local-roots";
 import { isAbortRequestText, isBtwRequestText } from "openclaw/plugin-sdk/reply-runtime";
 import { classifyAckReactionEmoji } from "../ack-reaction/ack-reaction-classifier";
 import { attachNativeAckReaction } from "../ack-reaction/ack-reaction-service";
@@ -560,7 +561,11 @@ export async function downloadMedia(
       responseType: "arraybuffer",
       timeout: INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS,
     });
-    const contentType = mediaResponse.headers["content-type"] || "application/octet-stream";
+    // Axios types header values as string | number | true | string[] | AxiosHeaders,
+    // so narrow it to the string the media API expects.
+    const contentType =
+      normalizeAxiosHeaderValue(mediaResponse.headers["content-type"]) ??
+      "application/octet-stream";
     const buffer = Buffer.from(mediaResponse.data as ArrayBuffer);
 
     const maxBytes =
@@ -598,6 +603,17 @@ export async function downloadMedia(
     }
     return null;
   }
+}
+
+/** Axios header values are not always strings; keep only a usable string. */
+function normalizeAxiosHeaderValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value.trim() || undefined;
+  }
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0].trim() || undefined;
+  }
+  return undefined;
 }
 
 export async function handleDingTalkMessage(params: HandleDingTalkMessageParams): Promise<void> {
@@ -987,6 +1003,10 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       peer: { kind: sessionPeer.kind, id: sessionPeer.peerId },
     });
   }
+  // Host-authorized media boundary for this agent. Reply media (card images,
+  // attachment delivery) has to carry it explicitly: the runtime media bridge
+  // rejects `workspace-<agentId>` paths unless the caller passes the scoped roots.
+  const replyMediaLocalRoots = [...getAgentScopedMediaLocalRoots(cfg, route.agentId)];
   const questionContext = getDingTalkQuestionContext();
   if (questionContext) {
     questionContext.resolvedRoute = route;
@@ -2255,6 +2275,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
               storePath: accountStorePath,
               conversationId: groupId,
               quotedRef: replyQuotedRef,
+              mediaLocalRoots: replyMediaLocalRoots,
             });
             if (!sendResult.ok) {
               throw new Error(sendResult.error || "Media reply send failed");
@@ -2271,6 +2292,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
                 storePath: accountStorePath,
                 conversationId: groupId,
                 quotedRef: replyQuotedRef,
+                mediaLocalRoots: replyMediaLocalRoots,
               },
             );
             if (!sendResult.ok) {
@@ -2411,6 +2433,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         groupId,
         log,
         replyQuotedRef,
+        mediaLocalRoots: replyMediaLocalRoots,
         deliverMedia: deliverMediaAttachments,
         isStopRequested: isCurrentCardStopRequested,
         inboundText: rawInboundText,
