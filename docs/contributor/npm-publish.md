@@ -18,26 +18,23 @@
 - 运行 `type-check`、`lint`、`test`
 - 通过后自动执行 `npm publish --access public`
 
-ClawHub 自动执行内容（同一个 workflow 内的两个 job）：
-- `audit` job（发版安全审计门禁）：
-  - 安装依赖、构建运行时产物、跑本地 Plugin Inspector 预检
-  - 用当前 `package.json` 版本生成一次性审计版本 `<version>-beta.<run_number>.<run_attempt>`
-  - 以 `audit` dist-tag 发布审计包，并用 `clawhub package publish --wait` 等待 ClawHub 安全审计到达终态
-  - 读取 `GET /api/v1/packages/{name}/versions/{version}/security`，按 P2 策略判定
-  - 下载审计报告并归档证据；发版模式下自动撤回审计版本
-- `publish` job（`needs: audit`）：
-  - 校验 tag 与 `package.json` 的 `version` 同步
-  - 当 tag 版本为标准 semver 预发布格式（如 `v2.8.0-beta.0`）时，自动使用 `beta` tag 发布到 ClawHub
-  - 运行 `type-check`、`lint`、`test`
-  - 通过后自动执行 `clawhub package publish`
+ClawHub 自动执行内容（`.github/workflows/clawhub-publish.yml`，单一 `publish` job）：
+- 校验 tag 与 `package.json` 的 `version` 同步
+- 从远端重新解析 tag 并用 `^{commit}` 剥离，确认工作树就是该 tag 指向的提交，再以该提交作为 `--source-commit`
+- 当 tag 版本为标准 semver 预发布格式（如 `v2.8.0-beta.0`）时，自动使用 `beta` tag 发布到 ClawHub
+- 运行 `type-check`、`lint`、`test`
+- 通过后自动执行 `clawhub package publish`
 
-审计 gate 未通过时，`publish` job 不会启动，发布被阻断。详见下方「ClawHub Beta 安全审计门禁」章节。
+> [!IMPORTANT]
+> **ClawHub 发布不再由安全审计门禁。** 安全审计已拆分为**手动触发**的独立 workflow
+> `.github/workflows/clawhub-audit.yml`，它只产出结论，不阻断 `clawhub-publish.yml`。
+> 需要审计结论时请在发版前手动跑一次，详见下方「ClawHub 安全审计（手动触发）」章节。
 
 说明：
 - 两条 workflow 都由同一个 tag push 触发
 - 两条 workflow 相互独立，不存在 job 级依赖
 - 任一发布渠道失败，不会阻止另一条 workflow 被 GitHub 触发
-- ClawHub workflow 还支持 `workflow_dispatch` 手动触发，并要求显式输入一个已有 tag
+- 两条 workflow 都支持 `workflow_dispatch` 手动触发；`clawhub-publish.yml` 要求显式输入一个已有 tag
 
 需要在 npm 与 GitHub 完成 Trusted publisher 绑定：
 1. 在 npm 包设置中配置 GitHub Actions Trusted publisher
@@ -50,11 +47,12 @@ ClawHub 自动发布额外要求：
 1. 配置仓库 Secret：`CLAWHUB_TOKEN`
 2. 该 token 需要具备目标 ClawHub publisher 的 package publish 权限
 3. 当前 ClawHub 发布逻辑位于独立 workflow：`.github/workflows/clawhub-publish.yml`
+4. 手动审计位于独立 workflow：`.github/workflows/clawhub-audit.yml`（同样使用 `CLAWHUB_TOKEN`）
 
 说明：
-- 本仓库在 workflow 内固定安装 `clawhub@0.23.3`
-- 该版本下限由审计门禁决定：`--wait` / `--wait-timeout` 与"可恢复的版本撤回"语义都在 `clawhub@0.23.2` 才加入；`0.23.1` 的 `package delete --version` 是**永久删除**且没有 `--wait`，不要降级
-- 上游官方 reusable workflow 仍在演进，本仓库继续使用独立 workflow，以便把审计门禁固定在发布链路里
+- 本仓库在两条 ClawHub workflow 内固定安装 `clawhub@0.23.3`
+- 该版本下限由审计流程决定：`--wait` / `--wait-timeout` 与"可恢复的版本撤回"语义都在 `clawhub@0.23.2` 才加入；`0.23.1` 的 `package delete --version` 是**永久删除**且没有 `--wait`，不要降级
+- 上游官方 reusable workflow 仍在演进，本仓库继续使用独立 workflow，以便把手动审计固定成一条可复现的独立链路
 
 推荐发布命令：
 
@@ -91,27 +89,44 @@ CI 行为：
 - 版本包含 `-beta.*` 时，自动执行 `npm publish --access public --tag beta`
 - 非预发布版本自动发布到 `latest`
 
-## ClawHub Beta 安全审计门禁
+## ClawHub 安全审计（手动触发）
 
 ClawHub 的安全审计（ClawScan）只在服务端、对**已提交的版本**运行，没有本地等效功能。
-为了在正式发版前拿到这份判定，`.github/workflows/clawhub-publish.yml` 的 `audit` job 会先发布一个
-一次性审计版本，等审计到达终态后再决定是否放行 `publish` job。
+拿到一次判定的唯一办法就是提交一个一次性版本，因此审计被拆成**手动触发**的独立入口：
+
+- `.github/workflows/clawhub-audit.yml` —— 远端仓库上的手动审计
+- `scripts/clawhub-audit-local.mjs` —— 本地工作树上的等价审计（含未提交改动）
+
+> [!IMPORTANT]
+> **审计不再阻断发布。** `.github/workflows/clawhub-publish.yml` 没有 `needs: audit`，也不读取任何审计状态，
+> 推 tag 就会发布。审计的退出码回答的是"这次审计干净吗"，而不是"能不能发版"。
+> 需要结论时请在发版前手动跑一次，并把结论作为发版评审的依据。
 
 ### 触发方式
 
 | 场景 | 触发 | 行为 |
 | --- | --- | --- |
-| 正式发版 | 推送 tag 或 `workflow_dispatch`（`audit_only=false`） | 审计通过后继续发布正式版本；审计版本**自动撤回** |
-| 手动审计 | `workflow_dispatch` + `audit_only=true`（`tag` 留空即审计当前分支 HEAD） | 只审计、**保留**审计版本，便于烟测 |
-| 放行 suspicious | `workflow_dispatch` 勾选 `allow_suspicious=true` | 让 `suspicious` 也能通过门禁（见下方 P2 策略） |
+| 审计远端 ref | `gh workflow run clawhub-audit.yml`（可选 `-f ref=<tag/branch/SHA>`，留空则审计发起该 run 的 ref） | 产出判定；审计版本**默认自动撤回** |
+| 保留审计版本 | 追加 `-f keep_audit_version=true` | 审计版本保留在 `audit` dist-tag 上，便于烟测，之后需手动撤回 |
+| 放行 suspicious | 追加 `-f allow_suspicious=true` | 让 `suspicious` 也能通过判定（见下方 P2 策略） |
+| 本地审计 | `node scripts/clawhub-audit-local.mjs` | 同上，直接审计当前工作树；`--keep` 保留审计版本，`--allow-suspicious` 放行 |
 
-> **tag push 不接受人工放行**：`allow_suspicious` 是 `workflow_dispatch` 的输入，tag push 无法提供，因此 tag 触发的发版在 `suspicious` 结论下会被**严格阻断**（这是有意为之：放行必须是一次显式、可追溯的 dispatch）。审计被阻断时 workflow 会打出提示，按提示改用：
->
-> ```bash
-> gh workflow run clawhub-publish.yml -f tag=v3.8.0 -f allow_suspicious=true
-> ```
->
-> 该 run 会记录触发者与输入值，构成放行的审计线索。
+`allow_suspicious` 与 `keep_audit_version` 都是 `workflow_dispatch` 的输入，run 记录会留下触发者与输入值，
+构成"人工放行"与"保留产物"的审计线索。
+
+发版前跑一次审计的推荐序列：
+
+```bash
+# 1. 审计准备发布的那个 ref（tag 还没推时先审计 main HEAD）
+gh workflow run clawhub-audit.yml --ref main -f ref=v3.8.0
+
+# 2. 查看结论（job summary 里有 scanStatus / reasons / ClawScan 原文）
+gh run list --workflow=clawhub-audit.yml --limit 1
+gh run view <run-id>
+
+# 3. 结论干净，或已复核并显式放行后，再推 tag 触发发布
+git push origin v3.8.0
+```
 
 ### 判定策略（P2）
 
@@ -123,9 +138,9 @@ curl -sS "https://clawhub.ai/api/v1/packages/%40soimy%2Fdingtalk/versions/<versi
 
 | 档位 | 条件 | 结果 |
 | --- | --- | --- |
-| 硬失败 | `blockedFromDownload=true`、`scanStatus=malicious`、`moderationState=quarantined/revoked`、`pending=true`、`stale=true`、`not-run`、未知 `scanStatus`、响应结构不合法 | 一律拦截（fail-closed） |
-| 软失败 | `scanStatus=suspicious` | 默认拦截；只有显式 `allow_suspicious=true` 才放行，并记为 `pass-with-override` |
-| 通过 | `scanStatus=clean` | 放行 |
+| 硬失败 | `blockedFromDownload=true`、`scanStatus=malicious`、`moderationState=quarantined/revoked`、`pending=true`、`stale=true`、`not-run`、未知 `scanStatus`、响应结构不合法 | 一律未通过（fail-closed） |
+| 软失败 | `scanStatus=suspicious` | 默认未通过；只有显式 `allow_suspicious=true` 才放行，并记为 `pass-with-override` |
+| 通过 | `scanStatus=clean` | 通过 |
 
 `clawhub package publish --wait` 的非 0 退出码（`blocked` / `failed` / `expired` / 超时）是第一道拦截；
 上面的接口判定是第二道，用来把"没被拦截"和"确实干净"区分开。
@@ -135,34 +150,45 @@ curl -sS "https://clawhub.ai/api/v1/packages/%40soimy%2Fdingtalk/versions/<versi
 - 版本号：`<package.json version>-beta.<run_number>.<run_attempt>`，只改写 runner 内的 `package.json`，**不会提交**
   - 必须改写文件而不是用 `--version`：code-plugin 走文件夹发布会内部 `npm pack`，CLI 会校验包内版本与发布版本一致，不一致直接失败
 - dist-tag：固定 `audit`
-  - **不使用 `latest`**：审计包绝不能成为用户的安装目标
+  - **不使用 `latest`**：审计包绝不能成为用户的安装目标；而且 `clawhub package delete --version` 只能撤回**非 latest** 版本，一旦打成 `latest` 就再也撤不掉
   - **不使用 `beta`**：避免审计包抢占或清空正式的 beta 通道
   - 撤回只影响 `audit` tag，`latest` / `beta` 不受影响
-- 撤回语义：`clawhub package delete <name> --version <v>` 是 withdraw，版本号**永久保留**、不能用不同内容重发，但可用 `clawhub package undelete` 恢复
+- **默认自动撤回**：审计结束（无论结论好坏）都会执行 `clawhub package delete <name> --version <v> --yes`，
+  并复查 `GET /versions/{v}` 返回 404 作为后置条件；撤回失败或复核不通过会让该次 run 失败
+- 撤回语义：这是 withdraw 而不是删除——版本号**永久保留**且不能用不同内容重发，但可用 `clawhub package undelete` 恢复
+- **`audit` dist-tag 本身删不掉**：`clawhub` CLI 没有 dist-tag 管理命令，撤回后该 tag 只会变成指向已撤回版本的悬空指针，不会留下任何可安装产物
 
 ### 获取审计结果
 
 一次运行会产出：
 
-- job summary：判定档位、`scanStatus`、`moderationState`、`reasons`、`securityAuditUrl`、ClawScan 结论原文
+- job summary：判定档位、`scanStatus`、`moderationState`、`reasons`、`securityAuditUrl`、ClawScan 结论原文，以及审计版本是保留还是已撤回
 - artifact `clawhub-audit-<version>`：`verdict.json`、`gate-result.json`、`publish.json`、`scan-report.zip`（保留 30 天）
 - ClawHub 审计页：`https://clawhub.ai/soimy/plugins/dingtalk/security-audit?version=<version>`
 
-手动审计会保留审计版本，可对本机做一次烟测：
+> 审计版本默认会被撤回，撤回后 `GET /versions/{version}` 返回 404。**长期留痕请以 artifact 里的
+> `verdict.json` 与 `scan-report.zip` 为准**，不要依赖审计页在撤回后仍可访问。
+
+需要真机烟测审计产物时，用 `keep_audit_version=true` 跑一次：
 
 ```bash
+gh workflow run clawhub-audit.yml -f ref=v3.8.0 -f keep_audit_version=true
+
 # 优先用具体版本号，避免依赖自定义 dist-tag 的解析行为
 openclaw plugins install clawhub:@soimy/dingtalk@<审计版本号>
+
+# 烟测完成后手动清理
+clawhub package delete @soimy/dingtalk --version <审计版本号> --yes
 ```
 
 ### 本地复现判定
 
 ```bash
-# 1. 拉取任意版本的审计结论
+# 1. 拉取任意已提交版本的审计结论
 curl -sS "https://clawhub.ai/api/v1/packages/%40soimy%2Fdingtalk/versions/3.7.0/security" -o verdict.json
 
-# 2. 按 P2 策略判定（退出码 0=放行，1=拦截）
-PACKAGE_NAME=@soimy/dingtalk BETA_VERSION=3.7.0-beta.1 AUDIT_MODE=manual \
+# 2. 按 P2 策略判定（退出码 0=通过，1=未通过）
+PACKAGE_NAME=@soimy/dingtalk BETA_VERSION=3.7.0 AUDIT_VERSION_RETENTION=withdrawn \
   node scripts/clawhub-beta-gate.mjs verdict.json
 
 # 3. 需要人工放行时
@@ -172,10 +198,11 @@ ALLOW_SUSPICIOUS=1 node scripts/clawhub-beta-gate.mjs verdict.json
 ### 已知边界
 
 - **只覆盖 ClawHub 产物**：`npm-publish.yml` 走 registry.npmjs.org，ClawHub 审计对它无效
-- **每次发版消耗一个版本号**：撤回不退号，审计版本号必须单调递增
-- **审计是概率性判定**：同一份代码重跑可能出现 `suspicious` 与 `clean` 漂移，因此 `stale` / `pending` 一律按失败处理
-- **已知驱动已逐项消除，但结论仍可能漂移**：v3.7.0 时期的基线是 `suspicious`，驱动为"默认开放 `gatewayCapabilities`（docs / proactiveSend）"与"学习回路可静默改写回复"。这两项已在 `v3.8.0` 收敛（能力面默认关闭、学习回路 kill switch + 规则 TTL + 账号级 opt-in），出站媒体边界与随包依赖告警也已在同一轮清掉；此后针对 `PR #621` 与 `PR #623` 终态的审计均返回 `clean`。但因判定具备概率性，重跑仍可能得到 `suspicious`——遇到时先读 `reasons` 判断是不是已知驱动，若不是则按软失败走显式 `allow_suspicious=true` 放行并记录复核结论，**不要**因为"上一轮是 clean"就跳过判定
-- **首次上线需要 canary**：先用一个低于当前 `latest` 的审计版本验证"审计包不影响 `latest` / `beta`，且可撤回可恢复"，再放开正常发版
+- **审计不再阻断发布**：`clawhub-publish.yml` 不消费审计结论。"发版前必须审计"是流程约定，不是 CI 强制
+- **每次审计消耗一个版本号**：撤回不退号，审计版本号必须单调递增
+- **审计是概率性判定**：同一份代码重跑可能出现 `suspicious` 与 `clean` 漂移，因此 `stale` / `pending` 一律按未通过处理
+- **已知驱动已逐项消除，但结论仍可能漂移**：v3.7.0 时期的基线是 `suspicious`，驱动为"默认开放 `gatewayCapabilities`（docs / proactiveSend）"与"学习回路可静默改写回复"。这两项已在 `v3.8.0` 收敛（能力面默认关闭、学习回路 kill switch + 规则 TTL + 账号级 opt-in），出站媒体边界与随包依赖告警也已在同一轮清掉；此后针对 `PR #621`、`PR #623` 终态以及 v3.8.0 发布树的审计均返回 `clean`。但因判定具备概率性，重跑仍可能得到 `suspicious`——遇到时先读 `reasons` 判断是不是已知驱动，若不是则按软失败走显式 `allow_suspicious=true` 放行并记录复核结论，**不要**因为"上一轮是 clean"就跳过判定
+- **首次上线需要 canary**：先用一个低于当前 `latest` 的审计版本验证"审计包不影响 `latest` / `beta`，且可撤回可恢复"，再放开正常使用
 
 ## 前置要求
 
@@ -282,7 +309,7 @@ openclaw plugins install -l .
 - [ ] 所有测试通过
 - [ ] `pnpm run type-check` 无错误
 - [ ] `pnpm run lint` 无错误
-- [ ] ClawHub beta 审计门禁通过（`audit` job 绿色；`suspicious` 需显式 `allow_suspicious=true` 并有复核结论）
+- [ ] 已手动跑过一次 ClawHub 安全审计（`gh workflow run clawhub-audit.yml`），结论为 `clean`，或 `suspicious` 已显式 `allow_suspicious=true` 放行并有复核结论（审计不阻断发布，但这是流程约定）
 - [ ] README.md 文档已更新
 - [ ] `docs/releases/` 已记录新版本变更
 - [ ] 版本号已更新（`npm version`）

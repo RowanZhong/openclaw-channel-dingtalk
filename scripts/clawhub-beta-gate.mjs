@@ -6,7 +6,7 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 // plugin runtime, so it is not available to a standalone gate script.
 
 /**
- * ClawHub beta 审计门禁判定（P2：suspicious 需人工放行）。
+ * ClawHub 安全审计的 P2 策略判定（`suspicious` 需人工放行）。
  *
  * 输入：`GET /api/v1/packages/{name}/versions/{version}/security` 的响应 JSON
  * （这个端点是公开、免鉴权、版本精确的安装信任面，OpenClaw 安装插件前读的就是它）。
@@ -14,13 +14,16 @@ import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
  * 输出：
  * - stdout / `GITHUB_STEP_SUMMARY`：人类可读的审计摘要
  * - `gate-result.json`：机器可读的判定结果，供 CI 归档
- * - 退出码：0 = 放行，1 = 拦截
+ * - 退出码：0 = 通过，1 = 未通过
  *
  * 判定分档：
  * - 硬失败（fail-closed）：blockedFromDownload / malicious / quarantined / revoked /
  *   pending / stale / not-run / 未知 scanStatus / 响应结构不合法
- * - 软失败（P2）：scanStatus = suspicious 时默认拦截，仅当 `ALLOW_SUSPICIOUS=1` 放行
+ * - 软失败（P2）：scanStatus = suspicious 时默认不通过，仅当 `ALLOW_SUSPICIOUS=1` 放行
  * - 通过：scanStatus = clean
+ *
+ * 审计本身是信息性的：它不再阻断 `.github/workflows/clawhub-publish.yml`。退出码回答的是
+ * "这次审计干净吗"，而不是"能不能发版"。
  */
 
 /** ClawHub `trust.scanStatus` 的完整取值集合，未知取值按 fail-closed 处理。 */
@@ -40,7 +43,10 @@ const isEnabled = (value) =>
       .toLowerCase(),
   );
 const allowSuspicious = isEnabled(process.env.ALLOW_SUSPICIOUS);
-const auditMode = process.env.AUDIT_MODE === "manual" ? "manual" : "release-gate";
+// Whether the throwaway audit version is left on ClawHub (`kept`) or withdrawn
+// once the verdict is recorded (`withdrawn`, the default). This is reporting
+// only: the gate decision never depends on it.
+const versionRetention = process.env.AUDIT_VERSION_RETENTION === "kept" ? "kept" : "withdrawn";
 const packageName = process.env.PACKAGE_NAME?.trim() || "unknown-package";
 const betaVersion = process.env.BETA_VERSION?.trim() || "unknown-version";
 const auditUrl = process.env.SECURITY_AUDIT_URL?.trim() || "";
@@ -160,7 +166,7 @@ const resolvedAuditUrl =
 const rows = [
   ["判定结果", decision],
   ["包", `${packageName}@${betaVersion}`],
-  ["运行模式", auditMode === "manual" ? "手动审计（保留 beta）" : "发版门禁（自动撤回 beta）"],
+  ["审计版本处置", versionRetention === "kept" ? "保留（可烟测，需手动撤回）" : "审计后自动撤回"],
   ["scanStatus", scanStatus ?? "(缺失)"],
   ["moderationState", moderationState ?? "null"],
   ["blockedFromDownload", String(trust.blockedFromDownload ?? "(缺失)")],
@@ -223,7 +229,7 @@ writeFileSync(
       decision,
       packageName,
       betaVersion,
-      auditMode,
+      versionRetention,
       allowSuspicious,
       scanStatus,
       moderationState,
@@ -248,7 +254,7 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 
 if (!ok) {
   console.error(
-    `[ClawHub beta gate] 拦截 ${packageName}@${betaVersion}：${hardFailures.length} 项硬失败/未放行的软失败`,
+    `[ClawHub beta gate] 未通过 ${packageName}@${betaVersion}：${hardFailures.length} 项硬失败/未放行的软失败`,
   );
   process.exitCode = 1;
 }

@@ -4,20 +4,21 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * 在**本地工作树**上手动跑一次 ClawHub beta 安全审计，并给出审计结论。
+ * 在**本地工作树**上手动跑一次 ClawHub 安全审计，并给出审计结论。
  *
- * 与 `.github/workflows/clawhub-publish.yml` 的 `audit` job 等价，区别是：
+ * 与 `.github/workflows/clawhub-audit.yml`（手动触发）等价，区别是：
  * - 直接审计当前工作树（包含未提交改动），不需要 push
  * - 使用本机 `clawhub` 登录态（`clawhub login`）
- * - 默认**保留**审计版本，便于 `openclaw plugins install clawhub:<pkg>@<version>` 烟测
+ * - 审计结束后默认**自动撤回**审计版本；需要 `openclaw plugins install clawhub:<pkg>@<version>`
+ *   烟测时改用 `--keep` 保留（之后请手动撤回）
  *
  * 用法：
  *   node scripts/clawhub-audit-local.mjs [options]
  *
  * 选项：
  *   --version <v>        指定审计版本号（默认 <package.json version>-beta.<timestamp>）
- *   --allow-suspicious   让 suspicious 也能通过门禁（P2 人工放行）
- *   --withdraw           审计结束后撤回审计版本（默认保留）
+ *   --allow-suspicious   让 suspicious 也能通过判定（P2 人工放行）
+ *   --keep               审计结束后保留审计版本（默认自动撤回，便于烟测时使用）
  *   --timeout <seconds>  --wait 等待安全审计的时限（默认 2400）
  *   --dry-run            只做本地打包预检，不上传、不产生版本
  *   --source-repo <r>    --source-repo 覆盖（默认从 git origin 推断）
@@ -59,7 +60,7 @@ function parseArgs(argv) {
     sourceRepo: "",
     timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
     version: "",
-    withdraw: false,
+    keep: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -68,9 +69,11 @@ function parseArgs(argv) {
       case "--allow-suspicious":
         options.allowSuspicious = true;
         break;
-      case "--withdraw":
-        options.withdraw = true;
+      case "--keep":
+        options.keep = true;
         break;
+      case "--withdraw":
+        throw new Error("--withdraw 已是默认行为，无需传入；如需保留审计版本请改用 --keep");
       case "--dry-run":
         options.dryRun = true;
         break;
@@ -106,15 +109,15 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`在本地工作树上跑一次 ClawHub beta 安全审计。
+  console.log(`在本地工作树上跑一次 ClawHub 安全审计。
 
 用法：
   node scripts/clawhub-audit-local.mjs [options]
 
 选项：
   --version <v>        指定审计版本号（默认 <package.json version>-beta.<timestamp>）
-  --allow-suspicious   让 suspicious 也能通过门禁（P2 人工放行）
-  --withdraw           审计结束后撤回审计版本（默认保留，便于烟测）
+  --allow-suspicious   让 suspicious 也能通过判定（P2 人工放行）
+  --keep               审计结束后保留审计版本（默认自动撤回，便于烟测时使用）
   --timeout <seconds>  --wait 等待安全审计的时限（默认 ${DEFAULT_TIMEOUT_SECONDS}）
   --dry-run            只做本地打包预检，不上传、不产生版本
   --source-repo <r>    --source-repo 覆盖（默认从 git origin 推断）
@@ -399,7 +402,7 @@ async function main() {
     log("按 P2 策略判定…");
     const evaluation = evaluateGate({
       ALLOW_SUSPICIOUS: options.allowSuspicious ? "1" : "0",
-      AUDIT_MODE: "manual",
+      AUDIT_VERSION_RETENTION: options.keep ? "kept" : "withdrawn",
       BETA_VERSION: auditVersion,
       PACKAGE_NAME: packageName,
     });
@@ -436,9 +439,12 @@ async function main() {
     log(
       `证据目录：.clawhub-audit/（publish.json / verdict.json / gate-result.json${download.status === 0 ? " / scan-report.zip" : ""}）`,
     );
-    log(`烟测：openclaw plugins install clawhub:${packageName}@${auditVersion}`);
-
-    if (options.withdraw) {
+    if (options.keep) {
+      log(`审计版本已保留（dist-tag: ${AUDIT_TAG}）。烟测：`);
+      log(`  openclaw plugins install clawhub:${packageName}@${auditVersion}`);
+      log("烟测完成后请手动撤回：");
+      log(`  clawhub package delete ${packageName} --version ${auditVersion} --yes`);
+    } else {
       log("撤回审计版本…");
       const withdraw = spawnSync(
         clawhub.bin,
@@ -458,14 +464,18 @@ async function main() {
         warn(
           `撤回失败：请手动执行 clawhub package delete ${packageName} --version ${auditVersion} --yes`,
         );
+        gateCode = gateCode === 0 ? 1 : gateCode;
       } else {
-        log(
-          `已撤回 ${packageName}@${auditVersion}（版本号保留，可用 clawhub package undelete 恢复）。`,
-        );
+        try {
+          await assertVersionUnused(packageName, auditVersion);
+          log(
+            `已撤回 ${packageName}@${auditVersion} 并确认不再可解析（版本号保留，可用 clawhub package undelete 恢复）。`,
+          );
+        } catch (error) {
+          warn(`撤回后校验失败：${error.message}`);
+          gateCode = gateCode === 0 ? 1 : gateCode;
+        }
       }
-    } else {
-      log("审计版本已保留（dist-tag: audit）。审计完成后可手动撤回：");
-      log(`  clawhub package delete ${packageName} --version ${auditVersion} --yes`);
     }
 
     return gateCode;

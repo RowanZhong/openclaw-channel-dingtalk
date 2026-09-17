@@ -1,10 +1,16 @@
 /**
- * Covers the ClawHub beta audit gate (`scripts/clawhub-beta-gate.mjs`).
+ * Covers the ClawHub security audit verdict policy
+ * (`scripts/clawhub-beta-gate.mjs`).
  *
- * The gate is the only thing standing between a ClawScan verdict and a public
- * release, so its failure modes matter more than its happy path: every unknown,
- * missing, or unfinished trust input must fail closed, and `suspicious` must only
- * pass when the operator explicitly opted in.
+ * The verdict is the only reading of a ClawScan result an operator gets, so its
+ * failure modes matter more than its happy path: every unknown, missing, or
+ * unfinished trust input must fail closed, and `suspicious` must only pass when
+ * the operator explicitly opted in.
+ *
+ * The audit is informational and no longer gates publishing, so the workflow
+ * wiring tests below also pin that separation: the publish workflow must not
+ * depend on the audit, and the audit workflow must be dispatch-only and clean up
+ * the throwaway version it publishes.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -14,7 +20,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(__dirname, "../..");
 const gateScript = resolve(repoRoot, "scripts/clawhub-beta-gate.mjs");
-const workflowPath = resolve(repoRoot, ".github/workflows/clawhub-publish.yml");
+const publishWorkflowPath = resolve(repoRoot, ".github/workflows/clawhub-publish.yml");
+const auditWorkflowPath = resolve(repoRoot, ".github/workflows/clawhub-audit.yml");
 
 const tempDirs: string[] = [];
 
@@ -72,7 +79,7 @@ function runGate(options: {
             ...process.env,
             PACKAGE_NAME: "@soimy/dingtalk",
             BETA_VERSION: "1.2.3-beta.7.1",
-            AUDIT_MODE: "release-gate",
+            AUDIT_VERSION_RETENTION: "withdrawn",
             ALLOW_SUSPICIOUS: "",
             GITHUB_STEP_SUMMARY: "",
             ...options.env,
@@ -181,19 +188,35 @@ describe("clawhub beta gate policy", () => {
     it("records the trust evidence for the CI artifact", () => {
         const run = runGate({
             verdict: buildVerdict({ scanStatus: "suspicious", reasons: ["scan:suspicious"] }),
-            env: { ALLOW_SUSPICIOUS: "1", AUDIT_MODE: "manual" },
+            env: { ALLOW_SUSPICIOUS: "1", AUDIT_VERSION_RETENTION: "kept" },
         });
 
         expect(run.result).toMatchObject({
             ok: true,
             packageName: "@soimy/dingtalk",
             betaVersion: "1.2.3-beta.7.1",
-            auditMode: "manual",
+            versionRetention: "kept",
             allowSuspicious: true,
             scanStatus: "suspicious",
             reasons: ["scan:suspicious"],
             securityAuditUrl: "https://clawhub.ai/soimy/plugins/dingtalk/security-audit?version=1.2.3",
         });
+    });
+
+    it("reports the audit version disposition without letting it steer the decision", () => {
+        const withdrawn = runGate({ verdict: buildVerdict({}) });
+        const kept = runGate({ verdict: buildVerdict({}), env: { AUDIT_VERSION_RETENTION: "kept" } });
+
+        expect(withdrawn.result?.versionRetention).toBe("withdrawn");
+        expect(kept.result?.versionRetention).toBe("kept");
+        expect(withdrawn.result?.decision).toBe("pass");
+        expect(kept.result?.decision).toBe("pass");
+    });
+
+    it("defaults to reporting a withdrawn audit version when the flag is unset", () => {
+        const run = runGate({ verdict: buildVerdict({}), env: { AUDIT_VERSION_RETENTION: "" } });
+
+        expect(run.result?.versionRetention).toBe("withdrawn");
     });
 
     it("prints the ClawScan overview for the operator", () => {
@@ -203,12 +226,71 @@ describe("clawhub beta gate policy", () => {
     });
 });
 
-describe("clawhub publish workflow wiring", () => {
-    const workflow = readFileSync(workflowPath, "utf8");
+/** The `on:` block, so trigger assertions cannot be satisfied by a step body. */
+function triggerBlock(workflow: string): string {
+    const start = workflow.indexOf("\non:");
+    expect(start).toBeGreaterThan(-1);
+    const end = workflow.indexOf("\njobs:");
+    expect(end).toBeGreaterThan(start);
+    return workflow.slice(start, end);
+}
 
-    it("gates the release job on the audit job", () => {
-        expect(workflow).toContain("needs: audit");
-        expect(workflow).toContain("if: ${{ inputs.audit_only != true }}");
+describe("clawhub publish workflow wiring", () => {
+    const workflow = readFileSync(publishWorkflowPath, "utf8");
+
+    it("no longer gates publishing on a ClawHub audit", () => {
+        // The audit is manual now: publishing must not depend on it, and no audit
+        // state may leak into the release path.
+        expect(workflow).not.toContain("needs: audit");
+        expect(workflow).not.toContain("audit_only");
+        expect(workflow).not.toContain("allow_suspicious");
+        expect(workflow).not.toContain("audited_commit");
+        expect(workflow).not.toContain("clawhub-beta-gate");
+        expect(workflow).not.toContain("--tags audit");
+        expect(workflow).not.toContain("clawhub package delete");
+    });
+
+    it("still triggers on tags and on an explicit dispatch with a tag", () => {
+        const triggers = triggerBlock(workflow);
+
+        expect(triggers).toContain("workflow_dispatch:");
+        expect(triggers).toContain("push:");
+        expect(triggers).toContain('description: Existing git tag to publish');
+    });
+
+    it("publishes the resolved tag commit rather than whatever the checkout holds", () => {
+        expect(workflow).toContain('git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"');
+        expect(workflow).toContain('git rev-parse "refs/tags/${TAG}^{commit}"');
+        expect(workflow).toContain('--source-commit "${RELEASE_COMMIT}"');
+    });
+
+    it("keeps the version sync check and the release dist-tags", () => {
+        expect(workflow).toContain('RAW_VERSION="${TAG#v}"');
+        expect(workflow).toContain('CLAWHUB_TAG="latest"');
+        expect(workflow).toContain('CLAWHUB_TAG="beta"');
+    });
+
+    it("keeps the pinned CLI on the publish path", () => {
+        expect(workflow).not.toContain("clawhub@0.23.1");
+        expect(workflow).toContain("clawhub@0.23.3");
+    });
+});
+
+describe("clawhub audit workflow wiring", () => {
+    const workflow = readFileSync(auditWorkflowPath, "utf8");
+
+    it("is manual-only", () => {
+        const triggers = triggerBlock(workflow);
+
+        expect(triggers).toContain("workflow_dispatch:");
+        expect(triggers).not.toContain("push:");
+    });
+
+    it("exposes the override and the retention switch as dispatch inputs", () => {
+        const triggers = triggerBlock(workflow);
+
+        expect(triggers).toContain("allow_suspicious:");
+        expect(triggers).toContain("keep_audit_version:");
     });
 
     it("publishes the audit build on a dedicated tag and waits for the verdict", () => {
@@ -217,26 +299,43 @@ describe("clawhub publish workflow wiring", () => {
         expect(workflow).toContain("--wait-timeout 2400");
     });
 
+    it("uses the public version-exact security endpoint as the verdict input", () => {
+        expect(workflow).toContain("/versions/${AUDIT_VERSION}/security");
+        expect(workflow).toContain("scripts/clawhub-beta-gate.mjs verdict.json");
+    });
+
     it("keeps a CLI version that supports --wait and restorable withdrawal", () => {
         expect(workflow).not.toContain("clawhub@0.23.1");
         expect(workflow).toContain("clawhub@0.23.3");
         expect(workflow).toContain("clawhub package delete");
     });
 
-    it("withdraws the audit build only for release publishes", () => {
+    it("withdraws the audit version by default and verifies it is gone", () => {
+        expect(workflow).toContain("Withdraw the audit build");
+        expect(workflow).toContain("!inputs.keep_audit_version");
         expect(workflow).toContain(
-            "if: ${{ always() && steps.release.outputs.beta_version != '' && steps.release.outputs.audit_only != 'true' }}",
+            "if: ${{ always() && steps.release.outputs.audit_version != '' && !inputs.keep_audit_version }}",
         );
+        // The post-condition is asserted, not assumed: a withdrawal that left the
+        // version resolvable must fail the run.
+        expect(workflow).toContain('if [[ "${STATUS_AFTER}" != "404" ]]');
     });
 
-    it("uses the public version-exact security endpoint as the gate input", () => {
-        expect(workflow).toContain("/versions/${AUDIT_VERSION}/security");
-        expect(workflow).toContain("scripts/clawhub-beta-gate.mjs verdict.json");
+    it("keeps the retained-version path visible when the switch is on", () => {
+        expect(workflow).toContain("openclaw plugins install clawhub:${AUDIT_PACKAGE}@${AUDIT_VERSION}");
+        expect(workflow).toContain("clean up later");
+    });
+
+    it("reports the disposition the gate script was told about", () => {
+        expect(workflow).toContain(
+            "AUDIT_VERSION_RETENTION: ${{ inputs.keep_audit_version && 'kept' || 'withdrawn' }}",
+        );
+        expect(workflow).toContain("ALLOW_SUSPICIOUS: ${{ inputs.allow_suspicious && '1' || '0' }}");
     });
 
     it("keeps third-party execution out of the credentialed window", () => {
-        // The audit job runs a pinned CLI and never a mutable `@latest` reference,
-        // and the offline validation happens before the publish token is loaded.
+        // A pinned CLI and never a mutable `@latest` reference, with the offline
+        // validation running before the publish token is loaded.
         expect(workflow).not.toContain("plugin-inspector@latest");
         expect(workflow).toContain("clawhub package validate .");
         expect(workflow.indexOf("Offline plugin validation")).toBeLessThan(
@@ -244,32 +343,11 @@ describe("clawhub publish workflow wiring", () => {
         );
     });
 
-    it("keeps tag releases strict and routes the override through dispatch", () => {
-        // A tag push cannot set `allow_suspicious`, so the workflow must tell the
-        // operator how to release deliberately instead of failing silently.
-        expect(workflow).toContain("Explain how to proceed when a tag release is blocked");
-        expect(workflow).toContain("gh workflow run clawhub-publish.yml");
-    });
-
-    it("binds the release job to the commit the audit job inspected", () => {
-        const publishSection = workflow.slice(workflow.indexOf("\n    publish:"));
-
-        expect(workflow).toContain("audited_commit: ${{ steps.release.outputs.audited_commit }}");
-        expect(publishSection).toContain("ref: ${{ needs.audit.outputs.audited_commit }}");
-        // The release checkout must not re-resolve the tag: a tag moved after the
-        // audit would otherwise publish a commit the gate never inspected.
-        expect(publishSection).not.toContain(
-            "ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}",
-        );
-        expect(publishSection).toContain('--source-commit "${AUDITED_COMMIT}"');
-    });
-
-    it("re-verifies the tag against the audited commit before publishing", () => {
-        const publishSection = workflow.slice(workflow.indexOf("\n    publish:"));
-
-        expect(publishSection).toContain("Verify the release ref still points at the audited commit");
-        expect(publishSection).toContain('git fetch --force origin "refs/tags/${TARGET_TAG}:refs/tags/${TARGET_TAG}"');
-        expect(publishSection).toContain('git rev-parse "refs/tags/${TARGET_TAG}^{commit}"');
-        expect(publishSection).toContain("re-run the audit before publishing");
+    it("archives the verdict evidence even when the audit fails", () => {
+        expect(workflow).toContain("Upload the audit evidence");
+        expect(workflow).toContain("if: ${{ always() }}");
+        for (const file of ["verdict.json", "gate-result.json", "publish.json", "scan-report.zip"]) {
+            expect(workflow).toContain(file);
+        }
     });
 });
