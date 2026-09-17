@@ -13,7 +13,12 @@ import {
 import {
   getDingTalkQuestionContext,
   withDingTalkQuestionContext,
+  withDingTalkQuestionToolRun,
 } from "../card/ask-user-question-context";
+import {
+  formatCollectionResult,
+  QUESTION_COLLECTION_PROMPT,
+} from "../card/ask-user-question-result";
 import { isCardRunStopRequested, registerCardRun, removeCardRun } from "../card/card-run-registry";
 import {
   createAICard,
@@ -54,6 +59,7 @@ import {
   createReplyQuotedRef,
   resolveQuotedRecord,
 } from "../messaging/quoted-ref";
+import { resolveReplySessionWebhook } from "../messaging/reply-session-webhook";
 import { createReplyStrategy } from "../messaging/reply-strategy";
 import type { DeliverPayload, ReplyStrategy } from "../messaging/reply-strategy-types";
 import { sendBySession, sendMessage, sendProactiveMedia } from "../messaging/send-service";
@@ -633,7 +639,6 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     cfg,
     accountId,
     data,
-    sessionWebhook,
     log,
     dingtalkConfig,
     inboundOrigin = "stream",
@@ -641,6 +646,13 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     subAgentOptions,
     preDownloadedMedia,
   } = params;
+  const collectionResult =
+    inboundOrigin === "ask-user" ? params.questionCollectionResult : undefined;
+  const replySession = {
+    get sessionWebhook(): string {
+      return resolveReplySessionWebhook(params.sessionWebhook, params.replySessionWebhookExpiresAt);
+    },
+  };
   const rt = getDingTalkRuntime();
 
   // Save logger globally so shared services can log consistently without threading log everywhere.
@@ -655,7 +667,9 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   }
 
   // Shallow copy: only .text is reassigned below; nested arrays (atMentions, mediaTypes) are read-only downstream.
-  const extractedContent = { ...extractMessageContent(data) };
+  const extractedContent: ReturnType<typeof extractMessageContent> = collectionResult
+    ? { text: QUESTION_COLLECTION_PROMPT, messageType: "text" }
+    : { ...extractMessageContent(data) };
   if (!extractedContent.text) {
     return;
   }
@@ -667,7 +681,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   // Add context hint for sub-agent content mode, stripping quoted prefix to avoid protocol noise
   // in agent context. Skipped for targeted slash commands (`commandText` set): the hint would
   // pollute RawBody, and the command never reaches the agent's LLM anyway.
-  if (subAgentOptions && !subAgentOptions.commandText) {
+  if (!collectionResult && subAgentOptions && !subAgentOptions.commandText) {
     const cleanText = extractedContent.text.replace(/^\[引用[^\]]*\]\s*/, "");
     const contextHint = `[你被 @ 为"${subAgentOptions.matchedName}"]\n\n`;
     extractedContent.text = contextHint + cleanText;
@@ -701,7 +715,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     try {
       await sendBySession(
         dingtalkConfig,
-        sessionWebhook,
+        replySession.sessionWebhook,
         "⚠️ 主动推送可能失败\n\n检测到该用户最近一次主动发送调用返回了权限或目标不可达错误。当前会话回复仍可正常使用，但定时/主动发送可能失败。\n\n建议：\n1) 在钉钉开放平台确认应用已申请并获得主动发送相关权限\n2) 确认目标用户属于当前企业并在应用可见范围内\n3) 使用相同账号进行一次主动发送验证并检查错误码详情",
         { log },
       );
@@ -735,7 +749,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         try {
           await sendBySession(
             dingtalkConfig,
-            sessionWebhook,
+            replySession.sessionWebhook,
             `⛔ 访问受限\n\n您的用户ID：\`${senderId}\`\n\n请联系管理员将此ID添加到允许列表中。`,
             { log },
           );
@@ -793,7 +807,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       );
 
       try {
-        await sendBySession(dingtalkConfig, sessionWebhook, denyMessage, {
+        await sendBySession(dingtalkConfig, replySession.sessionWebhook, denyMessage, {
           log,
           atUserId: senderId,
         });
@@ -860,9 +874,10 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
 
   // Single routing decision for this message. Skipped for recursive sub-agent
   // calls, where routing is already fixed by subAgentOptions.
-  const messageTarget = subAgentOptions
-    ? null
-    : resolveMessageTarget({ extractedContent, cfg, isGroup });
+  const messageTarget =
+    collectionResult || subAgentOptions
+      ? null
+      : resolveMessageTarget({ extractedContent, cfg, isGroup });
 
   const invalidateQuestionRoutes = (routes: readonly ResolvedDingTalkRoute[]): void => {
     if (inboundOrigin === "ask-user") {
@@ -914,7 +929,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         accountId,
         data,
         dingtalkConfig,
-        sessionWebhook,
+        sessionWebhook: replySession.sessionWebhook,
         extractedContent,
         sessionPeer,
         onRoutesResolved: (targets) =>
@@ -933,7 +948,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         isGroup,
         senderId,
         dingtalkConfig,
-        sessionWebhook,
+        sessionWebhook: replySession.sessionWebhook,
         log,
       });
     }
@@ -949,7 +964,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         accountId,
         data,
         dingtalkConfig,
-        sessionWebhook,
+        sessionWebhook: replySession.sessionWebhook,
         extractedContent,
         sessionPeer,
         onRoutesResolved: (targets) =>
@@ -1015,31 +1030,33 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   });
 
   const to = isDirect ? senderId : groupId;
-  const commandHandled = await handleInboundCommandDispatch({
-    cfg,
-    accountId,
-    dingtalkConfig,
-    senderId,
-    isDirect,
-    extractedText: subAgentOptions?.commandText ?? extractedContent.text,
-    messageType: extractedContent.messageType,
-    data: {
-      conversationId: data.conversationId,
-      senderId: data.senderId,
-      senderStaffId: data.senderStaffId,
-    },
-    accountStorePath,
-    log,
-    currentSessionSourceKind,
-    currentSessionSourceId,
-    peerIdOverride,
-    sessionPeer,
-    sendReply: async (text: string) => {
-      await sendBySession(dingtalkConfig, sessionWebhook, text, { log });
-    },
-    clearSessionPeerOverride,
-    setSessionPeerOverride,
-  });
+  const commandHandled =
+    !collectionResult &&
+    (await handleInboundCommandDispatch({
+      cfg,
+      accountId,
+      dingtalkConfig,
+      senderId,
+      isDirect,
+      extractedText: subAgentOptions?.commandText ?? extractedContent.text,
+      messageType: extractedContent.messageType,
+      data: {
+        conversationId: data.conversationId,
+        senderId: data.senderId,
+        senderStaffId: data.senderStaffId,
+      },
+      accountStorePath,
+      log,
+      currentSessionSourceKind,
+      currentSessionSourceId,
+      peerIdOverride,
+      sessionPeer,
+      sendReply: async (text: string) => {
+        await sendBySession(dingtalkConfig, replySession.sessionWebhook, text, { log });
+      },
+      clearSessionPeerOverride,
+      setSessionPeerOverride,
+    }));
   if (commandHandled) {
     return;
   }
@@ -1063,8 +1080,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
   // the result below keeps /stop out of the FIFO queue without calling the SDK
   // classifier a second time after attachment/OCR enrichment.
   const controlText = stripLeadingMentions(content.text).trim();
-  const isBtwBypass = isBtwRequestText(controlText);
-  const isAbortBypass = isAbortRequestText(controlText);
+  const isBtwBypass = !collectionResult && isBtwRequestText(controlText);
+  const isAbortBypass = !collectionResult && isAbortRequestText(controlText);
 
   // Queue only after all access checks and the trusted route.sessionKey above.
   // Gateway-level queueing uses only raw conversationId, which can both
@@ -1811,14 +1828,16 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
     // Targeted slash commands (`@agent /new`) pass the @mention-stripped command
     // text as CommandBody so the framework command layer recognizes it, while
     // RawBody keeps the user's original input for audit/quote display.
-    const commandBody = subAgentOptions?.commandText ?? inboundText;
-    const learningContextBlock = buildLearningContextBlock({
-      policy: resolveLearnedRulePolicy(dingtalkConfig),
-      storePath: accountStorePath,
-      accountId,
-      targetId: data.conversationId,
-      content,
-    });
+    const commandBody = collectionResult ? "" : (subAgentOptions?.commandText ?? inboundText);
+    const learningContextBlock = collectionResult
+      ? ""
+      : buildLearningContextBlock({
+          policy: resolveLearnedRulePolicy(dingtalkConfig),
+          storePath: accountStorePath,
+          accountId,
+          targetId: data.conversationId,
+          content,
+        });
     const envelopeOptions = rt.channel.reply.resolveEnvelopeFormatOptions(cfg);
     const previousTimestamp = rt.channel.session.readSessionUpdatedAt({
       storePath,
@@ -1863,6 +1882,10 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
 
     const ctx = rt.channel.reply.finalizeInboundContext({
       Body: body,
+      // ChannelPromptContext alone is dropped by the host's queued/history paths.
+      // Keep the explicitly wrapped data in the model-only body; commands, quote
+      // previews and inbound message storage retain only the fixed task text.
+      ...(collectionResult ? { BodyForAgent: formatCollectionResult(collectionResult) } : {}),
       RawBody: inboundText,
       CommandBody: commandBody,
       QuotedRef: quotedRef,
@@ -1896,7 +1919,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       GroupMembers: groupMembers,
       GroupSystemPrompt: extraSystemPrompt,
       GroupChannel: isDirect ? undefined : route.sessionKey,
-      CommandAuthorized: commandAuthorized,
+      CommandAuthorized: !collectionResult && commandAuthorized,
+      ...(collectionResult ? { CommandInterpretationSuppressed: true } : {}),
       OriginatingChannel: "dingtalk",
       OriginatingTo: to,
     });
@@ -1966,8 +1990,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
                 abortConfirmationText = payload.text;
               } else {
                 try {
-                  if (sessionWebhook) {
-                    await sendBySession(dingtalkConfig, sessionWebhook, payload.text, {
+                  if (replySession.sessionWebhook) {
+                    await sendBySession(dingtalkConfig, replySession.sessionWebhook, payload.text, {
                       log,
                       accountId,
                       storePath: accountStorePath,
@@ -2055,7 +2079,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
               }
               await deliverBtwReply({
                 config: dingtalkConfig,
-                sessionWebhook,
+                sessionWebhook: replySession.sessionWebhook,
                 conversationId: groupId,
                 to,
                 senderName: btwSenderName,
@@ -2241,9 +2265,9 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
             mediaPath: actualMediaPath,
             asVoice: options?.audioAsVoice === true,
           });
-          if (sessionWebhook) {
+          if (replySession.sessionWebhook) {
             const sendResult = await sendMessage(dingtalkConfig, to, "", {
-              sessionWebhook,
+              sessionWebhook: replySession.sessionWebhook,
               mediaPath: actualMediaPath,
               mediaType: outMediaType,
               log,
@@ -2391,7 +2415,9 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         card: currentAICard,
         useCardMode: replyMode === "card",
         to,
-        sessionWebhook,
+        get sessionWebhook() {
+          return replySession.sessionWebhook;
+        },
         senderId,
         isDirect,
         accountId,
@@ -2469,10 +2495,13 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         });
 
       try {
-        const dispatchResult = await withReplySessionConflictRetry(runDispatch, {
-          log,
-          sessionKey: route.sessionKey,
-        });
+        const dispatchResult = await withReplySessionConflictRetry(
+          () => withDingTalkQuestionToolRun(questionContext, runDispatch),
+          {
+            log,
+            sessionKey: route.sessionKey,
+          },
+        );
 
         const bufferedFinal =
           dispatchResult && typeof dispatchResult === "object" && "queuedFinal" in dispatchResult
@@ -2564,8 +2593,8 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
             }
           }
           try {
-            if (sessionWebhook) {
-              await sendBySession(dingtalkConfig, sessionWebhook, ackText, {
+            if (replySession.sessionWebhook) {
+              await sendBySession(dingtalkConfig, replySession.sessionWebhook, ackText, {
                 log,
                 accountId,
                 storePath: accountStorePath,
