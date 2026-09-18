@@ -25,6 +25,11 @@ import type {
 import { AICardStatus } from "../platform/types";
 import axios from "../shared/http-client";
 import {
+  splitCardBlocks,
+  splitMessageChunks,
+  CARD_BLOCK_CHUNK_LIMIT,
+} from "../shared/message-chunker";
+import {
   readNamespaceJson,
   resolveNamespacePath,
   writeNamespaceJsonAtomic,
@@ -697,13 +702,21 @@ export async function sendProactiveCardText(
   conversationId: string,
   content: string,
   log?: Logger,
+  options: { statusLine?: string } = {},
 ): Promise<{ ok: boolean; error?: string } & DingTalkTrackingMetadata> {
   try {
-    const card = await createAICard(config, conversationId, log, { persistPending: false });
+    const card = await createAICard(config, conversationId, log, {
+      persistPending: false,
+      statusLine: options.statusLine,
+    });
     if (!card) {
       return { ok: false, error: "Failed to create AI card" };
     }
-    const blockListJson = JSON.stringify([{ type: 0, markdown: content } satisfies CardBlock]);
+    // Split oversized answers into multiple blocks to avoid the DingTalk
+    // blank-card limit on a single markdown block (issue #615).
+    const blockListJson = JSON.stringify(
+      splitCardBlocks([{ type: 0, markdown: content } satisfies CardBlock]),
+    );
     await commitAICardBlocks(
       card,
       {
@@ -722,6 +735,51 @@ export async function sendProactiveCardText(
     log?.error?.(`[DingTalk][AICard] Proactive card send failed: ${err.message}`);
     return { ok: false, error: err.message };
   }
+}
+
+/**
+ * Fallback delivery that splits long text across multiple AI Cards, one card
+ * per chunk (issue #615). Used when a card's blockList commit fails or the
+ * card itself has failed — delivery keeps the card surface instead of
+ * degrading to plain markdown. Chunks are sent sequentially to preserve order.
+ * On partial failure, `unsentChunks` carries the chunks that never went out
+ * so callers can redeliver exactly the missing suffix.
+ */
+export async function sendSplitProactiveCards(
+  config: DingTalkConfig,
+  conversationId: string,
+  text: string,
+  log?: Logger,
+  options: { statusLine?: string } = {},
+): Promise<{
+  ok: boolean;
+  error?: string;
+  sent: number;
+  total: number;
+  unsentChunks?: string[];
+}> {
+  const chunks = splitMessageChunks(text, CARD_BLOCK_CHUNK_LIMIT);
+  for (const [idx, chunk] of chunks.entries()) {
+    // Page indicator is prepended to the original statusLine header (not a
+    // replacement) so rescue cards keep model/agent metadata; without a base
+    // statusLine the page marker stands alone (issue #615 review round 4).
+    const pagePrefix = chunks.length > 1 ? `page(${idx + 1}/${chunks.length})` : undefined;
+    const statusLine =
+      pagePrefix && options.statusLine?.trim()
+        ? `${pagePrefix} | ${options.statusLine.trim()}`
+        : (pagePrefix ?? options.statusLine?.trim());
+    const result = await sendProactiveCardText(config, conversationId, chunk, log, { statusLine });
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        sent: idx,
+        total: chunks.length,
+        unsentChunks: chunks.slice(idx),
+      };
+    }
+  }
+  return { ok: true, sent: chunks.length, total: chunks.length };
 }
 
 export async function recoverPendingCardsForAccount(

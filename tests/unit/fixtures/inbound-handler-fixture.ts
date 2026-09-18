@@ -24,8 +24,8 @@ export function createInboundHandlerMocks() {
     streamAICardContentMock: vi.fn(),
     clearAICardStreamingContentMock: vi.fn(),
     isCardInTerminalStateMock: vi.fn(),
+    sendSplitProactiveCardsMock: vi.fn(),
     formatContentForCardMock: vi.fn((s: string) => s),
-
     // Message handling mocks
     extractMessageContentMock: vi.fn(),
     downloadGroupFileMock: vi.fn(),
@@ -98,6 +98,7 @@ export function applyInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
     updateAICardBlockList: mocks.updateAICardBlockListMock,
     streamAICardContent: mocks.streamAICardContentMock,
     clearAICardStreamingContent: mocks.clearAICardStreamingContentMock,
+    sendSplitProactiveCards: mocks.sendSplitProactiveCardsMock,
   }));
 
   vi.mock("../../../src/gateway/session-lock", () => ({
@@ -235,13 +236,12 @@ export function resetInboundHandlerMocks(mocks: ReturnType<typeof createInboundH
   mocks.updateAICardBlockListMock.mockReset().mockResolvedValue(undefined);
   mocks.streamAICardContentMock.mockReset().mockResolvedValue(undefined);
   mocks.clearAICardStreamingContentMock.mockReset().mockResolvedValue(undefined);
+  mocks.sendSplitProactiveCardsMock.mockReset();
+  mocks.extractAttachmentTextMock.mockReset().mockResolvedValue(null);
+  mocks.isAbortRequestTextMock.mockReset().mockReturnValue(false);
 
   mocks.acquireSessionLockMock.mockReset();
   mocks.acquireSessionLockMock.mockResolvedValue(vi.fn());
-  mocks.extractAttachmentTextMock.mockReset();
-  mocks.extractAttachmentTextMock.mockResolvedValue(null);
-  mocks.isAbortRequestTextMock.mockReset();
-  mocks.isAbortRequestTextMock.mockReturnValue(false);
 
   mocks.getRuntimeMock.mockReturnValue(buildRuntime());
   mocks.extractMessageContentMock.mockReturnValue({ text: "hello", messageType: "text" });
