@@ -629,6 +629,7 @@ export async function handleDingTalkMessage(params: HandleDingTalkMessageParams)
       sessionWebhook: params.sessionWebhook,
       log: params.log,
       dingtalkConfig: params.dingtalkConfig,
+      isCollectionResult: Boolean(params.questionCollectionResult),
     },
     () => handleDingTalkMessageInner(params),
   );

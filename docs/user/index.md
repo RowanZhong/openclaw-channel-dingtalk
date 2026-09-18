@@ -1,3 +1,7 @@
+<script setup>
+import formGuideUrl from './dingtalk-form-guide.html?url'
+</script>
+
 # 用户文档
 
 这部分面向插件使用者，覆盖从接入到排障的主要路径。
@@ -31,11 +35,18 @@
 - [回复模式](features/reply-modes.md)
 - [AI 卡片](features/ai-card.md)
 - [表单互动卡片](features/form-interactive-card.md)
+- [定时自动收集](features/scheduled-form-collection.md)
 - [钉钉文档 API](features/dingtalk-docs-api.md)
 - [反馈学习](features/feedback-learning.md)
 - [/btw 旁路问答](features/btw.md)
 - [多 Agent 与多机器人绑定](features/multi-agent-bindings.md)
 - [@多助手路由](features/at-agent-routing.md)
+
+## 互动表单图解
+
+用信息图了解表单设计引导、六种投放场景、定时自动收集和企业实例。HTML 为单文件，下载后可离线打开。
+
+<a :href="formGuideUrl" target="_blank" rel="noopener noreferrer">打开 HTML 使用指南</a> · <a :href="formGuideUrl" download="dingtalk-form-guide.html">下载 HTML 文件</a>
 
 ## 参考
 

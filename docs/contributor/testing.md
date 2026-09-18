@@ -8,6 +8,12 @@
 pnpm test
 ```
 
+该命令同时运行表单 Skill 的 Python 标准库测试，需要本机可执行 `python3`。仅运行 Skill 脚本测试：
+
+```bash
+pnpm run test:form-skill
+```
+
 生成覆盖率：
 
 ```bash

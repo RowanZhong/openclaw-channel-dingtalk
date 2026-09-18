@@ -4,6 +4,7 @@ import { buildAgentSessionKey } from "openclaw/plugin-sdk/routing";
 import type {
   DingTalkConfig,
   DingTalkInboundMessage,
+  DingTalkQuestionCollectionResult,
   HandleDingTalkMessageParams,
   Logger,
   ResolvedDingTalkRoute,
@@ -19,8 +20,12 @@ export type DingTalkQuestionContext = {
   dingtalkConfig: DingTalkConfig;
   storePath?: string;
   questionScopeKey?: string;
+  /** Respondent answers are data, not authorization to create/manage schedules. */
+  isCollectionResult?: boolean;
   resolvedRoute?: ResolvedDingTalkRoute;
   continuationSubAgentOptions?: Omit<SubAgentOptions, "commandText">;
+  /** Scheduled collections deliver data directly; never re-enter as a user message. */
+  onCollectionResult?: (result: DingTalkQuestionCollectionResult) => Promise<void>;
   onQuestionCardSent?: (event: {
     questionId: string;
     outTrackId: string;

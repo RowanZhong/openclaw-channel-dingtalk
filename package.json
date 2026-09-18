@@ -56,8 +56,9 @@
     "monitor:stream": "node scripts/dingtalk-stream-monitor.mjs",
     "pack:check": "node scripts/verify-runtime-package.mjs",
     "prepack": "pnpm run build",
-    "test": "vitest run",
+    "test": "vitest run && pnpm run test:form-skill",
     "test:coverage": "vitest run --coverage",
+    "test:form-skill": "node scripts/test-form-skill.mjs",
     "type-check": "tsc -p tsconfig.json"
   },
   "dependencies": {

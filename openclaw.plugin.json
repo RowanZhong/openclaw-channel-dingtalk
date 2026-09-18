@@ -3,7 +3,7 @@
   "name": "DingTalk",
   "channels": ["dingtalk"],
   "contracts": {
-    "tools": ["dingtalk_ask_user_question"]
+    "tools": ["dingtalk_ask_user_question", "dingtalk_form_schedule"]
   },
   "configSchema": {
     "type": "object",

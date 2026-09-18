@@ -25,6 +25,7 @@ import {
   formatCollectionResult,
   QUESTION_COLLECTION_PROMPT,
 } from "./ask-user-question-result";
+import { AskUserQuestionSchema } from "./ask-user-question-schema";
 import {
   activateAskUserQuestion,
   claimAskUserQuestion,
@@ -39,7 +40,6 @@ import {
 } from "./ask-user-question-store";
 import {
   parseQuestionTarget,
-  questionTargetSchema,
   resolveQuestionRespondent,
   type QuestionCollection,
 } from "./ask-user-question-target";
@@ -528,6 +528,12 @@ function consumePendingQuestion(ctx: PendingQuestion): void {
   }
 }
 
+/** Internal scheduling probe: channel recovery can terminate cards without restarting the process. */
+export function hasActiveDingTalkCollection(questionId: string | undefined): boolean {
+  const ctx = questionId ? pendingQuestionsByQuestionId.get(questionId) : undefined;
+  return Boolean(ctx?.collection && !ctx.submitted && ctx.expiresAt && ctx.expiresAt > Date.now());
+}
+
 async function updateQuestionCard(
   ctx: PendingQuestion,
   variables: Record<string, unknown>,
@@ -856,6 +862,10 @@ async function injectAnswerSyntheticMessage(
   suffix: string,
   collectionResult?: DingTalkQuestionCollectionResult,
 ): Promise<void> {
+  if (ctx.onCollectionResult && collectionResult) {
+    await ctx.onCollectionResult(collectionResult);
+    return;
+  }
   const syntheticData: DingTalkInboundMessage = {
     // Keep this origin-derived synthetic id stable and unique. If inbound
     // dedup/self-filter/auth gates move here later, reinjected ask-user answers
@@ -1189,173 +1199,11 @@ export async function handleDingTalkAskUserCardCallback(params: {
   return { handled: true };
 }
 
-const AskUserQuestionSchema = {
-  type: "object",
-  additionalProperties: false,
-  anyOf: [
-    {
-      properties: { action: { enum: ["create"] } },
-      oneOf: [{ required: ["questions"] }, { required: ["fields"] }],
-    },
-    { properties: { action: { const: "list" } }, required: ["action"] },
-    { properties: { action: { const: "cancel" } }, required: ["action", "questionId"] },
-  ],
-
-  properties: {
-    action: {
-      type: "string",
-      enum: ["create", "list", "cancel"],
-      description:
-        "Default create. List your pending targeted collections or cancel one by questionId from its initiating conversation.",
-    },
-    questionId: {
-      type: "string",
-      minLength: 1,
-      description: "Required for cancel. Use an ID returned by create or list; never guess.",
-    },
-    timeoutMinutes: {
-      type: "integer",
-      minimum: 1,
-      maximum: 1440,
-      description:
-        "Targeted collections only: 1–1440 minutes, default 5. Ends early when all respondents reply. Restart terminates pending forms.",
-    },
-    target: questionTargetSchema,
-    title: {
-      type: "string",
-      description: "Card title. Used with fields; omit to use the first field label.",
-    },
-    description: {
-      type: "string",
-      description: "Short description shown above the form. Used with fields.",
-    },
-    questions: {
-      type: "array",
-      description:
-        "Lightweight blocking question DSL for simple confirmation, single-select, multi-select, or simple free-text prompts. Prefer exactly one question per card. " +
-        "Do not use questions for complex forms, multiple structured fields, date/time inputs, numeric inputs, boolean switches, or mixed input collection; use top-level fields for those cases. " +
-        "Do not use for explanations, status updates, capability introductions, or retrospective questions.",
-      minItems: 1,
-      maxItems: 6,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["question", "header", "options"],
-        properties: {
-          question: { type: "string", description: "The question to ask the user" },
-          header: { type: "string", description: "Short label for the question (max 12 chars)" },
-          options: {
-            type: "array",
-            maxItems: 20,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["label"],
-              properties: {
-                label: { type: "string", description: "Display text for this option" },
-                value: {
-                  type: "string",
-                  description:
-                    "Machine-readable value returned to the assistant; omit to use label",
-                },
-                description: {
-                  type: "string",
-                  description: "Explanation of what this option means",
-                },
-              },
-            },
-            description:
-              "Available choices. Leave empty ([]) for free-text input — the user will see a text field instead. " +
-              "Use two options for confirmation.",
-          },
-          multiSelect: {
-            type: "boolean",
-            description: "Whether multiple options can be selected (ignored when options is empty)",
-          },
-        },
-      },
-    },
-    fields: {
-      type: "array",
-      description:
-        "Advanced DingTalk form fields. Use top-level fields when collecting multiple inputs, " +
-        "when the user asks to fill a form, or when you would otherwise list required parameters in markdown. " +
-        "Use one fields card to collect all missing inputs for the current turn; do not split related fields into multiple cards. " +
-        "Do not answer with a markdown checklist when these fields are needed. The plugin will send " +
-        "these fields as the DingTalk card variable form, shaped as { fields }. Do not wrap fields inside form. " +
-        "For simple confirmation, single-select, or multi-select questions, prefer questions. Do not mix fields with questions. " +
-        "For choice fields (SELECT, MULTI_SELECT, CHECKBOX_GROUP, MULTI_CHECKBOX_GROUP), " +
-        "provide options as { value, text }. Use TEXT for single-line text, TEXT_AREA for " +
-        "multi-line text, NUMBER for numeric input, DATE/TIME/DATETIME for date or time inputs, " +
-        "and CHECKBOX or SWITCH for boolean inputs.",
-      minItems: 1,
-      maxItems: 20,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["name", "label", "type"],
-        properties: {
-          name: { type: "string", description: "Unique form field key" },
-          label: {
-            type: "string",
-            description:
-              "Human-readable field label in the user's language, also used in result summaries. Prefer a meaningful label over an internal field name (for example, 测试代号 instead of code).",
-          },
-          type: {
-            type: "string",
-            enum: [
-              "TEXT",
-              "TEXT_ARRAY",
-              "TEXT_AREA",
-              "NUMBER",
-              "SELECT",
-              "MULTI_SELECT",
-              "DATE",
-              "TIME",
-              "DATETIME",
-              "CHECKBOX",
-              "SWITCH",
-              "CHECKBOX_GROUP",
-              "MULTI_CHECKBOX_GROUP",
-            ],
-            description: "DingTalk form field type",
-          },
-          hidden: { type: "boolean" },
-          required: { type: "boolean" },
-          requiredMsg: { type: "string" },
-          readOnly: { type: "boolean" },
-          placeholder: { type: "string" },
-          defaultValue: {},
-          defautValue: {
-            description:
-              "Compatibility alias for DingTalk form protocol documentation typo; prefer defaultValue when possible.",
-          },
-          options: {
-            type: "array",
-            description:
-              "Required for SELECT, MULTI_SELECT, CHECKBOX_GROUP, and MULTI_CHECKBOX_GROUP. Each option must be { value, text }.",
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["value", "text"],
-              properties: {
-                value: { type: "string" },
-                text: { type: "string" },
-              },
-            },
-          },
-          minRows: { type: "number" },
-          maxRows: { type: "number" },
-          addText: { type: "string" },
-        },
-      },
-    },
-  },
-} as const;
-
-export function getAskUserQuestionSchemaForTest(): typeof AskUserQuestionSchema {
+export function getAskUserQuestionSchema(): typeof AskUserQuestionSchema {
   return AskUserQuestionSchema;
 }
+
+export const getAskUserQuestionSchemaForTest = getAskUserQuestionSchema;
 
 export function registerPendingQuestionForTest(
   ctx: Omit<PendingQuestion, "ttlTimer" | "submitted"> & { submitted?: boolean },
@@ -1438,12 +1286,229 @@ async function manageQuestionCollections(
     question_desc: "发起人已取消本次收集。",
     form_btn_text: "已取消",
   });
+  if (ctx.onCollectionResult) {
+    try {
+      await ctx.onCollectionResult(
+        buildCollectionResult(ctx.collection!, ctx.questionId, ctx.title, "cancelled"),
+      );
+    } catch (error) {
+      ctx.log?.error?.(
+        `[DingTalk][AskUser] Scheduled cancellation summary failed: ${String(error)}`,
+      );
+      return jsonToolResult({
+        status: "cancelled",
+        questionId: ctx.questionId,
+        resultDeliveryError: true,
+        message:
+          "Collection cancelled, but its summary could not be delivered. Do not retry cancellation or recreate the form.",
+      });
+    }
+    return jsonToolResult({
+      status: "cancelled",
+      questionId: ctx.questionId,
+      message:
+        "Scheduled collection cancelled; partial results delivered to its original conversation.",
+    });
+  }
   return jsonToolResult({
     status: "cancelled",
     questionId: ctx.questionId,
     result: formatCollectionResult(
       buildCollectionResult(ctx.collection!, ctx.questionId, ctx.title, "cancelled"),
     ),
+  });
+}
+
+/** Trusted internal entry: callers must bind and authorize the origin before calling. */
+export async function executeDingTalkQuestion(context: DingTalkQuestionContext, params: unknown) {
+  const templateId = DINGTALK_ASK_USER_CARD_TEMPLATE.templateId;
+
+  const record = asRecord(params) ?? {};
+  const action = record.action ?? "create";
+  if (action === "list" || action === "cancel") {
+    return manageQuestionCollections(context, action, record.questionId);
+  }
+  if (action !== "create") {
+    return jsonToolResult({ status: "failed", error: "Unknown action" });
+  }
+  let target;
+  let timeoutMinutes = 5;
+  try {
+    target = parseQuestionTarget(record.target);
+    if (record.timeoutMinutes !== undefined) {
+      if (
+        !target ||
+        !Number.isInteger(record.timeoutMinutes) ||
+        Number(record.timeoutMinutes) < 1 ||
+        Number(record.timeoutMinutes) > 1440
+      ) {
+        throw new Error("timeoutMinutes requires target and must be an integer from 1 to 1440");
+      }
+      timeoutMinutes = Number(record.timeoutMinutes);
+    }
+  } catch (err) {
+    return jsonToolResult({ status: "failed", error: String(err) });
+  }
+  const rawFields = Array.isArray(record.fields) ? (record.fields as FormField[]) : [];
+  const rawQuestions = Array.isArray(record.questions)
+    ? (record.questions as AskUserQuestion[])
+    : [];
+  if (rawFields.length === 0 && rawQuestions.length === 0) {
+    return jsonToolResult({
+      status: "failed",
+      error: "questions or fields must contain at least one item",
+    });
+  }
+
+  const expiresAt = target ? Date.now() + timeoutMinutes * 60_000 : undefined;
+  const questionId = `q_${randomUUID()}`;
+  const outTrackId = `ask_${randomUUID()}`;
+  const { title, desc, fields, parsed } =
+    rawFields.length > 0
+      ? buildQuestionFormFromFields({
+          title: readString(record.title),
+          description: readString(record.description),
+          fields: rawFields,
+        })
+      : buildQuestionForm(rawQuestions);
+  const cardData = {
+    question_id: questionId,
+    question_title: title,
+    question_desc: target
+      ? `${desc}\n由 ${context.data.senderNick || context.data.senderStaffId || context.data.senderId} 发起；仅指定填写人可提交。结果返回发起会话，${timeoutMinutes} 分钟后截止；收齐即结束，重启将终止收集。`
+      : desc,
+    card_status: "pending",
+    form_btn_text: "提交",
+    selected_text: "",
+    selected_values: "[]",
+    form: { fields },
+  };
+  const storeOptions = getAskUserStoreOptions(context);
+  const canPersistLifecycle = Boolean(storeOptions && context.questionScopeKey);
+  if (storeOptions && context.questionScopeKey) {
+    reserveAskUserQuestion(storeOptions, {
+      questionId,
+      questionScopeKey: context.questionScopeKey,
+      outTrackId,
+      title,
+      independent: Boolean(target),
+      expiresAt,
+    });
+  }
+
+  try {
+    await createAndDeliverQuestionCard({
+      config: context.dingtalkConfig,
+      conversationId:
+        target?.id ??
+        (context.data.conversationType === "1"
+          ? context.data.senderStaffId || context.data.senderId || context.data.conversationId
+          : context.data.conversationId),
+      isDirect: target ? target.type === "user" : context.data.conversationType === "1",
+      supportForward: target ? false : undefined,
+      templateId,
+      outTrackId,
+      cardData,
+      log: context.log,
+    });
+  } catch (err) {
+    if (storeOptions && canPersistLifecycle) {
+      terminateAskUserQuestion(storeOptions, questionId, "delivery_failed");
+    }
+    const detail = formatDingTalkErrorPayloadLog("ask_user_create", err, "[DingTalk]");
+    return jsonToolResult({
+      status: "failed",
+      error: detail || (err instanceof Error ? err.message : String(err)),
+    });
+  }
+  const pendingContext: DingTalkQuestionContext = {
+    ...context,
+    onQuestionCardSent: undefined,
+  };
+  const pendingQuestion: PendingQuestion = {
+    ...pendingContext,
+    questionId,
+    outTrackId,
+    title,
+    questions: parsed,
+    submitted: false,
+    collection: target ? { target, responses: new Map() } : undefined,
+    expiresAt,
+  };
+  storePendingQuestion(pendingQuestion, {
+    supersedeExisting: !canPersistLifecycle,
+  });
+  if (storeOptions && canPersistLifecycle) {
+    const activation = activateAskUserQuestion(storeOptions, questionId);
+    if (activation.record?.state !== "pending") {
+      const terminalReason = activation.record?.terminalReason ?? "superseded_by_message";
+      if (activation.record) {
+        consumeLifecyclePendingContext(activation.record);
+      } else {
+        pendingQuestion.submitted = true;
+        consumePendingQuestion(pendingQuestion);
+        addHandledQuestionTombstone(pendingQuestion, "superseded");
+      }
+      await updateQuestionCardBestEffort(pendingQuestion, terminalCardVariables(terminalReason));
+      return jsonToolResult({
+        status: "failed",
+        questionId,
+        outTrackId,
+        error: "问题卡片在发送期间已失效，请重新发起。",
+      });
+    }
+    for (const superseded of activation.superseded) {
+      const supersededContext = consumeLifecyclePendingContext(superseded);
+      if (supersededContext) {
+        void updateQuestionCardBestEffort(
+          supersededContext,
+          terminalCardVariables("superseded_by_question"),
+        );
+      } else {
+        void updateLifecycleRecordCardBestEffort({
+          record: superseded,
+          config: context.dingtalkConfig,
+          log: context.log,
+        });
+      }
+    }
+  }
+
+  let takeoverSucceeded: boolean | void = undefined;
+  try {
+    takeoverSucceeded = await context.onQuestionCardSent?.({ questionId, outTrackId });
+  } catch (err) {
+    context.log?.warn?.(
+      `[DingTalk][AskUser] onQuestionCardSent hook failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    takeoverSucceeded = false;
+  }
+  if (takeoverSucceeded === false) {
+    await terminatePendingQuestion({
+      ctx: pendingQuestion,
+      reason: "pause_failed",
+    });
+    return jsonToolResult({
+      status: "failed",
+      questionId,
+      outTrackId,
+      error: "当前任务未能暂停，此卡已失效，请重新发起。",
+    });
+  }
+
+  context.log?.info?.(
+    `[DingTalk][AskUser] question card sent question=${questionId} outTrackId=${outTrackId}` +
+      (target
+        ? ` deadline=${expiresAt} sessionWebhookExpiresAt=${context.data.sessionWebhookExpiredTime ?? "unknown"}`
+        : ""),
+  );
+  return jsonToolResult({
+    status: "pending",
+    questionId,
+    outTrackId,
+    ...(expiresAt ? { deadline: new Date(expiresAt).toISOString(), timeoutMinutes } : {}),
+    message:
+      "Question card sent to the user. Their answer will arrive as a follow-up message in this conversation.",
   });
 }
 
@@ -1482,198 +1547,7 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
           error: "dingtalk_ask_user_question can only be used in a DingTalk message context",
         });
       }
-      const templateId = DINGTALK_ASK_USER_CARD_TEMPLATE.templateId;
-
-      const record = asRecord(params) ?? {};
-      const action = record.action ?? "create";
-      if (action === "list" || action === "cancel") {
-        return manageQuestionCollections(context, action, record.questionId);
-      }
-      if (action !== "create") {
-        return jsonToolResult({ status: "failed", error: "Unknown action" });
-      }
-      let target;
-      let timeoutMinutes = 5;
-      try {
-        target = parseQuestionTarget(record.target);
-        if (record.timeoutMinutes !== undefined) {
-          if (
-            !target ||
-            !Number.isInteger(record.timeoutMinutes) ||
-            Number(record.timeoutMinutes) < 1 ||
-            Number(record.timeoutMinutes) > 1440
-          ) {
-            throw new Error("timeoutMinutes requires target and must be an integer from 1 to 1440");
-          }
-          timeoutMinutes = Number(record.timeoutMinutes);
-        }
-      } catch (err) {
-        return jsonToolResult({ status: "failed", error: String(err) });
-      }
-      const rawFields = Array.isArray(record.fields) ? (record.fields as FormField[]) : [];
-      const rawQuestions = Array.isArray(record.questions)
-        ? (record.questions as AskUserQuestion[])
-        : [];
-      if (rawFields.length === 0 && rawQuestions.length === 0) {
-        return jsonToolResult({
-          status: "failed",
-          error: "questions or fields must contain at least one item",
-        });
-      }
-
-      const expiresAt = target ? Date.now() + timeoutMinutes * 60_000 : undefined;
-      const questionId = `q_${randomUUID()}`;
-      const outTrackId = `ask_${randomUUID()}`;
-      const { title, desc, fields, parsed } =
-        rawFields.length > 0
-          ? buildQuestionFormFromFields({
-              title: readString(record.title),
-              description: readString(record.description),
-              fields: rawFields,
-            })
-          : buildQuestionForm(rawQuestions);
-      const cardData = {
-        question_id: questionId,
-        question_title: title,
-        question_desc: target
-          ? `${desc}\n由 ${context.data.senderNick || context.data.senderStaffId || context.data.senderId} 发起；仅指定填写人可提交。结果返回发起会话，${timeoutMinutes} 分钟后截止；收齐即结束，重启将终止收集。`
-          : desc,
-        card_status: "pending",
-        form_btn_text: "提交",
-        selected_text: "",
-        selected_values: "[]",
-        form: { fields },
-      };
-      const storeOptions = getAskUserStoreOptions(context);
-      const canPersistLifecycle = Boolean(storeOptions && context.questionScopeKey);
-      if (storeOptions && context.questionScopeKey) {
-        reserveAskUserQuestion(storeOptions, {
-          questionId,
-          questionScopeKey: context.questionScopeKey,
-          outTrackId,
-          title,
-          independent: Boolean(target),
-          expiresAt,
-        });
-      }
-
-      try {
-        await createAndDeliverQuestionCard({
-          config: context.dingtalkConfig,
-          conversationId:
-            target?.id ??
-            (context.data.conversationType === "1"
-              ? context.data.senderStaffId || context.data.senderId || context.data.conversationId
-              : context.data.conversationId),
-          isDirect: target ? target.type === "user" : context.data.conversationType === "1",
-          supportForward: target ? false : undefined,
-          templateId,
-          outTrackId,
-          cardData,
-          log: context.log,
-        });
-      } catch (err) {
-        if (storeOptions && canPersistLifecycle) {
-          terminateAskUserQuestion(storeOptions, questionId, "delivery_failed");
-        }
-        const detail = formatDingTalkErrorPayloadLog("ask_user_create", err, "[DingTalk]");
-        return jsonToolResult({
-          status: "failed",
-          error: detail || (err instanceof Error ? err.message : String(err)),
-        });
-      }
-      const pendingContext: DingTalkQuestionContext = {
-        ...context,
-        onQuestionCardSent: undefined,
-      };
-      const pendingQuestion: PendingQuestion = {
-        ...pendingContext,
-        questionId,
-        outTrackId,
-        title,
-        questions: parsed,
-        submitted: false,
-        collection: target ? { target, responses: new Map() } : undefined,
-        expiresAt,
-      };
-      storePendingQuestion(pendingQuestion, {
-        supersedeExisting: !canPersistLifecycle,
-      });
-      if (storeOptions && canPersistLifecycle) {
-        const activation = activateAskUserQuestion(storeOptions, questionId);
-        if (activation.record?.state !== "pending") {
-          const terminalReason = activation.record?.terminalReason ?? "superseded_by_message";
-          if (activation.record) {
-            consumeLifecyclePendingContext(activation.record);
-          } else {
-            pendingQuestion.submitted = true;
-            consumePendingQuestion(pendingQuestion);
-            addHandledQuestionTombstone(pendingQuestion, "superseded");
-          }
-          await updateQuestionCardBestEffort(
-            pendingQuestion,
-            terminalCardVariables(terminalReason),
-          );
-          return jsonToolResult({
-            status: "failed",
-            questionId,
-            outTrackId,
-            error: "问题卡片在发送期间已失效，请重新发起。",
-          });
-        }
-        for (const superseded of activation.superseded) {
-          const supersededContext = consumeLifecyclePendingContext(superseded);
-          if (supersededContext) {
-            void updateQuestionCardBestEffort(
-              supersededContext,
-              terminalCardVariables("superseded_by_question"),
-            );
-          } else {
-            void updateLifecycleRecordCardBestEffort({
-              record: superseded,
-              config: context.dingtalkConfig,
-              log: context.log,
-            });
-          }
-        }
-      }
-
-      let takeoverSucceeded: boolean | void = undefined;
-      try {
-        takeoverSucceeded = await context.onQuestionCardSent?.({ questionId, outTrackId });
-      } catch (err) {
-        context.log?.warn?.(
-          `[DingTalk][AskUser] onQuestionCardSent hook failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        takeoverSucceeded = false;
-      }
-      if (takeoverSucceeded === false) {
-        await terminatePendingQuestion({
-          ctx: pendingQuestion,
-          reason: "pause_failed",
-        });
-        return jsonToolResult({
-          status: "failed",
-          questionId,
-          outTrackId,
-          error: "当前任务未能暂停，此卡已失效，请重新发起。",
-        });
-      }
-
-      context.log?.info?.(
-        `[DingTalk][AskUser] question card sent question=${questionId} outTrackId=${outTrackId}` +
-          (target
-            ? ` deadline=${expiresAt} sessionWebhookExpiresAt=${context.data.sessionWebhookExpiredTime ?? "unknown"}`
-            : ""),
-      );
-      return jsonToolResult({
-        status: "pending",
-        questionId,
-        outTrackId,
-        ...(expiresAt ? { deadline: new Date(expiresAt).toISOString(), timeoutMinutes } : {}),
-        message:
-          "Question card sent to the user. Their answer will arrive as a follow-up message in this conversation.",
-      });
+      return executeDingTalkQuestion(context, params);
     },
   });
   registerTool.call(

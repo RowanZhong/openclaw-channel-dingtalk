@@ -5,6 +5,7 @@ import {
 } from "openclaw/plugin-sdk/core";
 import { readStringParam } from "openclaw/plugin-sdk/param-readers";
 import { registerDingTalkAskUserQuestionTool } from "./src/card/ask-user-question";
+import { registerDingTalkFormScheduleTool } from "./src/card/question-schedule";
 import { accumulateUsage } from "./src/card/run-usage-store";
 import { dingtalkPlugin } from "./src/channel";
 import {
@@ -418,6 +419,7 @@ const dingtalkEntry = defineChannelPluginEntry({
     registerDingTalkDocsGatewayMethods(api);
     registerDingTalkConnectorCompatibilityGatewayMethods(api);
     registerDingTalkAskUserQuestionTool(api);
+    registerDingTalkFormScheduleTool(api);
 
     api.on(
       "llm_output",
@@ -445,10 +447,12 @@ const pluginDefinition: OpenClawPluginDefinition = {
     const registrationMode = api.registrationMode as string | undefined;
     if (registrationMode === "tool-discovery") {
       registerDingTalkAskUserQuestionTool(api);
+      registerDingTalkFormScheduleTool(api);
       return;
     }
     if (registrationMode === "discovery") {
       registerDingTalkAskUserQuestionTool(api);
+      registerDingTalkFormScheduleTool(api);
     }
     dingtalkEntry.register(api);
   },
