@@ -10,7 +10,7 @@
 
 - 使用既有 DWS 解析脚本，在配置时核实群及全部成员。`current` 也要加 `independent:true`，生成明确 target。
 - 只支持固定成员快照。用户说“所有人”时说明计划固定当前核实的名单；要求每轮动态包含新成员则明确当前不支持，不擅自改成固定名单。
-- 用 `fields` 构造模板，显式 `target` 和 `timeoutMinutes`（整数 1–1440）。未指定有效期时明确告知采用 5 分钟；不把“每天”误当成每张持续 24 小时。
+- 用 `fields` 构造模板，显式 `target` 和 `timeoutMinutes`（整数 1–4320）。未指定有效期时明确告知采用 5 分钟；不把“每天”误当成每张持续 24 小时。
 - `schedule` 支持 `{kind:"cron",expr:"0 17 * * 1-5",tz:"Asia/Shanghai"}`、`{kind:"every",everyMs:3600000}`（至少 1 分钟）、`{kind:"at",at:"带时区的未来 ISO 时间"}`。日期需基于可信当前时间，时区不明确时先确认；原生 cron 负责表达式最终校验。
 - 名字只作展示，可将已核实的 staffId→姓名放入 `respondentNames`。不得将名称用作提交身份。模板保存必要名单和标签，不保存 token、webhook、目录原始响应或聊天历史。
 

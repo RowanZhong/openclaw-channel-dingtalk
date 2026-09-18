@@ -26,7 +26,7 @@
 | user 的 name / staffId | 二选一；staffId 仅用于可信 ID 或用户已选中的查询候选 |
 | group 的 groupName / conversationId / currentGroup:true | 三选一；显式 ID 来自可信上下文或用户选中的候选 |
 | group 的 respondents / allMembers:true | 二选一；respondents 每项为 {name}、{staffId} 或 {self:true} |
-| timeoutMinutes | 可省略；1–1440 整数，最长 24 小时；显式 null 无效，提供合法值时使用定向收集 |
+| timeoutMinutes | 可省略；1–4320 整数，最长 3 天；显式 null 无效，提供合法值时使用定向收集 |
 | independent | 可省略；true 表示本人也使用独立定向收集 |
 | corpId | 本地已绑定时不传；未绑定时来自可信组织上下文或管理员明确确认 |
 
@@ -80,7 +80,7 @@
 {"origin":{"type":"direct"},"audience":{"type":"group","groupName":"项目群","allMembers":true}}
 ```
 
-名单以本次完整读取为准。超过 50 人、存在无法映射的外部成员或权限不足时整体停止。不得将同名的内部员工代替未匹配的外部成员。
+名单以本次完整读取为准。超过 1000 人、存在无法映射的外部成员或权限不足时整体停止。不得将同名的内部员工代替未匹配的外部成员。
 
 ## 输出与失败处理
 
@@ -89,7 +89,7 @@
 失败返回 status=blocked 且退出码 2，**不包含可发送的部分 target**。常见代码：
 
 - choose_candidate：列出候选，请用户选；再次解析时使用被选择的真实 staffId/conversationId。
-- invalid_timeout：最长 24 小时，仅接受 1–1440 的整数分钟数；保留其他草稿设置，让用户只修改时长，不默认或截断。
+- invalid_timeout：最长 3 天，仅接受 1–4320 的整数分钟数；保留其他草稿设置，让用户只修改时长，不默认或截断。
 - members_unresolved：按 issues 列出未解决成员，明确整张暂未发送；已解析人员不需要用户重输。
 - incomplete_result：查询不完整，不能声称“全体成员”。
 - organization_required / profile_required：管理员补充组织绑定或明确默认账号。

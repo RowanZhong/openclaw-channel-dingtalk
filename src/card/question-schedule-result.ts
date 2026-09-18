@@ -1,4 +1,5 @@
 import type { DingTalkQuestionCollectionResult } from "../platform/types";
+import { MESSAGE_CHUNK_LIMIT, splitMessageChunks } from "../shared/message-chunker";
 
 function inline(value: string): string {
   return value.replace(/[\r\n\u2028\u2029]/g, " ").replace(/[\\`*_{}[\]()<>#!|]/g, "\\$&");
@@ -30,8 +31,8 @@ export function formatScheduledFormResult(
       } else {
         // Bound each message while preserving every answer character, including Markdown fences.
         const chars = Array.from(answer.answer);
-        for (let offset = 0; offset < chars.length; offset += 1500) {
-          const part = chars.slice(offset, offset + 1500).join("");
+        for (let offset = 0; offset < chars.length; offset += 1000) {
+          const part = chars.slice(offset, offset + 1000).join("");
           const longestFence = Math.max(2, ...(part.match(/`+/g) ?? []).map((x) => x.length));
           const fence = "`".repeat(longestFence + 1);
           blocks.push(
@@ -44,11 +45,13 @@ export function formatScheduledFormResult(
   const messages: string[] = [];
   for (const block of blocks) {
     const last = messages.length - 1;
-    if (last >= 0 && messages[last].length + block.length + 2 <= 6000) {
+    if (last >= 0 && messages[last].length + block.length + 2 <= MESSAGE_CHUNK_LIMIT) {
       messages[last] += `\n\n${block}`;
     } else {
       messages.push(block);
     }
   }
-  return messages;
+  // Persist the transport's actual chunk boundaries, including oversized labels.
+  // Otherwise one saved chunk could send several messages and only partially succeed.
+  return messages.flatMap((message) => splitMessageChunks(message, MESSAGE_CHUNK_LIMIT));
 }

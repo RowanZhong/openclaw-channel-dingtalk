@@ -198,9 +198,20 @@ class ResolverTests(unittest.TestCase):
         self.dws.chats["truncatedByPageLimit"] = True
         self.blocked("incomplete_result")
 
-    def test_over_50_members_are_not_truncated(self):
-        self.dws.members["users"] = [{"name": str(i), "openDingtalkId": f"open-{i}"} for i in range(51)]
+    def test_over_1000_members_are_not_truncated(self):
+        self.dws.members["users"] = [{"name": str(i), "openDingtalkId": f"open-{i}"} for i in range(1001)]
         self.blocked("respondent_limit", audience={"type": "group", "groupName": "项目群", "allMembers": True})
+
+    def test_all_1000_members_are_resolved_without_truncation(self):
+        self.dws.members["users"] = [{"name": f"成员{i}", "openDingtalkId": f"open-{i}"} for i in range(1000)]
+        self.dws.people = {f"成员{i}": [person(f"成员{i}", f"staff-{i}", f"open-{i}")] for i in range(1000)}
+        audience = {"type": "group", "groupName": "项目群", "allMembers": True}
+        result = self.resolve(audience, timeoutMinutes=4320)
+        self.assertEqual([f"staff-{i}" for i in range(1000)], result["toolArguments"]["target"]["respondentUserIds"])
+        self.assertEqual(4320, result["toolArguments"]["timeoutMinutes"])
+        self.dws.people["成员999"] = []
+        blocked = self.blocked("members_unresolved", audience=audience)
+        self.assertEqual("成员999", blocked["issues"][0]["member"])
 
     def test_repeated_resolved_staffid_is_deduplicated(self):
         result = self.resolve({"type": "group", "groupName": "项目群", "respondents": [{"name": "甲"}, {"name": "甲"}]})
@@ -226,7 +237,7 @@ class ResolverTests(unittest.TestCase):
         self.blocked("profile_required")
 
     def test_invalid_timeout_and_conflicting_audience_are_blocked(self):
-        for value in [0, 1441, True, 1.5, "5"]:
+        for value in [0, 4321, True, 1.5, "5"]:
             with self.subTest(value=value):
                 self.blocked("invalid_timeout", timeoutMinutes=value)
         self.blocked("invalid_audience", audience={"type": "group", "groupName": "项目群", "allMembers": True, "respondents": []})

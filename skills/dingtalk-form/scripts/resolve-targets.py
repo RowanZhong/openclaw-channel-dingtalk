@@ -8,6 +8,7 @@ import sys
 
 from dws_directory import Directory, ResolutionError, fail, raw_id
 from form_timeout import validate_minutes
+from form_limits import MAX_RESPONDENTS
 
 
 def keys(value, allowed):
@@ -65,8 +66,8 @@ def resolve(request, directory_factory=Directory, binding=None):
             fail("invalid_audience", "明确指定 respondents 或 allMembers:true，二选一。")
         if "respondents" in audience:
             specs = audience["respondents"]
-            if not isinstance(specs, list) or not 1 <= len(specs) <= 50:
-                fail("respondent_limit", "单张表单需要 1–50 位填写人。")
+            if not isinstance(specs, list) or not 1 <= len(specs) <= MAX_RESPONDENTS:
+                fail("respondent_limit", f"单张表单需要 1–{MAX_RESPONDENTS} 位填写人。")
             for spec in specs:
                 keys(spec, {"name", "staffId", "self"})
                 if len(spec) != 1 or ("self" in spec and spec["self"] is not True):
@@ -89,8 +90,8 @@ def resolve(request, directory_factory=Directory, binding=None):
         open_ids = {m["openDingtalkId"] for m in members}
         people, errors = [], []
         if audience.get("allMembers"):
-            if not 1 <= len(members) <= 50:
-                fail("respondent_limit", "群真人成员需为 1–50 人；不会静默截取或自动拆分。")
+            if not 1 <= len(members) <= MAX_RESPONDENTS:
+                fail("respondent_limit", f"群真人成员需为 1–{MAX_RESPONDENTS} 人；不会静默截取或自动拆分。")
             for member in members:
                 try:
                     people.append(directory.member_person(member))

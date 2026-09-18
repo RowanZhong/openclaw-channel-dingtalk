@@ -1,4 +1,5 @@
 import { questionTargetSchema } from "./ask-user-question-target";
+import { MAX_QUESTION_TIMEOUT_MINUTES } from "./question-collection-limits";
 
 export const AskUserQuestionSchema = {
   type: "object",
@@ -27,9 +28,8 @@ export const AskUserQuestionSchema = {
     timeoutMinutes: {
       type: "integer",
       minimum: 1,
-      maximum: 1440,
-      description:
-        "Targeted collections only: 1–1440 minutes, default 5. Ends early when all respondents reply. Restart terminates pending forms.",
+      maximum: MAX_QUESTION_TIMEOUT_MINUTES,
+      description: `Targeted collections only: 1–${MAX_QUESTION_TIMEOUT_MINUTES} minutes, default 5. Ends early when all respondents reply. Restart terminates pending forms.`,
     },
     target: questionTargetSchema,
     title: {

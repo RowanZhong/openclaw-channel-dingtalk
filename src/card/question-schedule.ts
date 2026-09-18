@@ -270,6 +270,9 @@ async function runTemplate(
     ...current!,
     lastSequence: sequence,
     lastOutcome: { status: "sending" },
+    // Incomplete answers do not survive a process restart. Keep every live-process
+    // occurrence: a consumed card may still be awaiting its terminal UI update.
+    resultRuns: current!.resultRuns?.filter((run) => run.processId === PROCESS_ID),
     lastRun: {
       sequence,
       state: "sending",
@@ -305,6 +308,20 @@ async function runTemplate(
       chatbotUserId: "",
       sessionWebhook: "",
       sessionWebhookExpiredTime: 0,
+    },
+    onQuestionCardSent: ({ questionId }) => {
+      store.update(id, (current) => {
+        if (current?.lastRun?.sequence !== sequence) {
+          throw new Error("Cannot register a card for a different scheduled occurrence");
+        }
+        return {
+          ...current,
+          resultRuns: [
+            ...(current.resultRuns ?? []),
+            { sequence, questionId, processId: PROCESS_ID },
+          ],
+        };
+      });
     },
     onCollectionResult: async (collection) => {
       queueScheduledResult(store, id, sequence, collection);
@@ -358,7 +375,7 @@ export function registerDingTalkFormScheduleTool(api: OpenClawPluginApi): void {
         name: SCHEDULE_TOOL_NAME,
         label: "Schedule DingTalk Form",
         description:
-          "Manage confirmed DingTalk form templates for OpenClaw native cron. prepare/bind/list/disable/recover/retry_result require the owner's current DingTalk conversation. prepare returns a disabled native cron job: create it via cron, bind the real jobId, then enable via cron. No design cards during cron runs. run is exclusively for the generated isolated cron script; never call it from chat. Fixed respondents, 1–1440 minutes, ends when all respond. Template survives restart; active forms do not. list exposes blocked sequences and result delivery progress without answer contents. recover abandons one uncertain card occurrence with explicit acknowledgement and never resends it. retry_result resumes a retained completed summary to its original destination; uncertain chunks require explicit acknowledgement and the current attemptId. Never recover an active send, reset cron state or change its binding. Disabling a template stops future sends but does not cancel an already-sent form; use dingtalk_ask_user_question list/cancel for that.",
+          "Manage confirmed DingTalk form templates for OpenClaw native cron. prepare/bind/list/disable/recover/retry_result require the owner's current DingTalk conversation. prepare returns a disabled native cron job: create it via cron, bind the real jobId, then enable via cron. No design cards during cron runs. run is exclusively for the generated isolated cron script; never call it from chat. Fixed respondents, 1–4320 minutes, ends when all respond. Template survives restart; active forms do not. list exposes blocked sequences and result delivery progress without answer contents. recover abandons one uncertain card occurrence with explicit acknowledgement and never resends it. retry_result resumes a retained completed summary to its original destination; uncertain chunks require explicit acknowledgement and the current attemptId. Never recover an active send, reset cron state or change its binding. Disabling a template stops future sends but does not cancel an already-sent form; use dingtalk_ask_user_question list/cancel for that.",
         parameters: scheduleToolSchema as unknown as AnyAgentTool["parameters"],
         async execute(_callId, input) {
           try {

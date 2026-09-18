@@ -45,6 +45,7 @@ import {
 } from "./ask-user-question-target";
 import { updateCardVariables } from "./card-callback-service";
 import { DINGTALK_ASK_USER_CARD_TEMPLATE } from "./card-template";
+import { MAX_QUESTION_TIMEOUT_MINUTES } from "./question-collection-limits";
 
 const DINGTALK_API = "https://api.dingtalk.com";
 const PENDING_QUESTION_TTL_MS = 5 * 60 * 1000;
@@ -119,6 +120,7 @@ type PendingQuestion = DingTalkQuestionContext & {
   collection?: QuestionCollection;
   expiresAt?: number;
   ttlTimer?: ReturnType<typeof setTimeout>;
+  progressUpdate?: Promise<void>;
 };
 
 type HandledQuestionTombstone = {
@@ -582,6 +584,26 @@ function getAskUserStoreOptions(
   };
 }
 
+/** Coalesce bursts of submissions so terminal updates do not queue behind N API calls. */
+function updateCollectionProgress(ctx: PendingQuestion): Promise<void> {
+  if (!ctx.progressUpdate) {
+    ctx.progressUpdate = (async () => {
+      while (pendingQuestionsByQuestionId.get(ctx.questionId) === ctx && !ctx.submitted) {
+        const received = ctx.collection!.responses.size;
+        await updateQuestionCardBestEffort(ctx, {
+          form_btn_text: `${received}/${ctx.collection!.target.respondentUserIds.length}`,
+        });
+        if (received === ctx.collection!.responses.size) {
+          break;
+        }
+      }
+    })().finally(() => {
+      ctx.progressUpdate = undefined;
+    });
+  }
+  return ctx.progressUpdate;
+}
+
 function terminalCardVariables(reason: AskUserTerminalReason): Record<string, unknown> {
   const descriptions: Record<AskUserTerminalReason, string> = {
     delivery_failed: "问题卡片发送失败。",
@@ -982,11 +1004,8 @@ async function handleCollectionResponse(
     answers,
   });
   if (collection.responses.size < collection.target.respondentUserIds.length) {
-    await updateQuestionCardBestEffort(ctx, {
-      // The built-in template renders this variable as the header status tag.
-      // Keep the original instructions intact for respondents still filling in.
-      form_btn_text: `${collection.responses.size}/${collection.target.respondentUserIds.length}`,
-    });
+    // Keep original instructions intact; only the progress tag changes.
+    await updateCollectionProgress(ctx);
     return;
   }
   if (!claimPendingQuestionForDispatch(ctx)) {
@@ -1340,9 +1359,11 @@ export async function executeDingTalkQuestion(context: DingTalkQuestionContext, 
         !target ||
         !Number.isInteger(record.timeoutMinutes) ||
         Number(record.timeoutMinutes) < 1 ||
-        Number(record.timeoutMinutes) > 1440
+        Number(record.timeoutMinutes) > MAX_QUESTION_TIMEOUT_MINUTES
       ) {
-        throw new Error("timeoutMinutes requires target and must be an integer from 1 to 1440");
+        throw new Error(
+          `timeoutMinutes requires target and must be an integer from 1 to ${MAX_QUESTION_TIMEOUT_MINUTES}`,
+        );
       }
       timeoutMinutes = Number(record.timeoutMinutes);
     }

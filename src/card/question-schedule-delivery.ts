@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sendMessage } from "../messaging/send-service";
 import type { DingTalkConfig, DingTalkQuestionCollectionResult, Logger } from "../platform/types";
+import { splitMessageChunks } from "../shared/message-chunker";
 import { formatScheduledFormResult } from "./question-schedule-result";
 import type {
   QuestionScheduleStore,
@@ -64,21 +65,35 @@ export function queueScheduledResult(
   collection: DingTalkQuestionCollectionResult,
 ): void {
   store.update(id, (current) => {
-    if (current?.resultDeliveries?.some((item) => item.sequence === sequence)) {
-      return current;
+    const existing = current?.resultDeliveries?.find((item) => item.sequence === sequence);
+    if (existing) {
+      if (existing.questionId !== collection.question_id) {
+        throw new Error("Result callback does not match the saved occurrence");
+      }
+      return current!;
     }
-    if (current?.lastRun?.sequence !== sequence) {
-      throw new Error("Cannot replace a newer occurrence with a stale result callback");
+    const run = current?.resultRuns?.find((item) => item.sequence === sequence);
+    // A recorded occurrence, not the latest-run projection, authorizes a late
+    // callback. Legacy current runs remain readable, but arbitrary old IDs do not.
+    const questionId =
+      run?.questionId ??
+      (current?.lastRun?.sequence === sequence ? current.lastRun.questionId : undefined);
+    if (!current || !questionId || questionId !== collection.question_id) {
+      throw new Error("Result callback does not match a recorded scheduled occurrence");
     }
     const chunks = formatScheduledFormResult(collection, current.respondentNames);
     return {
       ...current,
-      lastRun: {
-        ...current.lastRun,
-        state: "completed",
-        resultStatus: collection.status,
-        deliveryError: true,
-      },
+      lastRun:
+        current.lastRun?.sequence === sequence
+          ? {
+              ...current.lastRun,
+              state: "completed",
+              resultStatus: collection.status,
+              deliveryError: true,
+            }
+          : current.lastRun,
+      resultRuns: current.resultRuns?.filter((item) => item.sequence !== sequence),
       resultDeliveries: [
         ...(current.resultDeliveries ?? []),
         {
@@ -162,6 +177,22 @@ export async function deliverScheduledResult(params: {
         ...item,
         state: "pending",
         attempt: undefined,
+      }));
+    }
+    // Older plugin versions retained larger logical chunks. Reframe only the
+    // unsent suffix, after acknowledgement when required, before any transport call.
+    const chunks = [
+      ...delivery.chunks.slice(0, delivery.nextChunk),
+      ...delivery.chunks.slice(delivery.nextChunk).flatMap((text) => splitMessageChunks(text)),
+    ];
+    if (
+      chunks.length !== delivery.chunks.length ||
+      chunks.some((text, i) => text !== delivery.chunks[i])
+    ) {
+      delivery = updateDelivery(store, template.id, sequence, (item) => ({
+        ...item,
+        chunks,
+        totalChunks: chunks.length,
       }));
     }
     while (delivery.nextChunk < delivery.totalChunks) {

@@ -54,7 +54,7 @@ describe("scheduled form setup and ownership", () => {
     expect((await h.run(bound, 2)).status).toBe("failed");
     expect((await h.manage({ action: "list" })).collections[0].questionId).toBe(sent.questionId);
   });
-  it.each([0, 1441, 1.5])("rejects timeout %s before any job or card is created", async (timeoutMinutes) => {
+  it.each([0, 4321, 1.5])("rejects timeout %s before any job or card is created", async (timeoutMinutes) => {
     expect((await h.prepare({ form: { ...form, timeoutMinutes } })).status).toBe("failed");
     expect(h.store.list()).toEqual([]);
   });

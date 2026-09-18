@@ -74,6 +74,8 @@ export type ScheduledForm = {
     questionId?: string;
   };
   lastRun?: ScheduledFormRun;
+  /** Independent occurrence identities awaiting a result; lastRun is only a projection. */
+  resultRuns?: Array<{ sequence: number; questionId: string; processId: string }>;
   resultDeliveries?: ScheduledResultDelivery[];
 };
 type ScheduleState = { version: 1; revision: string; templates: ScheduledForm[] };

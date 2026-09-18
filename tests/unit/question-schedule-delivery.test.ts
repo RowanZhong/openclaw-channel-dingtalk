@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mocks, setupSchedule, form } from "./fixtures/question-schedule";
 import { QuestionScheduleStore } from "../../src/card/question-schedule-store";
+import { MESSAGE_CHUNK_LIMIT } from "../../src/shared/message-chunker";
 
 let h: ReturnType<typeof setupSchedule>;
 beforeEach(() => { h = setupSchedule(); });
 afterEach(() => h.cleanup());
-const longAnswer = "START-ANSWER-" + "x".repeat(9000) + "-END-ANSWER";
+const longAnswer = "START-ANSWER-" + "x".repeat(5000) + "-END-ANSWER";
 const personal = { form: { ...form, target: { type: "user", id: "staff_A" } }, respondentNames: { staff_A: "测试成员" } };
 const delivery = (id: string, sequence = 1) => h.store.get(id)!.resultDeliveries!.find(x => x.sequence === sequence)!;
 const retry = (id: string, sequence = 1) => ({ action: "retry_result", scheduleId: id, sequence });
@@ -19,6 +20,21 @@ async function partial() {
 }
 
 describe("durable scheduled result delivery", () => {
+  it("reframes retained legacy chunks before retry without replaying the confirmed prefix", async () => {
+    const { bound } = await partial();
+    const previous = mocks.send.mock.calls[0][2];
+    const remaining = "OLD-TAIL-" + "中".repeat(8000) + "-END";
+    h.store.update(bound.scheduleId, current => ({ ...current!, resultDeliveries: current!.resultDeliveries!.map(item => ({
+      ...item, chunks: [previous, remaining], totalChunks: 2,
+    })) }));
+    const before = mocks.send.mock.calls.length;
+    expect((await h.chat(acknowledged(bound.scheduleId))).status).toBe("delivered");
+    const retried = mocks.send.mock.calls.slice(before).map(call => call[2] as string);
+    expect(retried.every(text => Array.from(text).length <= MESSAGE_CHUNK_LIMIT)).toBe(true);
+    expect(retried.join("")).toBe(remaining);
+    expect(retried).not.toContain(previous);
+    expect(delivery(bound.scheduleId)).toMatchObject({ state: "delivered", nextChunk: 1 + retried.length });
+  });
   it("persists the whole result and cursor when a later chunk fails", async () => {
     const { bound } = await partial();
     const persisted = new QuestionScheduleStore(h.dir).get(bound.scheduleId)!;
