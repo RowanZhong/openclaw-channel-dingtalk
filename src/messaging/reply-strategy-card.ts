@@ -15,6 +15,7 @@ import { attachCardRunController } from "../card/card-run-registry";
 import {
   commitAICardBlocks,
   isCardInTerminalState,
+  sendSplitProactiveCards,
   updateAICardStatusLine,
 } from "../card/card-service";
 import {
@@ -741,26 +742,69 @@ export function createCardReplyStrategy(
         return;
       }
 
-      // Card failed -> markdown fallback (bypass sendMessage to avoid duplicate card).
+      // Card failed -> split-card fallback (issue #615): deliver the content
+      // as multiple fresh AI Cards so it stays on the card surface; degrade to
+      // markdown only when even new cards cannot be created.
       if (card.state === AICardStatus.FAILED || controller.isFailed()) {
         const fallbackText =
           getRenderedTimeline({ preferFinalAnswer: true }) ||
           controller.getLastAnswerContent() ||
           DEFAULT_CARD_FAILED_MESSAGE;
         if (fallbackText) {
-          log?.debug?.("[DingTalk] Card failed during streaming, sending markdown fallback");
-          const sendResult = await sendMessage(ctx.config, ctx.to, fallbackText, {
-            sessionWebhook: ctx.sessionWebhook,
-            atUserId: !ctx.isDirect ? ctx.senderId : null,
-            log,
-            accountId: ctx.accountId,
-            storePath: ctx.storePath,
-            conversationId: ctx.groupId,
-            quotedRef: ctx.replyQuotedRef,
-            forceMarkdown: true,
-          });
-          if (!sendResult.ok) {
-            throw new Error(sendResult.error || "Markdown fallback send failed after card failure");
+          // Deliver exactly the undelivered text via markdown: full text when
+          // no chunk went out, only the missing suffix after a partial split.
+          const markdownFallback = async (suffixText: string) => {
+            log?.debug?.(
+              `[DingTalk] Card failed, sending markdown fallback (len=${suffixText.length})`,
+            );
+            const sendResult = await sendMessage(ctx.config, ctx.to, suffixText, {
+              sessionWebhook: ctx.sessionWebhook,
+              atUserId: !ctx.isDirect ? ctx.senderId : null,
+              log,
+              accountId: ctx.accountId,
+              storePath: ctx.storePath,
+              conversationId: ctx.groupId,
+              quotedRef: ctx.replyQuotedRef,
+              forceMarkdown: true,
+            });
+            if (!sendResult.ok) {
+              throw new Error(
+                sendResult.error || "Markdown fallback send failed after card failure",
+              );
+            }
+          };
+
+          let delivered = false;
+          if (card.conversationId) {
+            log?.debug?.("[DingTalk] Card failed, falling back to split multi-card delivery");
+            const splitResult = await sendSplitProactiveCards(
+              ctx.config,
+              card.conversationId,
+              fallbackText,
+              log,
+              { statusLine: buildStatusLine() },
+            );
+            if (splitResult.ok) {
+              delivered = true;
+            } else {
+              log?.warn?.(
+                `[DingTalk] Split multi-card fallback partially sent (${splitResult.sent}/${splitResult.total}): ${splitResult.error}`,
+              );
+              // Send each chunk separately: rejoining chunks with any separator
+              // would inject characters that never existed in the original text
+              // (e.g. newline-free long URLs). Each chunk is <= 2488 code points,
+              // under the markdown limit, so no further splitting occurs.
+              const unsentChunks = (splitResult.unsentChunks ?? []).filter((c) => c.length > 0);
+              for (const chunk of unsentChunks) {
+                await markdownFallback(chunk);
+              }
+              if (unsentChunks.length > 0) {
+                delivered = true;
+              }
+            }
+          }
+          if (!delivered) {
+            await markdownFallback(fallbackText);
           }
         } else {
           log?.debug?.("[DingTalk] Card failed but no content to fallback with");
@@ -892,6 +936,62 @@ export function createCardReplyStrategy(
         if ((card.state as string) !== AICardStatus.FINISHED) {
           card.state = AICardStatus.FAILED;
           card.lastUpdated = Date.now();
+        }
+        // Issue #615 fallback: the original card could not be committed, so
+        // deliver the answer as split multi-cards before giving up. Never
+        // rescue a card that actually committed (FINISHED) — content is live.
+        const rescueText =
+          finalTextForFallback ||
+          controller.getFinalAnswerContent() ||
+          controller.getLastAnswerContent() ||
+          controller.getLastContent();
+        if (
+          rescueText?.trim() &&
+          card.conversationId &&
+          (card.state as string) !== AICardStatus.FINISHED
+        ) {
+          const splitResult = await sendSplitProactiveCards(
+            ctx.config,
+            card.conversationId,
+            rescueText,
+            log,
+            { statusLine: buildStatusLine() },
+          );
+          // Undelivered text must still reach the user: redeliver only the
+          // missing chunks after a partial rescue, or the full text when no
+          // rescue card went out (issue #615 review). Chunks are sent
+          // separately so no separator is injected into newline-free content.
+          const rescueUnsentChunks = splitResult.ok
+            ? []
+            : (splitResult.unsentChunks ?? [rescueText]).filter((c) => c.length > 0);
+          for (const chunk of rescueUnsentChunks) {
+            log?.warn?.(
+              `[DingTalk][Finalize] Split-card rescue incomplete (${splitResult.sent}/${splitResult.total} sent): ${splitResult.error}; sending markdown for undelivered text`,
+            );
+            const sendResult = await sendMessage(ctx.config, ctx.to, chunk, {
+              sessionWebhook: ctx.sessionWebhook,
+              atUserId: !ctx.isDirect ? ctx.senderId : null,
+              log,
+              accountId: ctx.accountId,
+              storePath: ctx.storePath,
+              conversationId: ctx.groupId,
+              quotedRef: ctx.replyQuotedRef,
+              forceMarkdown: true,
+            });
+            if (!sendResult.ok) {
+              throw new Error(
+                sendResult.error || "Markdown rescue send failed after card failure",
+                {
+                  cause: err,
+                },
+              );
+            }
+          }
+          if (splitResult.ok) {
+            log?.info?.(
+              `[DingTalk][Finalize] Rescued failed card commit via ${splitResult.total} split card(s)`,
+            );
+          }
         }
       } finally {
         lifecycleState = "sealed";
