@@ -6,7 +6,6 @@ import type {
   OpenClawPluginToolContext,
 } from "openclaw/plugin-sdk/core";
 import { z } from "zod";
-import { sendMessage } from "../messaging/send-service";
 import {
   isSenderAllowed,
   normalizeAllowFrom,
@@ -26,7 +25,12 @@ import {
   SCHEDULE_TOOL_NAME,
   validateScheduledForm,
 } from "./question-schedule-contract";
-import { formatScheduledFormResult } from "./question-schedule-result";
+import {
+  deliverScheduledResult,
+  listScheduledResultDeliveries,
+  queueScheduledResult,
+} from "./question-schedule-delivery";
+import { reconcileScheduledCard, recoverScheduledCard } from "./question-schedule-recovery";
 import {
   cronScheduleSchema,
   QuestionScheduleStore,
@@ -224,6 +228,7 @@ async function runTemplate(
   }
   const { cfg, config } = resolveRunConfig(api, tool, template);
   validateScheduledForm(template.form);
+  template = reconcileScheduledCard(store, template, PROCESS_ID);
   const previous = template.lastRun;
   if (sequence === template.lastSequence) {
     if (["sending", "uncertain"].includes(template.lastOutcome?.status ?? "")) {
@@ -302,42 +307,15 @@ async function runTemplate(
       sessionWebhookExpiredTime: 0,
     },
     onCollectionResult: async (collection) => {
-      store.update(id, (current) =>
-        current?.lastRun?.sequence === sequence
-          ? {
-              ...current,
-              lastRun: {
-                ...current.lastRun,
-                state: "completed",
-                resultStatus: collection.status,
-                deliveryError: true,
-              },
-            }
-          : current!,
-      );
-      const destination =
-        origin.conversationType === "1"
-          ? `user:${origin.senderId}`
-          : `group:${origin.conversationId}`;
-      // Authorization or bot credentials may have changed while people were filling in the card.
-      const { config: currentConfig } = resolveRunConfig(api, tool, template);
-      for (const text of formatScheduledFormResult(collection, template.respondentNames)) {
-        const sent = await sendMessage(currentConfig, destination, text, {
-          accountId: origin.accountId,
-          storePath,
-          log: api.logger,
-          forceMarkdown: true,
-          title: "定时表单收集结果",
-        });
-        if (!sent.ok) {
-          throw new Error(sent.error || "Scheduled result delivery failed");
-        }
-      }
-      store.update(id, (current) =>
-        current?.lastRun?.sequence === sequence
-          ? { ...current, lastRun: { ...current.lastRun, deliveryError: false } }
-          : current!,
-      );
+      queueScheduledResult(store, id, sequence, collection);
+      await deliverScheduledResult({
+        store,
+        template,
+        sequence,
+        processId: PROCESS_ID,
+        log: api.logger,
+        authorize: () => ({ ...resolveRunConfig(api, tool, template), storePath }),
+      });
     },
   };
   try {
@@ -380,7 +358,7 @@ export function registerDingTalkFormScheduleTool(api: OpenClawPluginApi): void {
         name: SCHEDULE_TOOL_NAME,
         label: "Schedule DingTalk Form",
         description:
-          "Manage confirmed DingTalk form templates for OpenClaw native cron. prepare/bind/list/disable require the owner's current DingTalk conversation. prepare returns a disabled native cron job: create it via cron, bind the real jobId, then enable via cron. No design cards during cron runs. run is exclusively for the generated isolated cron script; never call it from chat. Fixed respondents, 1–1440 minutes, ends when all respond. Template survives restart; active forms do not. Disabling a template stops future sends but does not cancel an already-sent form; use dingtalk_ask_user_question list/cancel for that.",
+          "Manage confirmed DingTalk form templates for OpenClaw native cron. prepare/bind/list/disable/recover/retry_result require the owner's current DingTalk conversation. prepare returns a disabled native cron job: create it via cron, bind the real jobId, then enable via cron. No design cards during cron runs. run is exclusively for the generated isolated cron script; never call it from chat. Fixed respondents, 1–1440 minutes, ends when all respond. Template survives restart; active forms do not. list exposes blocked sequences and result delivery progress without answer contents. recover abandons one uncertain card occurrence with explicit acknowledgement and never resends it. retry_result resumes a retained completed summary to its original destination; uncertain chunks require explicit acknowledgement and the current attemptId. Never recover an active send, reset cron state or change its binding. Disabling a template stops future sends but does not cancel an already-sent form; use dingtalk_ask_user_question list/cancel for that.",
         parameters: scheduleToolSchema as unknown as AnyAgentTool["parameters"],
         async execute(_callId, input) {
           try {
@@ -404,12 +382,14 @@ export function registerDingTalkFormScheduleTool(api: OpenClawPluginApi): void {
                 schedules: store
                   .list()
                   .filter((item) => ownerMatches(item, context))
+                  .map((item) => reconcileScheduledCard(store, item, PROCESS_ID))
                   .map((item) => ({
                     scheduleId: item.id,
                     name: item.name,
                     jobId: item.jobId,
                     templateEnabled: item.enabled,
                     schedule: item.schedule,
+                    resultDeliveries: listScheduledResultDeliveries(store, item),
                     lastRun:
                       item.lastRun?.state === "pending" &&
                       (item.lastRun.processId !== PROCESS_ID ||
@@ -420,9 +400,50 @@ export function registerDingTalkFormScheduleTool(api: OpenClawPluginApi): void {
               });
             }
             const id = z.string().parse(args.scheduleId);
-            const template = store.get(id);
+            let template = store.get(id);
             if (!template || !ownerMatches(template, context)) {
               throw new Error("No template owned by you in this conversation and agent");
+            }
+            if (args.action === "recover" || args.action === "retry_result") {
+              resolveRunConfig(api, tool, template);
+              const sequence = z.number().int().positive().safe().parse(args.sequence);
+              if (args.action === "recover") {
+                template = reconcileScheduledCard(store, template, PROCESS_ID);
+                recoverScheduledCard(
+                  store,
+                  template,
+                  sequence,
+                  args.acknowledgeUncertainDelivery === true,
+                );
+                return result({
+                  status: "recovered",
+                  scheduleId: id,
+                  sequence,
+                  jobId: template.jobId,
+                  message:
+                    "Occurrence abandoned, not resent. Binding and cron state are unchanged. The next trigger may only acknowledge this skipped sequence; subsequent occurrences continue normally. Recovery does not enable a disabled template or cron job.",
+                });
+              }
+              await deliverScheduledResult({
+                store,
+                template,
+                sequence,
+                processId: PROCESS_ID,
+                log: api.logger,
+                acknowledgeUncertainDelivery: args.acknowledgeUncertainDelivery === true,
+                attemptId: typeof args.attemptId === "string" ? args.attemptId : undefined,
+                authorize: () => {
+                  const resolved = resolveRunConfig(api, tool, template!);
+                  return {
+                    ...resolved,
+                    storePath: api.runtime.channel.session.resolveStorePath(
+                      resolved.cfg.session?.store,
+                      { agentId: template!.origin.accountId },
+                    ),
+                  };
+                },
+              });
+              return result({ status: "delivered", scheduleId: id, sequence });
             }
             if (args.action === "bind") {
               const jobId = jobIdSchema.parse(args.jobId);

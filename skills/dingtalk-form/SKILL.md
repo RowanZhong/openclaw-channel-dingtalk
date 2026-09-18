@@ -7,7 +7,7 @@ metadata: {"openclaw":{"requires":{"bins":["python3","dws"]}}}
 
 # 钉钉互动表单
 
-DWS 只负责只读查群、查人。即时表单使用 `dingtalk_ask_user_question`；定时模板使用 `dingtalk_form_schedule` 配合 **OpenClaw 内置 cron**。不要用 DWS 卡片、Webhook 或另建应用替代。即时创建和计划管理需要当前可信钉钉会话；定时执行仅由绑定的 cron 任务调用，不伪造来源。
+DWS 只负责只读查群、查人。即时表单使用 `dingtalk_ask_user_question`；定时模板使用 `dingtalk_form_schedule` 配合 **OpenClaw 内置 cron**。不要用 DWS 卡片、Webhook 或另建应用替代。即时创建和计划管理需要当前可信钉钉会话；定时执行仅由绑定的 cron 任务调用，不伪造来源。定时发卡异常恢复或已完成结果补发时，阅读 [定时收集](references/scheduled-collection.md) 的异常恢复流程。
 
 ## 先选择使用流程
 

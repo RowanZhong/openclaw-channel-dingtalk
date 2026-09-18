@@ -31,14 +31,32 @@ export type ScheduledFormOrigin = {
 };
 export type ScheduledFormRun = {
   sequence: number;
-  state: "sending" | "pending" | "completed" | "skipped" | "uncertain" | "restart_terminated";
+  state:
+    | "sending"
+    | "pending"
+    | "completed"
+    | "skipped"
+    | "uncertain"
+    | "restart_terminated"
+    | "abandoned";
   startedAt: number;
   deadline: number;
   questionId?: string;
   outTrackId?: string;
   resultStatus?: string;
   deliveryError?: boolean;
+  recoveredAt?: number;
   processId: string;
+};
+export type ScheduledResultDelivery = {
+  sequence: number;
+  questionId: string;
+  createdAt: number;
+  state: "pending" | "sending" | "uncertain" | "delivered";
+  chunks: string[];
+  totalChunks: number;
+  nextChunk: number;
+  attempt?: { id: string; processId: string; chunk: number };
 };
 export type ScheduledForm = {
   id: string;
@@ -51,14 +69,18 @@ export type ScheduledForm = {
   jobId?: string;
   enabled: boolean;
   lastSequence?: number;
-  lastOutcome?: { status: "sending" | "pending" | "skipped" | "uncertain"; questionId?: string };
+  lastOutcome?: {
+    status: "sending" | "pending" | "skipped" | "uncertain" | "abandoned";
+    questionId?: string;
+  };
   lastRun?: ScheduledFormRun;
+  resultDeliveries?: ScheduledResultDelivery[];
 };
 type ScheduleState = { version: 1; revision: string; templates: ScheduledForm[] };
 
 /** One Gateway writer; updates are synchronous and fail closed on storage errors. */
 export class QuestionScheduleStore {
-  private readonly storePath: string;
+  readonly storePath: string;
   constructor(stateDir: string) {
     this.storePath = path.join(stateDir, "dingtalk-schedules.json");
   }

@@ -58,11 +58,24 @@ export const scheduleToolSchema = {
   additionalProperties: false,
   required: ["action"],
   properties: {
-    action: { type: "string", enum: ["prepare", "bind", "list", "disable", "run"] },
+    action: {
+      type: "string",
+      enum: ["prepare", "bind", "list", "disable", "recover", "retry_result", "run"],
+    },
     scheduleId: { type: "string" },
     jobId: {
       type: "string",
       description: "Real id returned by the native cron tool; never invent.",
+    },
+    acknowledgeUncertainDelivery: {
+      type: "boolean",
+      description:
+        "Only after owner acknowledgement: recover abandons a possibly sent card; retry_result may duplicate the currently uncertain chunk. Never set implicitly.",
+    },
+    attemptId: {
+      type: "string",
+      description:
+        "For retry_result only: exact current uncertain attemptId returned by list. A stale acknowledgement cannot authorize a new attempt.",
     },
     name: { type: "string", description: "Human-readable collection task name." },
     form: scheduledFormSchema,
@@ -76,7 +89,8 @@ export const scheduleToolSchema = {
     sequence: {
       type: "integer",
       minimum: 1,
-      description: "Cron script only: durable trigger.state.sequence + 1.",
+      description:
+        "For run: durable trigger.state.sequence + 1. For recover/retry_result: the exact occurrence sequence returned by list.",
     },
   },
 } as const;
