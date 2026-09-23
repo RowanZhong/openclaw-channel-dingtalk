@@ -43,7 +43,21 @@ ClawHub 自动执行内容（`.github/workflows/clawhub-publish.yml`，单一 `p
 2. 确保工作流具备 `id-token: write` 权限（已在本仓库 workflow 配置）
 
 说明：Trusted publisher 模式下，发布步骤不再需要 `NPM_TOKEN` Secret。
-同时不要在仓库/组织变量里注入 `NODE_AUTH_TOKEN` 或 `NPM_TOKEN`，否则 npm 会优先尝试 token 认证，可能导致 OIDC 不生效。
+
+`npm-publish.yml` 在 `npm publish` 之前**主动清除遗留的 token 认证上下文**，强制走 OIDC：
+
+```bash
+# Force trusted publishing path: remove any legacy token auth context.
+if [[ -n "${NPM_CONFIG_USERCONFIG:-}" && -f "${NPM_CONFIG_USERCONFIG}" ]]; then
+  rm -f "${NPM_CONFIG_USERCONFIG}"
+fi
+unset NODE_AUTH_TOKEN
+unset NPM_TOKEN
+```
+
+因此仓库/组织里即使存在 `NODE_AUTH_TOKEN` 或 `NPM_TOKEN`，**也不会**让该 workflow 退回 token 认证——
+这一步已经把它消除了。仍然建议不要注入这两个变量，但理由是**减少冗余凭据**，而不是"会覆盖 OIDC"。
+（手动执行 `npm publish` 时该保护不存在，那时才需要留意本地认证上下文。）
 
 ClawHub 自动发布额外要求：
 1. 配置仓库 Secret：`CLAWHUB_TOKEN`
@@ -130,6 +144,18 @@ gh run view <run-id>
 git push origin v3.8.0
 ```
 
+> [!IMPORTANT]
+> **`ref` 不接受短 SHA。** `actions/checkout` 会先试 `git branch --list --remote origin/<ref>` 与
+> `git tag --list <ref>`，两者都失败就报
+> `A branch or tag with the name '<short-sha>' could not be found` 并终止 run（该次 run 不会消耗审计版本号）。
+> 要审计某个提交，请传**完整 40 位 SHA**：
+>
+> ```bash
+> gh workflow run clawhub-audit.yml --ref main -f ref="$(git rev-parse HEAD)"
+> ```
+>
+> 也可以传 tag 或分支名；tag 尚未创建时用分支名或完整 SHA。
+
 ### 判定策略（P2）
 
 判定输入是公开、免鉴权、版本精确的安装信任接口：
@@ -212,10 +238,22 @@ ALLOW_SUSPICIOUS=1 node scripts/clawhub-beta-gate.mjs verdict.json
    - 需要有 npm 账号（https://www.npmjs.com/）
    - 需要有 `@soimy` scope 的发布权限（或你本人的账号可发布该 scope）
 
-2. **认证登录**
-   ```bash
-   npm login
-   ```
+2. **认证：走 npm Trusted Publisher（OIDC），不需要本地登录**
+
+   发布由 `.github/workflows/npm-publish.yml` 在 tag push 时执行，通过 **Trusted Publisher + OIDC** 向 npm 认证：
+
+   - 工作流已配置 `id-token: write`，发布时用 OIDC 换取短期凭证
+   - **不需要 `NPM_TOKEN` Secret**，**也不需要在本机 `npm login`**
+   - 因此本机 `npm whoami` 返回 401 是**正常现象**，不代表没有发布能力
+   - 前提是在 npm 包设置里已完成 GitHub Actions Trusted publisher 绑定（见上方「GitHub CI 自动发布」）
+
+   > [!NOTE]
+   > 仓库/组织里即使存在 `NODE_AUTH_TOKEN` / `NPM_TOKEN` 也不会影响该 workflow——
+   > 它在 `npm publish` 前会 `unset` 这两个变量并删除 npm user config，强制走 OIDC。
+   > 不注入它们的理由是减少冗余凭据，而不是"否则 OIDC 会失效"。
+
+   只有需要**手动**执行 `npm publish`（绕过 CI 的应急路径）时，才需要 `npm login`；
+   此时请确认登录的是有 `@soimy` scope 权限的账号。
 
 3. **代码质量检查**
    - 确保所有代码已通过类型检查和 lint 验证
@@ -257,13 +295,46 @@ npm pack --dry-run
 
 ### 3. 执行发布前检查
 
-发布前会自动运行类型检查和 lint：
+**先说明本仓库实际存在的钩子，避免照着不存在的脚本敲命令：**
+
+| 命令 / 钩子 | 是否存在 | 实际行为 |
+| --- | --- | --- |
+| `npm run prepublishOnly` | ❌ **不存在** | 仓库没有定义该脚本 |
+| `prepack`（`npm pack` / `npm publish` 前自动触发） | ✅ 存在 | `pnpm run build` = `build:runtime` + `build:types`（`tsc -p tsconfig.build.json`）。**会做 TypeScript 编译检查**，但不跑独立的 `type-check`（`tsc -p tsconfig.json`，配置不同）、也**不跑 lint** |
+| `pnpm run pack:check` | ✅ 存在 | 只校验三件事：必需文件存在（`dist/index.js`、`dist/index.d.ts`、`openclaw.plugin.json`）、不含 source map、bundle 不含 `child_process` / 进程执行 / 整体 `process.env` 透传。**不比对完整文件清单** |
+
+所以类型检查、lint、测试、格式检查都需要**显式执行**：
 
 ```bash
-npm run prepublishOnly
+pnpm run format:check
+pnpm run type-check
+pnpm run lint
+pnpm test
+pnpm run build
+pnpm run pack:check
+npm pack --dry-run   # 核对将被发布的完整文件清单（见下方说明）
 ```
 
-如果检查失败，修复所有问题后重试。
+关于 CI 覆盖范围，**不要把两个 workflow 混为一谈**：
+
+| 检查 | `npm-publish.yml`（tag 触发） | `ci-tests.yml`（push / PR 触发） |
+| --- | --- | --- |
+| `type-check` | ✅ | ✅ |
+| `lint` | ✅ | ✅ |
+| `test` | ✅ | ✅ |
+| `test:coverage` | ❌ | ✅ |
+| `format:check` | ❌ | ✅ |
+| `build` / `pack:check` | ✅ | ✅ |
+
+**`npm-publish.yml` 不跑 `format:check`，`ci-tests.yml` 也不是 tag 发布的门禁**（它由 push / PR 触发，与 tag 发布是两条独立 workflow）。因此**格式检查需要在推 tag 前自行确认**，不能假定"CI 会拦住"。
+
+**`pack:check` 通过 ≠ 文件清单正确。** 它只断言几个必需文件存在与若干禁止项，多出一个不该发布的文件时它**依然会通过**。要核对完整清单请用：
+
+```bash
+npm pack --dry-run
+```
+
+上面这组命令用于**手动发布**或本地预检；CI 路径下已由两个 workflow 覆盖的部分见上表。如有检查失败，修复后重试。
 
 ### 4. 发布到 npm
 
@@ -303,6 +374,34 @@ pnpm install
 openclaw plugins install -l .
 ```
 
+### 7. 建立 GitHub Release 页面
+
+> [!IMPORTANT]
+> **推 tag 不会自动建立 Release 页面。** tag push 只触发 `.github/workflows/npm-publish.yml` 与
+> `clawhub-publish.yml`；仓库里**没有**创建 GitHub Release 的 workflow。这一步必须手动做，
+> 漏掉的表现是：包已经发布、tag 已存在，但 `https://github.com/<owner>/<repo>/releases` 上找不到该版本。
+
+约定：**Release 正文就是 `docs/releases/<tag>.md` 的逐字内容**，标题与 tag 同名。
+
+```bash
+gh release create vX.Y.Z \
+  --title "vX.Y.Z" \
+  --notes-file docs/releases/vX.Y.Z.md \
+  --verify-tag
+```
+
+- `--verify-tag`：tag 不存在时直接失败，避免建出指向不存在 tag 的 Release
+- 不要加 `--draft` / `--prerelease`（除非确实要发预发布）；最新的正式版本会被 GitHub 自动标记为 `Latest`
+- 发布后用 `gh release view vX.Y.Z --json body -q .body | diff - docs/releases/vX.Y.Z.md` 核对正文一致
+
+> [!WARNING]
+> **发布说明里的链接必须是绝对链接。** 同一个文件会在两个渲染器下出现：VitePress 文档站
+> （相对链接有效）与 GitHub Release 页面（相对链接无效）。
+> 例如 `[latest.md](./latest.md)` 在 Release 页面上会被 GitHub 解析成
+> `/releases/latest.md` 并 302 回当前 Release 页面本身——不报错，但等于一个点不动的自我链接。
+> 写文档站链接时用正式域名 `https://dingtalk-channel.nanoo.app/...`，
+> 写仓库文件时用 `https://github.com/soimy/openclaw-channel-dingtalk/blob/main/...`。
+
 ## 发布检查清单
 
 在执行发布前，确认以下事项：
@@ -311,13 +410,15 @@ openclaw plugins install -l .
 - [ ] 所有测试通过
 - [ ] `pnpm run type-check` 无错误
 - [ ] `pnpm run lint` 无错误
-- [ ] 已手动跑过一次 ClawHub 安全审计（`gh workflow run clawhub-audit.yml`），结论为 `clean`，或 `suspicious` 已显式 `allow_suspicious=true` 放行并有复核结论（审计不阻断发布，但这是流程约定）
-- [ ] README.md 文档已更新
+- [ ] 已手动跑过一次 ClawHub 安全审计（`gh workflow run clawhub-audit.yml -f ref="$(git rev-parse HEAD)"`），结论为 `clean`，或 `suspicious` 已显式 `allow_suspicious=true` 放行并有复核结论（审计不阻断发布，但这是流程约定）
+- [ ] README.md 文档已更新（若本次新增了配置项或用户可见行为，确认 `docs/user/` 已覆盖；README 只保留入口级内容）
 - [ ] `docs/releases/` 已记录新版本变更
+- [ ] 发布说明中的链接均为**绝对链接**（该文件会逐字成为 GitHub Release 正文，相对链接在那里无效）
+- [ ] `pnpm run format:check` 无错误（**`npm-publish.yml` 不跑它，`ci-tests.yml` 也不是 tag 门禁**）
 - [ ] 版本号已更新（`npm version`）
-- [ ] `.npmignore` 配置正确
-- [ ] 已登录 npm (`npm whoami`)
-- [ ] 有 `@soimy` scope 发布权限
+- [ ] 已用 `npm pack --dry-run` 核对完整文件清单（`pack:check` 只查必需文件与若干禁止项，**不比对清单**，多出文件时它照样通过）
+- [ ] 已在 npm 包设置中完成 GitHub Actions Trusted publisher 绑定（**无需**本地 `npm login`；本机 `npm whoami` 返回 401 属正常）
+- [ ] **已建立 GitHub Release 页面**（`gh release create vX.Y.Z --title vX.Y.Z --notes-file docs/releases/vX.Y.Z.md --verify-tag`；推 tag 不会自动建，见「发布步骤 7」）
 
 ## 文件包含规则
 
@@ -348,7 +449,17 @@ ClawHub 发布范围由 `.clawhubignore` 控制，目标是尽量与 npm 包保�
 
 ### Q: 发布失败，提示权限错误
 
-**A:** 确保：
+**A:** 分两种情况：
+
+**CI 自动发布（推荐路径）失败时**，问题几乎总在 Trusted Publisher 绑定上：
+1. 确认 npm 包设置中已完成 GitHub Actions Trusted publisher 绑定（仓库、workflow 文件名都要对上）
+2. 确认 workflow 具备 `id-token: write` 权限
+3. 确认 tag 版本与 `package.json#version` 完全一致（workflow 第一步就会校验，失败时日志里有明确提示）
+4. 注意本机 `npm whoami` 返回 401 是正常的，与 CI 能否发布无关
+5. **不必去查 `NODE_AUTH_TOKEN` / `NPM_TOKEN`**：workflow 在发布前会 `unset` 它们并删除 npm user config，
+   这两个变量无法影响该路径的认证
+
+**手动 `npm publish`（应急路径）失败时**，才检查本地登录态：
 1. 已登录正确的 npm 账号：`npm whoami`
 2. 该账号有 `@soimy` scope 的发布权限
 3. 使用了 `--access public` 标志
