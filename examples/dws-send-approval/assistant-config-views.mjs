@@ -242,7 +242,7 @@ export function buildConfigView(name, state, args, view, input) {
     }[name];
     if (name === "notice-delivery") {
       view.description =
-        "仅主动查看：不主动提醒。\n定时汇总：按选定间隔提醒；即时提醒仍会合并短时间内来信。";
+        "即时提醒：草稿就绪后约2秒推送；密集来信合并，两次提醒至少间隔10秒。\n定时汇总：按选定间隔提醒；仅主动查看：不主动提醒。\n自动回复成功只记入历史，可通过定时汇总查看。";
       view.fields = [
         select(
           "mode",

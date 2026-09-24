@@ -89,12 +89,26 @@ actualForm.children = Array.from({ length: 6 }, (_, index) => {
   };
   return b;
 });
+// Keep the operation-card lifetime separate from saved settings and drafts.
+const expiryNote = structuredClone(find(actual, "BaseText"));
+expiryNote.id = "dws_assistant_expiry_note";
+expiryNote.props.text.content = "${card_expires_note}";
+expiryNote.props.gravity = "right";
+expiryNote.props.styleToken = "common_footnote_text_style";
+expiryNote.props.color.value = "common_level3_base_color";
+expiryNote.props.customFontSize = 12;
+expiryNote.props.customFontLineHeight = 18;
+expiryNote.props.maxLine.value = 2;
+expiryNote.props.marginTop = 0;
+expiryNote.props.marginBottom = 6;
+actual.children.push(expiryNote);
 editor.variableList = editor.variableList.filter(
   (x) => !["question_id", "question_title", "question_desc"].includes(x.name),
 );
 for (const name of [
   "title",
   "description",
+  "card_expires_note",
   ...Array.from({ length: 6 }, (_, i) => [`button${i + 1}`, `action${i + 1}`]).flat(),
 ]) {
   editor.variableList.push({
@@ -126,6 +140,7 @@ editor.mockData = {
     title: "我的代回复助手",
     description: "待处理 3 条。点击查看草稿，或配置监听范围。",
     card_status: "pending",
+    card_expires_note: "卡片有效期至 09/24 15:30",
     form: { fields: [] },
     button1: "查看待回复",
     button2: "监听范围",

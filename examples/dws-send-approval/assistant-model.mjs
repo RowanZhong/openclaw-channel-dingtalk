@@ -1,10 +1,34 @@
 import { safeText } from "./assistant-settings.mjs";
+// Both supported hosts reject even an explicit default agent as an override.
+// Omit it only when the configured owner is unambiguous; never retry against
+// another agent after an authorization failure.
+export function completionAgent(api, config) {
+  const agents = api.config?.agents;
+  const roster = agents?.entries ?? agents?.list;
+  const ids = Array.isArray(roster)
+    ? roster.map((entry) => entry?.id)
+    : roster && typeof roster === "object" ? Object.keys(roster) : [];
+  const systemAgent = agents?.defaults?.systemAgent?.agentId;
+  const implicit = roster === undefined ? "main" : ids.length === 1 ? ids[0] : undefined;
+  if (implicit === config.agentId && (!systemAgent || systemAgent === implicit)) return {};
+  return { agentId: config.agentId };
+}
+export function draftFailure(error) {
+  const raw = error?.code;
+  const code = typeof raw === "string" && /^LLM_[A-Z_]{1,64}$/.test(raw)
+    ? raw : /cannot override .*agent/.test(error?.message ?? "")
+      ? "LLM_COMPLETION_NOT_AUTHORIZED" : "DRAFT_FAILED";
+  const message = code === "LLM_COMPLETION_NOT_AUTHORIZED"
+    ? "拟稿权限不足，请管理员核对 Agent 与插件权限；也可自己修改回复。"
+    : "拟稿未完成；可重试或自己修改回复。";
+  return { code, message };
+}
 export async function draftReply(api, config, draft, hint = "", material = "", signal) {
   if (typeof api.runtime.llm?.complete !== "function") {
     throw new Error("宿主未提供无工具拟稿接口。");
   }
   const result = await api.runtime.llm.complete({
-    agentId: config.agentId,
+    ...completionAgent(api, config),
     messages: [
       {
         role: "system",

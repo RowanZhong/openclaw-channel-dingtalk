@@ -1,6 +1,6 @@
 {
   "name": "dws-send-approval",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "Personal DingTalk reply assistant with owner cards, persistent drafts and controlled sends.",
   "license": "MIT",

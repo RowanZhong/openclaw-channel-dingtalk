@@ -173,5 +173,5 @@ test("listen results show verified group names with IDs and an explicit fallback
     [{ kind: "group", id: "G1", name: "项目协作群" }],
   );
   assert.match(s, /项目协作群 · ID：`G1`/);
-  assert.match(s, /名称待核实 · ID：`G2`/);
+  assert.match(s, /暂未获取名称 · ID：`G2`/);
 });

@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { bridge } from "./assistant-bridge.mjs";
 import { cardFormFields } from "./assistant-card-protocol.mjs";
-import { resolveTargets, splitTargets, resolveGroupLabels } from "./assistant-directory.mjs";
+import { resolveTargets, splitTargets, resolveDisplayLabels } from "./assistant-directory.mjs";
 import { sendExact } from "./assistant-dws.mjs";
-import { draftReply } from "./assistant-model.mjs";
+import { draftReply, draftFailure } from "./assistant-model.mjs";
+import { createNotificationQueue } from "./assistant-notifications.mjs";
 import {
   initialSettings,
   validateSettings,
@@ -59,10 +60,8 @@ export function createAssistant(api, config, dependencies = {}) {
     signal,
     modelQueue = Promise.resolve(),
     sendQueue = Promise.resolve(),
-    lastNotice = 0,
-    noticeBusy = false,
-    dirty = false,
-    maintenanceBusy = false;
+    maintenanceBusy = false,
+    directoryRefresh;
   const jobs = new Set();
   const settings = () => validateSettings(store.get("settings") ?? initialSettings());
   const directory = () => store.get("directory") ?? [];
@@ -72,6 +71,40 @@ export function createAssistant(api, config, dependencies = {}) {
     promise.finally(() => jobs.delete(promise)).catch(() => {});
     return promise;
   };
+  const attentionStates = ["pending", "inbox", "stale", "draft-error", "unknown"];
+  const notifications = createNotificationQueue({
+    now,
+    ...dependencies.notificationTimers,
+    policy: () => ({ ...settings().notifications, quiet: quietNow(settings(), now()) }),
+    deliver: ({ includeHistory }) =>
+      track(
+        (async () => {
+          if (closed) return false;
+          const rows = store.list(attentionStates, 2);
+          if (!rows.length && !includeHistory) return false;
+          await show(
+            rows.length === 1 ? "draft" : rows.length ? "inbox" : "history",
+            rows.length === 1 ? { id: rows[0].id } : {},
+            undefined,
+            "",
+            { lane: "notification" },
+          );
+          return true;
+        })(),
+      ),
+    failed: () =>
+      api.logger?.warn?.("[DWSAssistant] notification delivery failed; drafts retained"),
+  });
+  function notice(draft) {
+    const attention = attentionStates.includes(draft?.status);
+    notifications.mark({
+      attention,
+      priority:
+        attention &&
+        (draft.status === "unknown" ||
+          settings().notifications.priorityUsers.includes(draft.event.sender_open_dingtalk_id)),
+    });
+  }
   const model = (...args) => {
     const result = modelQueue.then(() => {
       if (closed) {
@@ -102,6 +135,7 @@ export function createAssistant(api, config, dependencies = {}) {
     mutator(value);
     value.revision++;
     store.set("settings", validateSettings(value));
+    notifications.kick();
   }
   function checkReady() {
     if (!config.assistant.cardTemplateId || !transport()?.sendCard) {
@@ -134,6 +168,7 @@ export function createAssistant(api, config, dependencies = {}) {
         title: "代回复助手 · 已失效",
         description: `${card.invalidated || "卡片已到期"}。\n请单独发送 /dws 打开新卡。`,
         card_status: "expired",
+        card_expires_note: "卡片已失效",
         form: { fields: [] },
         ...Object.fromEntries(
           Array.from({ length: 6 }, (_, i) => [
@@ -181,14 +216,62 @@ export function createAssistant(api, config, dependencies = {}) {
   }
   function cacheTargets(rows) {
     const merged = new Map(directory().map((x) => [`${x.kind}:${x.id}`, x]));
-    for (const row of rows) merged.set(`${row.kind}:${row.id}`, row);
+    for (const row of rows) {
+      const key = `${row.kind}:${row.id}`;
+      merged.set(key, { ...merged.get(key), ...row });
+    }
     store.set("directory", [...merged.values()].slice(-200));
   }
-  async function show(name = "home", args = {}, replace, notice = "") {
+  async function refreshDirectory(extra = []) {
+    // Serialize in-flight batches so a command and a notification share one lookup.
+    while (directoryRefresh) await directoryRefresh;
+    if (closed) return [];
+    const prefs = listener.snapshot(),
+      s = settings();
+    const targets = [
+      ...extra,
+      ...prefs.rules.dm.ids.map((id) => ({ kind: "user", id })),
+      ...prefs.rules.sender.ids.map((id) => ({ kind: "user", id })),
+      ...prefs.rules.at.ids.map((id) => ({ kind: "group", id })),
+      ...prefs.reply.users.map((x) => ({ kind: "user", id: x.id })),
+      ...prefs.reply.groups.map((x) => ({ kind: "group", id: x.id })),
+      ...s.notifications.priorityUsers.map((id) => ({ kind: "user", id })),
+      ...s.autoRules
+        .filter((x) => ["user", "group"].includes(x.scope))
+        .map((x) => ({ kind: x.scope, id: x.target })),
+    ];
+    const task = (async () => {
+      const rows = await resolveDisplayLabels(config, targets, directory(), {
+        runner: dependencies.directoryRunner,
+        now: now(),
+      });
+      if (!closed) cacheTargets(rows);
+    })();
+    directoryRefresh = task;
+    try {
+      await task;
+    } finally {
+      if (directoryRefresh === task) directoryRefresh = undefined;
+    }
+    return closed ? [] : directory();
+  }
+  async function show(name = "home", args = {}, replace, notice = "", options = {}) {
     if (closed) {
       throw new Error("代回复服务未就绪。");
     }
     checkReady();
+    const displayDrafts = args.id
+      ? [store.draft(args.id)].filter(Boolean)
+      : ["inbox", "history"].includes(name)
+        ? store.list(undefined, 20)
+        : [];
+    await refreshDirectory(
+      displayDrafts.flatMap((d) => [
+        { kind: "user", id: d.event.sender_open_dingtalk_id },
+        ...(!d.reply.direct ? [{ kind: "group", id: d.event.conversation_id }] : []),
+      ]),
+    );
+    if (closed) throw new Error("服务已停止。");
     const previous = replace ? store.cardForTrack(replace) : undefined;
     if (
       replace &&
@@ -212,6 +295,7 @@ export function createAssistant(api, config, dependencies = {}) {
       settingsRevision: settings().revision,
       name,
       args,
+      lane: previous?.lane ?? options.lane ?? "workspace",
       refs: view.refs,
       fields: view.fields,
       actions: view.buttons,
@@ -226,9 +310,11 @@ export function createAssistant(api, config, dependencies = {}) {
         } else if (typeof value === "string" && value.length <= 6000) field.defaultValue = value;
       }
     }
-    if (!replace) {
-      for (const older of store.listCards().filter((c) => !c.invalidated)) {
-        store.card({ ...older, invalidated: "已打开新卡，历史卡片停用" });
+    if (!replace && card.lane === "workspace") {
+      for (const older of store
+        .listCards()
+        .filter((c) => !c.invalidated && (c.lane ?? "workspace") === "workspace")) {
+        store.card({ ...older, invalidated: "已打开新的操作卡，此操作卡停用" });
       }
     }
     store.card(card);
@@ -242,13 +328,8 @@ export function createAssistant(api, config, dependencies = {}) {
       ...fields,
       ...actions,
       title: view.title,
-      description: [
-        notice,
-        view.description,
-        `有效至 ${new Date(card.expires).toLocaleString("zh-CN", { timeZone: settings().notifications.timezone, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}`,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
+      description: [notice, view.description].filter(Boolean).join("\n\n"),
+      card_expires_note: `卡片有效期至 ${new Date(card.expires).toLocaleString("zh-CN", { timeZone: settings().notifications.timezone, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}`,
       form: {
         fields: cardFormFields(view.fields).map((field) => ({
           ...field,
@@ -308,6 +389,9 @@ export function createAssistant(api, config, dependencies = {}) {
   }
   async function refreshCards(id) {
     for (const c of store.cardsForDraft(id)) {
+      // An incoming message or another approval must not erase unsent form input.
+      // The original draft version still rejects stale sends when the owner submits.
+      if (c.invalidated || c.consumed || ["edit", "regenerate", "pause"].includes(c.name)) continue;
       try {
         await show(c.name, c.args, c.outTrackId);
       } catch {
@@ -339,7 +423,6 @@ export function createAssistant(api, config, dependencies = {}) {
       }
       if (window.count >= 30) {
         store.put({ ...d, status: "pending", automatic: false, updated: now() });
-        dirty = true;
         return;
       }
       const cooldownKey = `cooldown:${d.event.conversation_id}:${rule.id}`;
@@ -362,15 +445,15 @@ export function createAssistant(api, config, dependencies = {}) {
     try {
       await sender(d);
       store.put({ ...d, status: "sent", updated: now() });
-    } catch {
+    } catch (error) {
       store.put({
         ...d,
-        status: "unknown",
-        error: "发送结果待核实；不会自动重发。",
+        status: error?.noSend ? "pending" : "unknown",
+        error: error?.noSend ? error.message : "发送结果待核实；不会自动重发。",
         updated: now(),
       });
-      dirty = true;
     }
+    if (!automaticRule) notice(store.draft(d.id));
     await refreshCards(d.id);
   }
   async function generate(ref, hint = "", material = "") {
@@ -396,18 +479,19 @@ export function createAssistant(api, config, dependencies = {}) {
       if (!closed && latest?.version === version && latest.status === "generating") {
         store.put({ ...latest, text: body, status: "pending", error: undefined, updated: now() });
       }
-    } catch {
+    } catch (error) {
+      const failure = draftFailure(error);
+      api.logger?.warn?.(`[DWSAssistant] draft failed id=${d.id} code=${failure.code}`);
       const latest = store.draft(d.id);
       if (!closed && latest?.version === version) {
         store.put({
           ...latest,
           status: "draft-error",
-          error: "拟稿未完成；可重试或自己修改回复。",
+          error: failure.message,
           updated: now(),
         });
       }
     }
-    dirty = true;
     await refreshCards(d.id);
   }
   async function processEvent(event, prefs, reply) {
@@ -445,40 +529,12 @@ export function createAssistant(api, config, dependencies = {}) {
         } else {
           await generate({ id: d.id, version: d.version });
         }
-        dirty = true;
-        if (
-          s.notifications.mode === "immediate" ||
-          s.notifications.priorityUsers.includes(event.sender_open_dingtalk_id)
-        ) {
-          await notify(true);
-        }
+        notice(store.draft(d.id));
       })().catch(() => {
-        dirty = true;
+        notice(store.draft(d.id));
         api.logger?.warn?.("[DWSAssistant] background operation stopped; inspect draft status");
       }),
     );
-  }
-  async function notify(force = false) {
-    if (closed || noticeBusy || !dirty) {
-      return;
-    }
-    const s = settings();
-    if (quietNow(s, now()) || s.notifications.mode === "manual") {
-      return;
-    }
-    if (now() - lastNotice < (force ? 10000 : s.notifications.minutes * 60000)) {
-      return;
-    }
-    noticeBusy = true;
-    try {
-      await show(store.list([...PENDING, "unknown"], 1).length ? "inbox" : "history");
-      lastNotice = now();
-      dirty = false;
-    } catch {
-      api.logger?.warn?.("[DWSAssistant] notification delivery failed; drafts retained");
-    } finally {
-      noticeBusy = false;
-    }
   }
   function selected(card, values) {
     const ids = array(values.selected);
@@ -792,18 +848,9 @@ export function createAssistant(api, config, dependencies = {}) {
     },
     checkReady,
     presentationDirectory: (ids) =>
-      track(
-        (async () => {
-          if (closed) return [];
-          const rows = await resolveGroupLabels(config, ids, directory(), {
-            runner: dependencies.directoryRunner,
-            now: now(),
-          });
-          if (!closed) cacheTargets(rows);
-          return closed ? [] : directory();
-        })(),
-      ),
+      track(refreshDirectory(ids.map((id) => ({ kind: "group", id })))),
     maintenance,
+    flushNotifications: () => notifications.flush(),
     show,
     handle,
     processEvent: (...args) => track(processEvent(...args)),
@@ -816,18 +863,20 @@ export function createAssistant(api, config, dependencies = {}) {
         store.set("settings", initialSettings());
       }
       settings();
-      dirty = store.list([...PENDING, "unknown"], 1).length > 0;
+      notifications.start();
+      for (const draft of store.list(attentionStates)) notice(draft);
       bridge().assistants.set(config.accountId, { handle });
       track(maintenance());
       timer = setInterval(() => {
         track(maintenance());
-        track(notify());
+        notifications.kick();
       }, 30000);
       timer.unref?.();
     },
     async stop() {
       closed = true;
       clearInterval(timer);
+      notifications.stop();
       signal?.abort();
       bridge().assistants.delete(config.accountId);
       await Promise.allSettled([...jobs, modelQueue]);

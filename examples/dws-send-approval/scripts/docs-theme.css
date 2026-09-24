@@ -18,3 +18,5 @@
 .doc-switch a,aside a{overflow-wrap:anywhere}
 @media(max-width:520px){.code-block pre{padding:12px}.table-scroll th,.table-scroll td{padding:10px;min-width:110px}.table-scroll td:nth-child(2){min-width:180px}.cardbody{padding:16px 13px}}
 @media print{.code-block,.table-scroll{overflow:visible;break-inside:auto}.code-block pre,.code-block code{white-space:pre-wrap;overflow-wrap:anywhere}.table-scroll table{table-layout:fixed}.table-scroll th,.table-scroll td,.table-scroll td:nth-child(2){min-width:0;font-size:10px;padding:6px}}
+
+.card-expiry{text-align:right;color:#84909d;font-size:12px;line-height:18px;margin-top:12px}

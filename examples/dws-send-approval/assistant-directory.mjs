@@ -153,45 +153,63 @@ export async function resolveTargets(
 export const searchDirectory = (config, kind, query, runner) =>
   resolveTargets(config, kind, query, { runner });
 
-// Display-only lookup for ID-based slash commands. Names never authorize a target.
-// Four workers and a shared five-second budget bound cold status requests.
-export async function resolveGroupLabels(
+// Display-only lookup. Stable target IDs, never names, remain authoritative.
+// The shared time budget and four workers also bound large cold directories.
+export async function resolveDisplayLabels(
   config,
-  ids,
+  targets,
   directory,
   { runner = runDws, now = Date.now() } = {},
 ) {
-  const queue = [...new Set(ids)].slice(0, 20).filter((id) => {
-    const row = directory.find((x) => x.kind === "group" && x.id === id);
-    return (
-      stableId(id) &&
-      (!row || now - (row.lookupAt || 0) >= (row.name && row.name !== id ? 3600000 : 60000))
-    );
-  });
+  const queue = [
+    ...new Map(
+      targets
+        .filter((x) => ["group", "user"].includes(x.kind) && stableId(x.id))
+        .map((x) => [`${x.kind}:${x.id}`, x]),
+    ).values(),
+  ]
+    .slice(0, 60)
+    .filter(({ kind, id }) => {
+      const row = directory.find((x) => x.kind === kind && x.id === id);
+      const named = row?.name && row.name !== id;
+      return !row || now - (row.lookupAt || 0) >= (named && !row.lookupFailed ? 3600000 : 60000);
+    });
   const rows = [],
     deadline = Date.now() + 5000;
   await Promise.all(
     Array.from({ length: Math.min(4, queue.length) }, async () => {
       while (queue.length && Date.now() < deadline) {
-        const id = queue.shift();
-        const previous = directory.find((x) => x.kind === "group" && x.id === id);
-        let row = { ...previous, kind: "group", id, lookupAt: now };
+        const { kind, id } = queue.shift();
+        const previous = directory.find((x) => x.kind === kind && x.id === id);
+        let row = { ...previous, kind, id, lookupAt: now, lookupFailed: true };
         try {
           const d = dataOf(
-            await runner(config, ["chat", "conversation-info", "--group", id, "--format", "json"], {
-              timeoutMs: Math.max(1, Math.min(2000, deadline - Date.now())),
-            }),
+            await runner(
+              config,
+              [
+                "chat",
+                "conversation-info",
+                kind === "group" ? "--group" : "--open-dingtalk-id",
+                id,
+                "--format",
+                "json",
+              ],
+              { timeoutMs: Math.max(1, Math.min(2000, deadline - Date.now())) },
+            ),
           );
           const info = d.result?.conversationInfo;
-          if (
-            info?.openConversationId === id &&
-            info.singleChat === false &&
-            typeof info.title === "string" &&
-            info.title.trim()
-          )
-            row = { ...row, name: info.title.trim().slice(0, 100) };
+          // For users the API resolves the supplied open ID to its direct conversation;
+          // it does not echo the user ID. Never use the title to change that binding.
+          const matches =
+            kind === "group"
+              ? info?.openConversationId === id && info.singleChat === false
+              : info?.singleChat === true && stableId(info.openConversationId);
+          if (matches && typeof info.title === "string" && info.title.trim()) {
+            const name = info.title.replace(/\p{C}/gu, " ").trim().slice(0, 100);
+            if (name) row = { ...row, name, lookupFailed: false };
+          }
         } catch {
-          /* Preserve the stable ID; a display lookup never fails a saved setting. */
+          /* Keep any previously verified name during temporary lookup failures. */
         }
         rows.push(row);
       }
@@ -199,3 +217,10 @@ export async function resolveGroupLabels(
   );
   return rows;
 }
+export const resolveGroupLabels = (config, ids, directory, options) =>
+  resolveDisplayLabels(
+    config,
+    ids.slice(0, 20).map((id) => ({ kind: "group", id })),
+    directory,
+    options,
+  );
