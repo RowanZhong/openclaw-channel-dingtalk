@@ -442,7 +442,7 @@ describe('media-utils', () => {
         );
 
         expect(result?.mediaId).toBe('media_sandbox_1');
-        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { localRoots: undefined });
+        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { maxBytes: 20 * 1024 * 1024, localRoots: undefined });
         expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
     });
 
@@ -468,7 +468,7 @@ describe('media-utils', () => {
         );
 
         expect(result?.mediaId).toBe('media_sandbox_2');
-        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { localRoots: localRoots });
+        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { maxBytes: 20 * 1024 * 1024, localRoots: localRoots });
     });
 
     it('returns null when loadWebMedia returns null (sandbox bridge failure)', async () => {

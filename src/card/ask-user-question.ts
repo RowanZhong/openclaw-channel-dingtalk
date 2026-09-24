@@ -1185,9 +1185,9 @@ const AskUserQuestionSchema = {
     timeoutMinutes: {
       type: "integer",
       minimum: 1,
-      maximum: 1440,
+      maximum: 4320,
       description:
-        "Targeted collections only: 1–1440 minutes, default 5. Ends early when all respondents reply. Restart terminates pending forms.",
+        "Targeted collections only: 1–4320 minutes, default 5. Ends early when all respondents reply. Restart terminates pending forms.",
     },
     target: questionTargetSchema,
     title: {
@@ -1464,9 +1464,9 @@ export function registerDingTalkAskUserQuestionTool(api: OpenClawPluginApi): voi
             !target ||
             !Number.isInteger(record.timeoutMinutes) ||
             Number(record.timeoutMinutes) < 1 ||
-            Number(record.timeoutMinutes) > 1440
+            Number(record.timeoutMinutes) > 4320
           ) {
-            throw new Error("timeoutMinutes requires target and must be an integer from 1 to 1440");
+            throw new Error("timeoutMinutes requires target and must be an integer from 1 to 4320");
           }
           timeoutMinutes = Number(record.timeoutMinutes);
         }

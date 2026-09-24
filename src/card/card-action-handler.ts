@@ -1,3 +1,4 @@
+import { handleReplyAssistantCard } from "./reply-assistant-bridge";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import type { CardCallbackAnalysis } from "../card-callback-service";
 import type { DingTalkConfig, Logger } from "../types";
@@ -18,6 +19,9 @@ export async function handleCardAction(params: {
   config: DingTalkConfig;
   log?: Logger;
 }): Promise<CardActionResult> {
+  if (await handleReplyAssistantCard(params.payload, params.accountId)) {
+    return { handled: true };
+  }
   const askUserResult = await handleDingTalkAskUserCardCallback({
     payload: params.payload,
     cfg: params.cfg,

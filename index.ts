@@ -6,6 +6,7 @@ import {
 import { readStringParam } from "openclaw/plugin-sdk/param-readers";
 import { getAccessToken } from "./src/auth";
 import { registerDingTalkAskUserQuestionTool } from "./src/card/ask-user-question";
+import { registerReplyAssistantBridge } from "./src/card/reply-assistant-bridge";
 import { dingtalkPlugin } from "./src/channel";
 import { getConfig, listDingTalkAccountIds, resolveDingTalkAccount } from "./src/config";
 import {
@@ -291,6 +292,7 @@ const dingtalkEntry = defineChannelPluginEntry({
   plugin: dingtalkPlugin,
   setRuntime: setDingTalkRuntime,
   registerFull(api) {
+    registerReplyAssistantBridge(api);
     registerDingTalkDocsGatewayMethods(api);
     registerDingTalkConnectorCompatibilityGatewayMethods(api);
     registerDingTalkAskUserQuestionTool(api);

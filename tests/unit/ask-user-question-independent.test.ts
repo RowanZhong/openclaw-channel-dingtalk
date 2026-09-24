@@ -154,7 +154,7 @@ describe("independent targeted collections", () => {
     expect(shared.inbound).toHaveBeenCalledTimes(1);
   });
 
-  it.each([0, -1, 1.5, 1441, "30", null])("rejects invalid timeout %s before delivery", async value => {
+  it.each([0, -1, 1.5, 4321, "30", null])("rejects invalid timeout %s before delivery", async value => {
     const result = await execute({ target: group, fields, timeoutMinutes: value });
     expect(result.details.status).toBe("failed");
     expect(shared.post).not.toHaveBeenCalled();
@@ -185,10 +185,10 @@ describe("independent targeted collections", () => {
 
   it("ends a long collection early when everyone responds", async () => {
     vi.useFakeTimers();
-    const result = await execute({ target: group, fields, timeoutMinutes: 1440 });
+    const result = await execute({ target: group, fields, timeoutMinutes: 4320 });
     await submit(result, "staff_B");
     await submit(result, "staff_C");
-    await vi.advanceTimersByTimeAsync(1440 * 60_000);
+    await vi.advanceTimersByTimeAsync(4320 * 60_000);
     expect(shared.inbound).toHaveBeenCalledTimes(1);
     expect(response().status).toBe("submitted");
   });

@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-24",
+  "branch": "codex/dws-reply-assistant-2026.7.1-2",
+  "baseline": "2387afda9f2b74a8a5d3bc02a278e5cb67be63e9",
+  "host": "2026.7.1-2",
+  "communityBaseline": "3.6.11",
+  "customVersion": "0.5.1",
+  "communityTests": 1337,
+  "assistantTests": 151,
+  "typeCheck": "passed",
+  "lint": "passed with existing warnings",
+  "formatCheck": "32 pre-existing baseline formatting differences; unrelated formatter edits restored",
+  "runtimeAndTypeBuild": "passed",
+  "hostApprovalBrokerAndLane": "passed",
+  "hostPluginEntryAndCommandDispatcher": "passed",
+  "htmlStructure": "passed",
+  "htmlBrowserVisual": "passed desktop 1280x720 through user-authorized loopback HTTP; code blocks, overview, forms and preview navigation checked; narrow viewport override ineffective, mobile not verified",
+  "realDingTalkTemplateAndClient": "published; both hosts exercised; visible choices, text validation, group names, expiry and full page navigation tested across hosts; all four final split-page visual and persistence checks passed on both hosts; see live-validation.json",
+  "temporaryConfigurationUsed": true,
+  "originalConfigurationsRestored": true
+}
