@@ -27,7 +27,7 @@ interface PluginRuntimeWithMedia {
   media?: {
     loadWebMedia(
       mediaPath: string,
-      options?: { localRoots?: readonly string[] | "any" },
+      options?: { localRoots?: readonly string[] | "any"; maxBytes?: number },
     ): Promise<{ buffer: Buffer | ArrayBuffer; fileName?: string; contentType?: string } | null>;
   };
   [key: string]: unknown;
@@ -979,6 +979,7 @@ async function readMediaBuffer(
   }
 
   const media = await rt.media.loadWebMedia(mediaPath, {
+    maxBytes: 20 * 1024 * 1024,
     localRoots: options?.mediaLocalRoots,
   });
 

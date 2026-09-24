@@ -4,6 +4,7 @@ import { handleDingTalkAskUserCardCallback } from "./ask-user-question";
 import type { CardCallbackAnalysis } from "./card-callback-service";
 import { resolveCardRun } from "./card-run-registry";
 import { stopCardRun } from "./card-stop-handler";
+import { handleReplyAssistantCard } from "./reply-assistant-bridge";
 
 export interface CardActionResult {
   handled: boolean;
@@ -18,6 +19,9 @@ export async function handleCardAction(params: {
   config: DingTalkConfig;
   log?: Logger;
 }): Promise<CardActionResult> {
+  if (await handleReplyAssistantCard(params.payload, params.accountId)) {
+    return { handled: true };
+  }
   const askUserResult = await handleDingTalkAskUserCardCallback({
     payload: params.payload,
     cfg: params.cfg,

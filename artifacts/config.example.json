@@ -1,0 +1,51 @@
+{
+  "commands": {
+    "text": true,
+    "allowFrom": {
+      "dingtalk": [
+        "OWNER_STAFF_ID"
+      ]
+    }
+  },
+  "approvals": {
+    "plugin": {
+      "enabled": true,
+      "mode": "targets",
+      "targets": [
+        {
+          "channel": "dingtalk",
+          "accountId": "default",
+          "to": "user:OWNER_STAFF_ID"
+        }
+      ]
+    }
+  },
+  "plugins": {
+    "entries": {
+      "dws-send-approval": {
+        "enabled": true,
+        "config": {
+          "agentId": "main",
+          "accountId": "default",
+          "ownerUserId": "OWNER_STAFF_ID",
+          "profile": "PROFILE_NAME",
+          "dwsPath": "/absolute/path/to/dws",
+          "mode": "approval",
+          "timeoutMs": 120000,
+          "listener": {
+            "enabled": false,
+            "ignoreSenderOpenIds": [
+              "APPROVAL_BOT_OPEN_DINGTALK_ID"
+            ]
+          },
+          "assistant": {
+            "enabled": true,
+            "cardTemplateId": "PUBLISHED_ASSISTANT_CARD_TEMPLATE_ID",
+            "draftTtlMinutes": 1440,
+            "cardTtlMinutes": 30
+          }
+        }
+      }
+    }
+  }
+}

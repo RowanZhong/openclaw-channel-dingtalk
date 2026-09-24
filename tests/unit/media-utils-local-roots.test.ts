@@ -114,7 +114,7 @@ describe('media-utils local roots', () => {
         );
 
         expect(result?.mediaId).toBe('media_root_checked');
-        expect(mockLoadWebMedia).toHaveBeenCalledWith(mediaPath, { localRoots: ['/allowed'] });
+        expect(mockLoadWebMedia).toHaveBeenCalledWith(mediaPath, { maxBytes: 20 * 1024 * 1024, localRoots: ['/allowed'] });
         expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
         fs.rmSync(path.dirname(mediaPath), { recursive: true, force: true });
     });
@@ -145,7 +145,7 @@ describe('media-utils local roots', () => {
             // The escape must be routed to the bridge instead of reading the host file.
             expect(result?.mediaId).toBe('media_symlink_blocked');
             expect(result?.buffer.equals(bridgeContent)).toBe(true);
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(linkPath, { localRoots: [allowedRoot] });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(linkPath, { maxBytes: 20 * 1024 * 1024, localRoots: [allowedRoot] });
             expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
         } finally {
             fs.rmSync(allowedRoot, { recursive: true, force: true });
@@ -176,7 +176,7 @@ describe('media-utils local roots', () => {
             expect(result?.mediaId).toBe('media_root_inside');
             expect(result?.buffer.equals(Buffer.from('inside-data'))).toBe(true);
             // Containment is decided by the host, not re-implemented here.
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(realPath, { localRoots: [allowedRoot] });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(realPath, { maxBytes: 20 * 1024 * 1024, localRoots: [allowedRoot] });
             expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
         } finally {
             fs.rmSync(allowedRoot, { recursive: true, force: true });
@@ -289,7 +289,7 @@ describe('media-utils local roots', () => {
 
             expect(result?.mediaId).toBe('media_other_agent');
             expect(result?.buffer.equals(bridgeContent)).toBe(true);
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(otherFile, { localRoots: [agentWorkspace] });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(otherFile, { maxBytes: 20 * 1024 * 1024, localRoots: [agentWorkspace] });
         } finally {
             fs.rmSync(stateDir, { recursive: true, force: true });
         }
@@ -323,7 +323,7 @@ describe('media-utils local roots', () => {
 
             expect(result?.mediaId).toBe('media_broad_root');
             expect(mockLoadWebMedia).toHaveBeenCalledWith(otherFile, {
-                localRoots: [os.tmpdir(), agentWorkspace],
+                maxBytes: 20 * 1024 * 1024, localRoots: [os.tmpdir(), agentWorkspace],
             });
         } finally {
             fs.rmSync(stateDir, { recursive: true, force: true });
@@ -373,7 +373,7 @@ describe('media-utils local roots', () => {
 
             expect(result?.mediaId).toBe('media_no_roots');
             expect(result?.buffer.equals(bridgeContent)).toBe(true);
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(mediaPath, { localRoots: undefined });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(mediaPath, { maxBytes: 20 * 1024 * 1024, localRoots: undefined });
             const logs = debug.mock.calls.map((args: unknown[]) => String(args[0]));
             expect(logs.some((entry) => entry.includes('not plugin-owned'))).toBe(true);
             expect(logs.some((entry) => entry.includes('File not found on host'))).toBe(false);
@@ -523,7 +523,7 @@ describe('media-utils local roots', () => {
         expect(ffmpegInput.startsWith(os.tmpdir())).toBe(true);
         // One bridge call for the source; the plugin-owned transcode temp is read directly.
         expect(mockLoadWebMedia).toHaveBeenCalledTimes(1);
-        expect(mockLoadWebMedia).toHaveBeenCalledWith(sourcePath, { localRoots: ['/workspace-only'] });
+        expect(mockLoadWebMedia).toHaveBeenCalledWith(sourcePath, { maxBytes: 20 * 1024 * 1024, localRoots: ['/workspace-only'] });
     });
 
     it('rejects an out-of-root voice source without invoking ffmpeg', async () => {
@@ -549,7 +549,7 @@ describe('media-utils local roots', () => {
             expect(result).toBeNull();
             // The out-of-root source must be routed through the boundary, not decoded by ffmpeg.
             expect(ffmpegSpy).not.toHaveBeenCalled();
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(wavPath, { localRoots: ['/workspace-only'] });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(wavPath, { maxBytes: 20 * 1024 * 1024, localRoots: ['/workspace-only'] });
         } finally {
             fs.rmSync(path.dirname(wavPath), { recursive: true, force: true });
         }
@@ -574,7 +574,7 @@ describe('media-utils local roots', () => {
             );
 
             expect(result?.mediaId).toBe('media_dangling');
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(linkPath, { localRoots: [allowedRoot] });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(linkPath, { maxBytes: 20 * 1024 * 1024, localRoots: [allowedRoot] });
         } finally {
             fs.rmSync(allowedRoot, { recursive: true, force: true });
         }
@@ -596,7 +596,7 @@ describe('media-utils local roots', () => {
             );
 
             expect(result?.mediaId).toBe('media_root_slash');
-            expect(mockLoadWebMedia).toHaveBeenCalledWith(mediaPath, { localRoots: ['/'] });
+            expect(mockLoadWebMedia).toHaveBeenCalledWith(mediaPath, { maxBytes: 20 * 1024 * 1024, localRoots: ['/'] });
         } finally {
             fs.rmSync(path.dirname(mediaPath), { recursive: true, force: true });
         }
@@ -624,6 +624,6 @@ describe('media-utils local roots', () => {
         );
 
         expect(result?.mediaId).toBe('media_sandbox_2');
-        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { localRoots: localRoots });
+        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { maxBytes: 20 * 1024 * 1024, localRoots: localRoots });
     });
 });

@@ -1,0 +1,35 @@
+{
+  "date": "2026-09-23T20:56:24.012Z",
+  "node": "v26.8.1",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M5",
+  "scope": "Single standalone assistant; mock model/DWS/card transport; no network, no full OpenClaw Gateway, no DWS consumer/bus processes; not a 15000-Pod capacity test",
+  "messages": 1000,
+  "conversations": 50,
+  "modelCalls": 1000,
+  "inertSends": 200,
+  "cardOperations": 79,
+  "pending": 40,
+  "idle": {
+    "durationMs": 10001.438333,
+    "cpuMs": 19.589,
+    "corePercent": 0.19586182854685608
+  },
+  "load": {
+    "durationMs": 738.7185000000009,
+    "eventsPerSecond": 1353.6956228928866,
+    "p50Ms": 0.6326669999998558,
+    "p95Ms": 1.204209000001356,
+    "p99Ms": 1.8510000000005675,
+    "cpuMs": 698.957,
+    "eventLoopP99Ms": 11.231231
+  },
+  "memory": {
+    "baselineRssMiB": 68.95,
+    "peakRssMiB": 92.22,
+    "endRssMiB": 92.22,
+    "heapUsedMiB": 13.56,
+    "databaseAndWalMiB": 5.13
+  }
+}

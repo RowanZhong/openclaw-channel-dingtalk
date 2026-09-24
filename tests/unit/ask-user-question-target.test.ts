@@ -439,7 +439,7 @@ describe("targeted question delivery and collection", () => {
     { ...group, respondentUserIds: [] },
     { ...group, respondentUserIds: ["B", "b"] },
     { ...group, respondentUserIds: ["B C"] },
-    { ...group, respondentUserIds: Array.from({ length: 51 }, (_, i) => String(i)) },
+    { ...group, respondentUserIds: Array.from({ length: 1001 }, (_, i) => String(i)) },
     { ...group, public: true },
   ])("rejects invalid targets before delivery: %j", async (target) => {
     const result = await send(target);

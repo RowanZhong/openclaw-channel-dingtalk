@@ -1,0 +1,182 @@
+{
+  "date": "2026-09-24",
+  "customVersion": "0.5.1",
+  "environment": "macOS DingTalk desktop; OpenClaw Test test organization",
+  "template": {
+    "id": "b053717f-2e9a-4326-9e90-560371cc7506.schema",
+    "type": "消息卡片 / 普通卡片",
+    "published": true,
+    "editorDiagnostics": 0,
+    "existingQuestionnaireTemplateChanged": false,
+    "templateRepublishedForCurrentLayoutChanges": false
+  },
+  "fixes": [
+    "Absolute card expiry; new /dws invalidates older active cards; server rejects expired callbacks",
+    "Minute-only expiry labels without timezone",
+    "Validated UserId/full-group-name text inputs; comma/newline splitting and exact-match checks",
+    "Visible CHECKBOX_GROUP/MULTI_CHECKBOX_GROUP with string/array defaults",
+    "Separate listener, reply, automation and notification pages",
+    "Unique field names per render prevent DingTalk form-state carryover between pages",
+    "Group name plus stable ID in Markdown command results; bounded read-only lookup and cache",
+    "Short page descriptions and conditional pagination"
+  ],
+  "newHost": {
+    "version": "2026.8.1",
+    "worktreeRuntimeLoaded": true,
+    "streamConnected": true,
+    "passed": [
+      "Published card home and navigation",
+      "Absolute expiry with 3-minute test TTL: saving after expiry did not mutate preferences; controls removed",
+      "Opening a fresh /dws disabled older cards",
+      "All-DM plus exact-name group selection and persistence through real DWS",
+      "UserId comma/newline input and deduplication",
+      "Notification priority contact and 30-minute interval persistence",
+      "Markdown command result rendering",
+      "Final independent authorization-duration, send-frequency, notification-mode and digest-interval pages: visible controls, selection, navigation and persistence passed"
+    ],
+    "latestLayoutRetest": "Passed all four final split pages on the real desktop client; see finalSplitPageRetest"
+  },
+  "oldHost": {
+    "version": "2026.7.1-2",
+    "worktreeRuntimeLoaded": true,
+    "streamConnected": true,
+    "passed": [
+      "Home, minute-only expiry footer and expired-card presentation",
+      "Listener overview and all three child pages; all-DM and exact-name group save",
+      "Directory UserId validation and results page",
+      "Reply overview, default editor/save, person and group target entry, validated group editor",
+      "Rebuilt and restarted after unique-field-name fix; group rule no longer inherited default-rule mode",
+      "Automation overview; range, content, combined limit page, full review; back/edit/forward preserved Chinese text",
+      "Created a test fixed-answer authorization with mode=block and listener off, then selected and revoked it",
+      "Notification overview, combined delivery/interval save, quiet-time save, priority-clear save",
+      "Pause list, inbox selection, full draft, edit, regenerate form, pause action and resume action",
+      "History page with two inert UI fixtures",
+      "/dws-listen status rendered OpenClaw Test and its stable group ID",
+      "Final independent authorization-duration, send-frequency, notification-mode and digest-interval pages: visible controls, selection, navigation and persistence passed"
+    ],
+    "latestLayoutRetest": "Passed all four final split pages on the real desktop client; see finalSplitPageRetest"
+  },
+  "automated": {
+    "assistantTestsPerHost": 151,
+    "failed": 0,
+    "hostSdkVersions": [
+      "2026.7.1-2",
+      "2026.8.1"
+    ],
+    "hostSdkChecks": "passed: actual entry import, command registration/matching/dispatch, prewarm reload, lifecycle, default-off, owner-only private commands",
+    "coverage": "All view navigation, enum choices, save/cancel, batch callbacks, exact directory validation, expiry/replay/authorization, final reviewed wizard values and unique form field isolation; external model/send APIs mocked"
+  },
+  "pendingVisualChecks": [],
+  "safety": {
+    "listenerNeverEnabled": true,
+    "sendMode": "block",
+    "fixtureDrafts": 2,
+    "fixtureEventsWereRealIncomingMessages": false,
+    "personalMessagesSent": 0,
+    "testAuthorizationRemoved": true
+  },
+  "excluded": [
+    "Phone clients",
+    "Real personal-message receive/draft/send end-to-end",
+    "Actual model regeneration from the UI",
+    "20MiB upload",
+    "1000-person form collection",
+    "15000-Pod load test"
+  ],
+  "cleanup": {
+    "bothConfigurationsRestoredByteForByte": true,
+    "bothDatabasesAndPreferencesRestoredByteForByte": true,
+    "originalGatewayRunning": true,
+    "dingtalkConnected": true,
+    "listenerNeverEnabled": true,
+    "status": "complete; verified again after final four-page retest"
+  },
+  "finalSplitPageRetest": {
+    "date": "2026-09-24",
+    "client": "macOS DingTalk desktop",
+    "windowPixels": [
+      1311,
+      768
+    ],
+    "versions": [
+      "2026.8.1",
+      "2026.7.1-2"
+    ],
+    "pages": [
+      "auto-limits",
+      "auto-frequency",
+      "notice-delivery",
+      "notice-frequency"
+    ],
+    "visualResult": "All four final pages opened on both hosts; titles, explanatory text, minute-only expiry, options and action buttons fully visible without clipping in the test window",
+    "newHost": {
+      "authorizationHours": 24,
+      "cooldownMinutes": 60,
+      "backForwardPreservedChoices": true,
+      "reviewMatchedFullTextAndValues": true,
+      "testRuleCreatedThenRevoked": true,
+      "notificationMode": "manual",
+      "digestMinutes": 60,
+      "independentSectionSavePreservedOtherSettings": true
+    },
+    "oldHost": {
+      "authorizationHours": 168,
+      "cooldownMinutes": 1440,
+      "backForwardPreservedChoices": true,
+      "reviewMatchedFullTextAndValues": true,
+      "cancelCreatedNoRule": true,
+      "notificationMode": "immediate",
+      "digestMinutes": 5,
+      "reopeningPreservedSelectedInterval": true,
+      "unsavedIntervalChangeDiscardedOnReturn": true,
+      "independentSectionSavePreservedOtherSettings": true
+    },
+    "persistenceReadback": {
+      "newHost": {
+        "activeAutoRules": 0,
+        "notificationMode": "manual",
+        "digestMinutes": 60,
+        "drafts": {
+          "pending": 2
+        }
+      },
+      "oldHost": {
+        "activeAutoRules": 0,
+        "notificationMode": "immediate",
+        "digestMinutes": 5,
+        "drafts": {
+          "pending": 2
+        }
+      }
+    },
+    "personalMessagesSent": 0,
+    "listenerNeverEnabled": true,
+    "temporaryStateRestored": true
+  },
+  "docsBrowserValidation": {
+    "date": "2026-09-24",
+    "transport": "User-authorized loopback HTTP; only two HTML files served",
+    "browser": "Codex in-app browser",
+    "observedViewport": [
+      1280,
+      720
+    ],
+    "documents": [
+      "developer",
+      "employee"
+    ],
+    "result": "passed desktop visual and interaction checks",
+    "checks": [
+      "Covers and opening technical / feature overviews visually inspected",
+      "All 13 code blocks use standalone semantic markup; no empty copy buttons or orphan language labels",
+      "No literal Markdown bold delimiters in prose",
+      "No page-level or uncontained main-content horizontal overflow",
+      "Radio controls aligned with labels; selection and text entry verified",
+      "Two checkboxes selected together; demo action clearly states no save/send",
+      "Listener, reply, notification and all five authorization preview steps opened",
+      "Employee preview console: no warnings or errors"
+    ],
+    "responsiveStatus": "Not verified: requested narrow viewport did not change observed innerWidth; no mobile pass claimed",
+    "realMessagesSent": 0
+  }
+}

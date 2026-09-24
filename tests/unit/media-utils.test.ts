@@ -464,7 +464,7 @@ describe('media-utils', () => {
         );
 
         expect(result?.mediaId).toBe('media_sandbox_1');
-        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { localRoots: undefined });
+        expect(mockLoadWebMedia).toHaveBeenCalledWith(sandboxPath, { maxBytes: 20 * 1024 * 1024, localRoots: undefined });
         expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
     });
 

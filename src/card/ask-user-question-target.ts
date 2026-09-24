@@ -56,9 +56,9 @@ export function parseQuestionTarget(value: unknown): QuestionTarget | undefined 
   if (
     !Array.isArray(target.respondentUserIds) ||
     target.respondentUserIds.length < 1 ||
-    target.respondentUserIds.length > 50
+    target.respondentUserIds.length > 1000
   ) {
-    throw new Error("A group target requires 1–50 explicit respondentUserIds");
+    throw new Error("A group target requires 1–1000 explicit respondentUserIds");
   }
   const respondentUserIds = target.respondentUserIds.map(identifier);
   if (
@@ -87,7 +87,7 @@ export const questionTargetSchema = {
   description:
     "Optional explicit delivery target. Omit to ask only the current user in the current conversation. " +
     "Use only verified DingTalk IDs, never guess IDs from names. Answers return to the initiating conversation. " +
-    "Group targets require an explicit respondentUserIds list of staffIds. Collect the first response per person and resume once all respond or timeoutMinutes elapses (1–1440 minutes, default 5). " +
+    "Group targets require an explicit respondentUserIds list of staffIds. Collect the first response per person and resume once all respond or timeoutMinutes elapses (1–4320 minutes, default 5). " +
     "Targeted collections are independent: ordinary messages and new forms do not invalidate them. The initiator can list or cancel them; gateway restart terminates pending forms.",
   properties: {
     type: { type: "string", enum: ["user", "group"] },
@@ -99,7 +99,7 @@ export const questionTargetSchema = {
     respondentUserIds: {
       type: "array",
       minItems: 1,
-      maxItems: 50,
+      maxItems: 1000,
       uniqueItems: true,
       items: { type: "string", minLength: 1 },
       description:

@@ -1,0 +1,54 @@
+{
+  "name": "dws-send-approval",
+  "version": "0.5.1",
+  "private": true,
+  "description": "Personal DingTalk reply assistant with owner cards, persistent drafts and controlled sends.",
+  "license": "MIT",
+  "files": [
+    "*.mjs",
+    "openclaw.plugin.json",
+    "config.example.json",
+    "config.kubernetes.example.json",
+    "README.md",
+    "GUIDE.md",
+    "GUIDE.html",
+    "LICENSE",
+    "tests/",
+    "scripts/",
+    "templates/",
+    "channel/",
+    "DEVELOPER.*",
+    "USER-MANUAL.*"
+  ],
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "pack:local": "node scripts/package.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.7.1-2"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.mjs"
+    ],
+    "runtimeExtensions": [
+      "./index.mjs"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.7.1-2"
+    },
+    "install": {
+      "minHostVersion": ">=2026.7.1-2"
+    }
+  }
+}
