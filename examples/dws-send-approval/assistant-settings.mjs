@@ -6,7 +6,7 @@ export function initialSettings() {
     autoRules: [],
     pauses: {},
     notifications: {
-      mode: "digest",
+      mode: "immediate",
       minutes: 15,
       quietStart: "22:00",
       quietEnd: "08:00",

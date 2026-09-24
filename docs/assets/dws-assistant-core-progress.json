@@ -1,0 +1,66 @@
+{
+  "date": "2026-09-24",
+  "assistantVersion": "0.5.2",
+  "hosts": [
+    "2026.7.1-2",
+    "2026.8.1"
+  ],
+  "unitTests": {
+    "eachHostPassed": 182,
+    "failed": 0
+  },
+  "runtimeBuilds": "passed both hosts",
+  "coreBefore052": {
+    "new": "N1: real DM and group mention intake, drafts, manual DM send, edited group send, nonmention exclusion, restart persistence; two test sends",
+    "old": "O1/O2: real DM and group mention drafts, manual sends, fixed auto reply, cooldown suppression, ignore without send, revoke rule, listener off; three test sends"
+  },
+  "ux052": {
+    "status": "passed on both desktop hosts",
+    "old": {
+      "case": "O4-QUOTE",
+      "intake": "real group mention from cooperating friend",
+      "draft": "AI, no tool calls",
+      "notificationAfterDraftMs": 2006,
+      "send": "owner-authorized card callback, sent, automatic=false, one message",
+      "nativeResult": "original-message quote, @sender, AI label, one reply under original, same topic panel",
+      "names": "cold directory resolved person and group",
+      "workspaceCard": "scope card remained usable and navigated to DM settings after notification and send"
+    },
+    "new": {
+      "case": "N2-QUOTE",
+      "intake": "real group mention from cooperating friend",
+      "draft": "AI, no tool calls",
+      "notificationAfterLlmCompletionMs": 2007,
+      "send": "owner clicked card, sent, automatic=false, one message",
+      "nativeResult": "original-message quote, @sender, AI label, one reply under original, same topic panel",
+      "names": "cold directory resolved person and group",
+      "workspaceCard": "home card remained usable and navigated to named scope summary after notification and send"
+    },
+    "earlierFailure": {
+      "case": "O3-QUOTE",
+      "status": "no reply sent; later superseded by successful O4/N2 live verification",
+      "code": "SYSTEM_ERROR",
+      "traceIds": [
+        "213126b217902323991271547e049c",
+        "213dd8aa17902325357552711e04b9"
+      ],
+      "serverRootCause": "not determined",
+      "statusCorrection": "DWS 1.0.58 status parser expects items; observed API returns list. Empty displayed subscriptions was not proof of an empty server list.",
+      "recovery": "bounded diagnostics succeeded; no protection state deletion or permission change"
+    },
+    "newHostStartupRecovery": "shared DWS identity lock but different foreground/launchd TMPDIR socket roots; after old bus idle exit, new background bus started and live test passed",
+    "cardDisplay": "Background native window sometimes omitted card drawing; raising DingTalk rendered the same card with working callbacks. No template republish required; client internal root cause not established."
+  },
+  "cleanup": {
+    "oldConfigAndStateRestoredByteForByte": true,
+    "newConfigAndStateRestoredByteForByte": true,
+    "oldGatewayStopped": true,
+    "newGateway": "running=true, connected=true; restored host probe passed"
+  },
+  "notValidated": [
+    "mobile client",
+    "15000 Pod load",
+    "20 MiB actual media upload",
+    "1000-person live questionnaire"
+  ]
+}

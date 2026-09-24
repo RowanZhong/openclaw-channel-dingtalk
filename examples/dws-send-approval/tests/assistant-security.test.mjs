@@ -155,7 +155,7 @@ test("deterministic sender uses argv, fixed profile and exact origin with CLI co
   let args;
   await sendExact(
     { profile: "corp:A", dwsPath: "/dws" },
-    { event: { conversation_id: "cid_1" }, text: "$(do not run)" },
+    { event: { conversation_id: "cid_1" }, reply: { direct: true }, text: "$(do not run)" },
     async (_c, a) => {
       args = a;
       return { ok: true, identity: "user", tool: "send_personal_message" };

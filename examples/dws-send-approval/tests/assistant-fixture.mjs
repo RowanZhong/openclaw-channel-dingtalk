@@ -61,6 +61,9 @@ export async function fixture(t, overrides = {}) {
         userId: kind === "user" ? x : undefined,
         name: kind === "user" ? "张三" : x,
       })),
+    directoryRunner: async () => {
+      throw Error("directory unavailable in this fixture");
+    },
     ...overrides,
   });
   assistant.bind({

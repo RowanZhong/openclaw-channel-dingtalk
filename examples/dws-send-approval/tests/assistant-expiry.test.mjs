@@ -6,7 +6,8 @@ test("card expiry is absolute across navigation, shown to owner, and disables mu
   let clock = Date.now();
   const f = await fixture(t, { now: () => clock });
   const c = await f.assistant.show();
-  assert.match(f.cards.at(-1).data.description, /有效至/);
+  assert.doesNotMatch(f.cards.at(-1).data.description, /有效期至|有效至/);
+  assert.match(f.cards.at(-1).data.card_expires_note, /^卡片有效期至 \d{2}\/\d{2} \d{2}:\d{2}$/);
   clock += 60000;
   await f.act(c, "listen");
   await f.act(f.lastCard(), "listen-dm");

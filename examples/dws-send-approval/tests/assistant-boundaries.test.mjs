@@ -97,7 +97,11 @@ test("send result must match the DWS 1.0.58 actual personal-message success cont
     { ok: true, identity: "bot", tool: "send_personal_message" },
   ])
     await assert.rejects(
-      sendExact({}, { event: { conversation_id: "chat1" }, text: "reply" }, async () => result),
+      sendExact(
+        {},
+        { event: { conversation_id: "chat1" }, reply: { direct: true }, text: "reply" },
+        async () => result,
+      ),
     );
 });
 test("card import source binds all six callbacks to generated variables, includes form and no remote widgets", async () => {

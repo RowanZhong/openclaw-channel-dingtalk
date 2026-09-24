@@ -74,7 +74,7 @@ export function buildView(name, state, args = {}) {
       return rule.ids
         .map((id) => {
           const row = directory.find((x) => x.kind === kind && x.id === id);
-          return `· ${row?.name && row.name !== id ? String(row.name).replace(/\p{C}/gu, " ") : "名称待核实"}（${id.slice(-8)}）`;
+          return `· ${row?.name && row.name !== id ? String(row.name).replace(/\p{C}/gu, " ") : "暂未获取名称"}（ID：${row?.name && row.name !== id ? id.slice(-8) : id}）`;
         })
         .join("\n");
     };
@@ -183,10 +183,10 @@ export function buildView(name, state, args = {}) {
       throw new Error("这条记录不存在或已清理。");
     }
     view.title = `#${d.id}-${d.version} · ${draftLabel(d, directory)}`;
-    view.description = `${labels[d.status] || d.status}\n原消息：${d.event.content.slice(0, 3000)}\n\n将以你的身份回复：\n${d.text || "尚未生成"}${d.error ? `\n${d.error}` : ""}`;
+    view.description = `${labels[d.status] || d.status}\n${d.reply.direct ? "私聊回复" : "引用回复此条群消息"}\n原消息：${d.event.content.slice(0, 3000)}\n\n将以你的身份回复：\n${d.text || "尚未生成"}${d.error ? `\n${d.error}` : ""}`;
     view.refs = [{ id: d.id, version: d.version }];
     if (name === "edit") {
-      view.description = `接收对象不变。修改后点击发送即发送输入框中的完整正文。\n原消息：${d.event.content.slice(0, 160)}`;
+      view.description = `接收对象与原消息不变。${d.reply.direct ? "" : "发送时引用此条群消息。"}修改后点击发送即发送输入框中的完整正文。\n原消息：${d.event.content.slice(0, 160)}`;
       view.fields = [text("body", "修改后直接发送的完整正文", d.text)];
       view.buttons = [
         button("发送修改后的内容", "edit-send"),

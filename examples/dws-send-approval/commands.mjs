@@ -55,7 +55,7 @@ export function formatStatus(status, directory = []) {
                 ? String(row.name)
                     .replace(/\p{C}/gu, " ")
                     .replace(/[\\`*_{}[\]()<>!#|]/g, "\\$&")
-                : "名称待核实";
+                : "暂未获取名称";
             return `  - ${name} · ID：\`${id}\``;
           })
         : []),
