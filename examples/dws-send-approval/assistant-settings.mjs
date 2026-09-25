@@ -1,9 +1,11 @@
+import { initialTopics, validateTopics } from "./assistant-topic-rules.mjs";
 import { stableId } from "./preferences.mjs";
 export function initialSettings() {
   return {
     version: 1,
     revision: 0,
     autoRules: [],
+    topics: initialTopics(),
     pauses: {},
     notifications: {
       mode: "immediate",
@@ -91,7 +93,7 @@ export function validateSettings(value) {
   ) {
     throw new Error("暂停设置无效。");
   }
-  return structuredClone(value);
+  return { ...structuredClone(value), topics: validateTopics(value.topics) };
 }
 export function quietNow(settings, now) {
   const n = settings.notifications;
@@ -108,15 +110,15 @@ export function quietNow(settings, now) {
     ? text >= n.quietStart && text < n.quietEnd
     : text >= n.quietStart || text < n.quietEnd;
 }
-export function autoAnswer(event, reply, settings, now) {
+export function matchingAutoRules(event, reply, settings, now) {
   if (
     reply.mode === "off" ||
     reply.mode === "inbox" ||
     settings.pauses[event.conversation_id] > now
   ) {
-    return null;
+    return [];
   }
-  const matches = settings.autoRules.filter(
+  return settings.autoRules.filter(
     (r) =>
       r.expires > now &&
       (r.scope === "all" ||
@@ -125,6 +127,9 @@ export function autoAnswer(event, reply, settings, now) {
         (r.scope === "user" && r.target === event.sender_open_dingtalk_id)) &&
       (!r.keywords.length || r.keywords.some((k) => event.content.includes(k))),
   );
+}
+export function autoAnswer(event, reply, settings, now) {
+  const matches = matchingAutoRules(event, reply, settings, now);
   // Overlapping, different answers need human review rather than an arbitrary winner.
   return matches.length && new Set(matches.map((r) => r.text)).size === 1 ? matches[0] : null;
 }

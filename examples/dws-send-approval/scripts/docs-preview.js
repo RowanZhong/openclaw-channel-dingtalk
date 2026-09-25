@@ -1,5 +1,5 @@
 const tabs = [
-  ["home", "首页"], ["listen", "监听范围"], ["reply", "回复方式"],
+  ["home", "首页"], ["listen", "监听范围"], ["topics", "消息主题"], ["reply", "回复方式"],
   ["draft", "待确认草稿"], ["inbox", "批量处理"],
   ["auto-new", "自动答复"], ["notifications", "提醒"],
 ];
@@ -56,7 +56,12 @@ function render(name) {
     element.onclick = () => {
       const route = button.op === "auto-next"
         ? ({ "auto-new": "auto-content", "auto-content": "auto-limits", "auto-limits": "auto-frequency", "auto-frequency": "auto-review" })[name]
-        : button.op === "auto-back" ? button.destination
+        : button.op === "topic-next" ? ({ "topic-new": "topic-definition", "topic-definition": "topic-action", "topic-action": "topic-trial", "topic-trial": "topic-limits", "topic-trial-result": "topic-limits", "topic-limits": "topic-review" })[name]
+        : button.op === "topic-test" ? "topic-trial-result"
+        : button.op === "topic-open" ? "topic-detail"
+        : button.op === "topic-edit" ? "topic-new"
+        : button.op === "topic-test-saved" ? "topic-trial"
+        : ["auto-back", "topic-back"].includes(button.op) ? button.destination
         : button.op === "load-reply" ? `reply-edit-${button.targetKind}`
         : button.op === "reply-target" ? `reply-target-${button.targetKind}`
         : button.op === "search-directory" ? "search-results"

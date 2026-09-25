@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { draftReply } from "../assistant-model.mjs";
+import { classifyTopic } from "../assistant-topic-model.mjs";
 const host = resolve(process.argv[2]);
 const version = JSON.parse(await readFile(join(host, "package.json"), "utf8")).version;
 const dir = await mkdtemp(join(tmpdir(), "dws-model-host-"));
@@ -21,9 +22,11 @@ const server = createServer(async (req, res) => {
   const input = JSON.parse(body);
   requests.push(input);
   res.writeHead(200, { "Content-Type": "text/event-stream" });
+  const classification = input.messages.some((m) => typeof m.content === "string" && m.content.includes('"ownerRules"'));
+  const responseText = classification ? JSON.stringify({ outcome: "match", ruleIds: ["pdf"], coversWholeMessage: true, reason: "matched" }) : "测试已收到。";
   const chunk = { id: "fixture", object: "chat.completion.chunk", created: 1, model: input.model };
   res.write(
-    `data: ${JSON.stringify({ ...chunk, choices: [{ index: 0, delta: { role: "assistant", content: "测试已收到。" }, finish_reason: null }] })}\n\n`,
+    `data: ${JSON.stringify({ ...chunk, choices: [{ index: 0, delta: { role: "assistant", content: responseText }, finish_reason: null }] })}\n\n`,
   );
   res.end(
     `data: ${JSON.stringify({ ...chunk, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 } })}\n\ndata: [DONE]\n\n`,
@@ -95,6 +98,10 @@ try {
     checks.push(name);
   }
   await run("company-five-agents-default-main", "main");
+  const topic = { id: "pdf", name: "导出PDF", description: "询问文档导出PDF的使用步骤", examples: "", exclusions: "故障和代执行", action: "auto", text: "固定操作说明" };
+  assert.equal((await classifyTopic(api, { agentId: "main" }, "在哪里转PDF？", [topic])).outcome, "match");
+  assert.equal(requests.at(-1).tools, undefined);
+  checks.push("topic-classification-default-main-no-tools");
   // A reload must use the current config and default marker, not first position/main.
   cfg = configure(agents.map((a) => ({ ...a, default: a.id === "come" })));
   await run("reload-default-not-first-or-main", "come");

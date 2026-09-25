@@ -8,8 +8,8 @@ export function messageKey(event, profile) {
     .update(JSON.stringify([profile, event.conversation_id, event.message_id]))
     .digest("hex");
 }
-export const PENDING = new Set(["generating", "pending", "inbox", "stale", "draft-error"]);
-export const EDITABLE = new Set(["pending", "draft-error", "inbox"]);
+export const PENDING = new Set(["generating", "classifying", "pending", "inbox", "stale", "draft-error", "topic-review"]);
+export const EDITABLE = new Set(["pending", "draft-error", "inbox", "topic-review"]);
 export class AssistantStore {
   constructor(config) {
     this.config = config;
@@ -39,15 +39,15 @@ export class AssistantStore {
       throw new Error("代回复数据与当前账号不匹配，已停止。");
     }
     this.set("identity", identity);
-    for (const row of this.list(["sending", "generating"], 10000)) {
+    for (const row of this.list(["sending", "generating", "classifying"], 10000)) {
       this.put({
         ...row,
-        status: row.status === "sending" ? "unknown" : "draft-error",
+        status: row.status === "sending" ? "unknown" : row.status === "classifying" ? "topic-review" : "draft-error",
         version: row.version + 1,
         error:
           row.status === "sending"
             ? "服务重启，发送结果待核实；不会自动重发。"
-            : "拟稿被中断，可重新拟稿。",
+            : row.status === "classifying" ? "主题识别被中断，未自动重试；可修改或重新拟稿。" : "拟稿被中断，可重新拟稿。",
       });
     }
     this.prune();
@@ -186,7 +186,7 @@ export class AssistantStore {
     // Keep recent fingerprints even for ignored messages; never evict pending or uncertain sends.
     this.db
       .prepare(
-        "DELETE FROM drafts WHERE status IN ('sent','ignored','expired','superseded','suppressed') AND updated<?",
+        "DELETE FROM drafts WHERE status IN ('sent','ignored','expired','superseded','suppressed','filtered') AND updated<?",
       )
       .run(now - 30 * 86400000);
   }

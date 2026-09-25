@@ -1,0 +1,121 @@
+{
+  "featureVersion": "0.7.0",
+  "date": "2026-09-25",
+  "templateChanged": false,
+  "communitySourceChanged": false,
+  "versions": [
+    {
+      "hostVersion": "2026.7.1-2",
+      "automatedTests": {
+        "passed": 289,
+        "failed": 0
+      },
+      "realIncomingCases": [
+        {
+          "case": "O-TOPIC-DM",
+          "status": "sent",
+          "outcome": "match",
+          "elapsedMs": 5430
+        },
+        {
+          "case": "O-TOPIC-AT",
+          "status": "sent",
+          "outcome": "match",
+          "elapsedMs": 4737
+        },
+        {
+          "case": "O-TOPIC-EXCLUDE",
+          "status": "superseded",
+          "outcome": "review",
+          "elapsedMs": 416417
+        },
+        {
+          "case": "O-TOPIC-NONE",
+          "status": "filtered",
+          "outcome": "none",
+          "elapsedMs": 3538
+        },
+        {
+          "case": "O-TOPIC-COOL",
+          "status": "sent",
+          "outcome": "match",
+          "elapsedMs": 5603
+        }
+      ],
+      "desktopClient": {
+        "fixedReplyVisible": true,
+        "groupQuoteVisible": true,
+        "excludedCaseReviewCardPushed": true,
+        "wizardSixPagesSaved": true,
+        "classifierTrialUsedRealProvider": true
+      },
+      "installedHostCompletionFixture": {
+        "passed": true,
+        "externalRequests": 0,
+        "note": "Local fake provider exercises installed host API; distinct from real DingTalk probes."
+      },
+      "notes": [
+        "O-TOPIC-EXCLUDE first became topic-review and its card was inspected; later DM superseded it.",
+        "O-TOPIC-COOL arrived approximately 8 minutes after the prior group message, outside the 5-minute cooldown; its send is expected and is not counted as a cooldown test."
+      ]
+    },
+    {
+      "hostVersion": "2026.8.1",
+      "automatedTests": {
+        "passed": 289,
+        "failed": 0
+      },
+      "realIncomingCases": [
+        {
+          "case": "N-TOPIC-DM",
+          "status": "sent",
+          "outcome": "match",
+          "elapsedMs": 11300
+        },
+        {
+          "case": "N-TOPIC-AT",
+          "status": "sent",
+          "outcome": "match",
+          "elapsedMs": 3770
+        },
+        {
+          "case": "N-TOPIC-COOL",
+          "status": "suppressed",
+          "outcome": "match",
+          "elapsedMs": 2954
+        },
+        {
+          "case": "N-TOPIC-EXCLUDE",
+          "status": "topic-review",
+          "outcome": "review",
+          "elapsedMs": 10558
+        }
+      ],
+      "desktopClient": {
+        "fixedReplyVisible": true,
+        "groupQuoteVisible": true,
+        "excludedCaseReviewCardPushed": true,
+        "wizardSixPagesSaved": true,
+        "classifierTrialUsedRealProvider": true,
+        "cooldownNoSecondReplyVisible": true,
+        "selectedRuleDisabled": true
+      },
+      "installedHostCompletionFixture": {
+        "passed": true,
+        "externalRequests": 0,
+        "note": "Local fake provider exercises installed host API; distinct from real DingTalk probes."
+      }
+    }
+  ],
+  "coverageBoundaries": [
+    "Template-confirm/inbox actions, fallback mode, rule conflicts, invalid output, injection-shaped inputs, timeout, queue overflow, authorization expiry and restart recovery are automated regressions; not every branch was exercised with a live friend in this release.",
+    "Semantic classification can be wrong; automatic sends only use owner-authorized fixed text and immutable inbound recipient.",
+    "No 15000-Pod load test and no mobile-client visual validation."
+  ],
+  "restoration": {
+    "oldConfigAndPluginState": "byte-for-byte restored",
+    "newConfigAndPluginState": "byte-for-byte restored",
+    "oldGateway": "left stopped as originally",
+    "newGateway": "original service restarted; dingtalk running=true, connected=true"
+  }
+}
