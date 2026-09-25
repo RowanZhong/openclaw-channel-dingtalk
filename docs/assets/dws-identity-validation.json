@@ -1,0 +1,98 @@
+{
+  "date": "2026-09-25",
+  "version": "0.6.0",
+  "automatedTestsPerHost": 221,
+  "newIdentityTests": 39,
+  "hosts": [
+    "2026.7.1-2",
+    "2026.8.1"
+  ],
+  "old": {
+    "realProfileDiscovery": true,
+    "realBotDiscovery": true,
+    "identityCommandVisible": true,
+    "backgroundRefreshVisible": true,
+    "simulatedLoggedOutGatewayStarted": true,
+    "simulatedLoggedOutIdentityVisible": true,
+    "recoveryWithoutRestart": true,
+    "allDirectAndAtReady": true,
+    "selfBotExcludedNoDrafts": true,
+    "warmRestartQueries": [
+      "profile-list",
+      "consume"
+    ],
+    "warmCacheUnchanged": true,
+    "personalEnabledPreserved": true,
+    "incomingAndSend": "passed",
+    "realIncomingDrafts": 2,
+    "approvedSends": 2,
+    "automaticApprovalCardVisible": true,
+    "dmDeliveryVisible": true,
+    "groupOriginalQuoteAndOneReplyVisible": true,
+    "finalGatewayProbe": {
+      "running": true,
+      "connected": true
+    },
+    "aiFinalIncomingDrafts": 2,
+    "aiDrafts": 2,
+    "aiApprovalCardSend": true,
+    "aiCardEditSend": true,
+    "extraSelfDraftsAfterFix": 0,
+    "ownerOpenIdDiscovered": true,
+    "live": "AI approval and edit-send passed after self-echo fix",
+    "aiTestLabels": [
+      "O-AI",
+      "O-EDIT"
+    ]
+  },
+  "new": {
+    "live": "AI approval and edit-send passed after self-echo fix",
+    "initialGatewayProbe": {
+      "running": true,
+      "connected": true
+    },
+    "realProfileDiscovery": true,
+    "profileOnlyWhileListenerOff": true,
+    "realBotDiscovery": true,
+    "identityCommandVisible": true,
+    "backgroundRefreshVisible": true,
+    "refreshDidNotEnableListener": true,
+    "allDirectAndAtReady": true,
+    "selfBotExcludedNoDrafts": true,
+    "realIncomingDraftsAfterFix": 2,
+    "aiDrafts": 2,
+    "aiApprovalCardSend": true,
+    "aiCardEditSend": true,
+    "groupOriginalQuoteAndOneReplyVisible": true,
+    "dmDeliveryVisible": true,
+    "extraSelfDraftsAfterFix": 0,
+    "ownerOpenIdDiscovered": true,
+    "initialSelfEchoFinding": "Own API send was received as a flattened DWS event. Fixed by exact owner UserId-to-open-ID lookup before subscribing, also guarding saved drafts before send.",
+    "warmIdentityCacheUnchanged": true,
+    "personalEnabledPreserved": true,
+    "aiTestLabels": [
+      "N-AI",
+      "N-EDIT"
+    ]
+  },
+  "externalIssues": [
+    {
+      "issue": "Old model OAuth had expired; refresh endpoint was rejected by the host private-address check.",
+      "resolution": "Confirmed the two existing local credentials have the same account ID and email. Backed up the old credential, renewed it from the newer valid local credential through the host auth-store API, retained all network checks, and confirmed a real model HTTP 200.",
+      "status": "resolved; old real-message AI approval and edit-send passed"
+    }
+  ],
+  "cleanup": "Both test configs and plugin states restored byte-for-byte; temporary old Gateway stopped; original new Gateway restored.",
+  "limitations": [
+    "Desktop macOS only; no mobile acceptance in this round.",
+    "No Linux Kubernetes or 15000-Pod concurrent load test.",
+    "Logged-out live case uses a CLI fault wrapper without logging out the real user.",
+    "Service start timings exclude whole Gateway/Pod startup."
+  ],
+  "changes": "Only custom dws-send-approval plugin and its documentation/evidence; no community channel source or card-template changes in 0.6.0.",
+  "restoredGateway": {
+    "version": "2026.8.1",
+    "running": true,
+    "connected": true
+  }
+}

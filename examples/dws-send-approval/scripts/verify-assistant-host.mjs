@@ -1,6 +1,6 @@
 // Import the plugin through the real installed host SDK. No Gateway or external effects.
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -30,9 +30,8 @@ const folder = await mkdtemp(join(tmpdir(), "dws-assistant-host-")),
   hooks = [];
 const cfg = {
   ownerUserId: "owner",
-  profile: "fake:owner",
-  dwsPath: "/not-a-real-dws",
-  listener: { enabled: false, ignoreSenderOpenIds: ["bot"] },
+  dwsPath: join(folder, "dws-fixture"),
+  listener: { enabled: false },
   assistant: { cardTemplateId: "fake-template" },
 };
 const logger = { info() {}, warn() {}, error() {} };
@@ -55,6 +54,11 @@ const api = {
   registerService: (s) => services.push(s),
 };
 try {
+  await writeFile(
+    cfg.dwsPath,
+    `#!${process.execPath}\nconst a=process.argv.slice(2);process.stdout.write(JSON.stringify(a[0]==='profile'?{success:true,currentProfile:'fake:owner',profiles:[{profile:'fake:owner',corpId:'fake',userId:'owner',clientId:'oauth-code',isCurrent:true,status:'active'}]}:a.includes('contact')?{success:true,result:[{userId:'owner',openDingTalkId:'open-owner'}]}:a.includes('search')?{success:true,robotList:[{robotCode:'robot-code',robotName:'fixture'}]}:{success:true,result:{bots:[{name:'fixture',botOpenDingTalkId:'open-fixture'}],hasMore:false}}));\n`,
+    { mode: 0o700 },
+  );
   entry.register(api);
   assert.deepEqual(
     commands.map((c) => c.name),
@@ -64,7 +68,10 @@ try {
   assert.equal(services.length, 1);
   await services[0].start({
     stateDir: folder,
-    config: { commands: { text: true, allowFrom: { dingtalk: ["owner"] } } },
+    config: {
+      channels: { dingtalk: { clientId: "robot-code" } },
+      commands: { text: true, allowFrom: { dingtalk: ["owner"] } },
+    },
     logger,
   });
   const invoke = (name, args, overrides = {}) => {
@@ -93,6 +100,18 @@ try {
   clearCommands();
   entry.register(api);
   assert.equal(services.length, 2);
+  assert.match((await invoke("dws", "identity")).text, /正在检测|已就绪/);
+  for (let n = 0; n < 100; n++) {
+    if ((await invoke("dws", "identity")).text.includes("状态：已就绪")) break;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.match((await invoke("dws", "identity")).text, /状态：已就绪/);
+  assert.match((await invoke("dws", "identity refresh")).text, /后台身份检测/);
+  for (let n = 0; n < 100; n++) {
+    if ((await invoke("dws", "identity")).text.includes("开放 ID：open-fixture")) break;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.match((await invoke("dws", "identity")).text, /开放 ID：open-fixture/);
   assert.match((await invoke("dws-listen", "status")).text, /已关闭/);
   assert.match((await invoke("dws-listen", "dm all")).text, /私聊：全部/);
   assert.match((await invoke("dws", "list")).text, /暂无/);
@@ -108,6 +127,10 @@ try {
       (await invoke("dws", "list", overrides)).text,
       /仅允许本人|not authorized|requires authorization|无权|unauthorized/i,
     );
+    assert.match(
+      (await invoke("dws", "identity refresh", overrides)).text,
+      /仅允许本人|not authorized|requires authorization|无权|unauthorized/i,
+    );
   }
   process.stdout.write(
     JSON.stringify({
@@ -120,7 +143,9 @@ try {
         "runtime-prewarm-command-reregistration",
         "guard-retained",
         "service-start-stop",
-        "default-off-no-DWS-spawn",
+        "default-off-no-listener-spawn",
+        "automatic-profile-and-bot-discovery",
+        "owner-only-identity-status-and-refresh",
         "owner-only-private-control",
         "text-fallback",
         "versioned-command-syntax",

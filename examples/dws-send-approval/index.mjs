@@ -1,9 +1,8 @@
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { createAssistant } from "./assistant.mjs";
+import { createIdentityService } from "./identity-service.mjs";
 import { registerControlCommands } from "./commands.mjs";
 import { isOwnerPrivateCommand } from "./commands.mjs";
 import { assertHostVersion, readConfig } from "./config.mjs";
-import { createListenerService } from "./listener.mjs";
 import { createPolicy } from "./policy.mjs";
 import { runtimeBinding } from "./runtime-binding.mjs";
 import { SourceStore } from "./source-store.mjs";
@@ -17,7 +16,7 @@ export default definePluginEntry({
       throw new Error("DWS approval currently requires Linux/macOS POSIX exec");
     }
     assertHostVersion(api.runtime.version);
-    const config = readConfig(api.pluginConfig);
+    const config = readConfig(api.pluginConfig, { discovery: true });
     const store = new SourceStore(config);
     if (
       !config.assistant.enabled &&
@@ -31,29 +30,27 @@ export default definePluginEntry({
     api.on("before_tool_call", (...args) => (binding.peek()?.policy ?? policy)(...args), {
       priority: 1000,
     });
-    const assistant = config.assistant.enabled ? createAssistant(api, config) : undefined;
-    const service = createListenerService(
-      api,
-      config,
-      store,
-      assistant
-        ? {
-            processEvent: assistant.processEvent,
-            has: assistant.has,
-            checkStart: assistant.checkReady,
-          }
-        : {},
-    );
-    assistant?.bind(service);
+    const identity = createIdentityService(api, config);
     registerControlCommands(api, config, {
-      status: (...args) => binding.require().service.status(...args),
+      status: (...args) =>
+        binding
+          .require()
+          .requireRuntime()
+          .service.status(...args),
       presentationDirectory: (...args) =>
-        binding.require().assistant?.presentationDirectory(...args) ?? [],
-      snapshot: (...args) => binding.require().service.snapshot(...args),
-      update: (...args) => binding.require().service.update(...args),
+        binding
+          .require()
+          .requireRuntime()
+          .assistant?.presentationDirectory(...args) ?? [],
+      snapshot: (...args) =>
+        binding
+          .require()
+          .requireRuntime()
+          .service.snapshot(...args),
+      update: async (...args) => (await binding.require().ready()).service.update(...args),
     });
-    if (assistant) {
-      for (const name of ["dws", "ok", "no", "edit"]) {
+    {
+      for (const name of ["dws", ...(config.assistant.enabled ? ["ok", "no", "edit"] : [])]) {
         api.registerCommand({
           name,
           description: name === "dws" ? "打开钉钉代回复助手" : "处理指定的代回复草稿",
@@ -66,7 +63,19 @@ export default definePluginEntry({
             }
             const args = (ctx.args ?? "").trim();
             try {
-              const assistant = binding.require().assistant;
+              const active = binding.require();
+              if (name === "dws" && ["identity", "identity refresh"].includes(args)) {
+                if (args === "identity refresh") {
+                  void active.refresh(true);
+                  return {
+                    text: "已开始后台身份检测，主会话可继续使用。稍后发送 /dws identity 查看结果。",
+                  };
+                }
+                return { text: active.text() };
+              }
+              const assistant = (await active.ready()).assistant;
+              if (!assistant)
+                return { text: "助手卡片未启用。可使用 /dws identity 或 /dws identity refresh。" };
               if (name === "dws") {
                 if (args === "list") {
                   return { text: assistant.textPreview() };
@@ -77,7 +86,7 @@ export default definePluginEntry({
                 }
                 if (args) {
                   throw new Error(
-                    "用法：/dws 打开卡片；/dws list 文字列表；/dws show <编号> 查看草稿。",
+                    "用法：/dws 打开卡片；/dws list 文字列表；/dws show <编号> 查看草稿；/dws identity 查看身份；/dws identity refresh 重新检测。",
                   );
                 }
                 try {
@@ -108,27 +117,15 @@ export default definePluginEntry({
         });
       }
     }
-    const running = { assistant, service, policy };
     api.registerService({
-      id: service.id,
-      async start(ctx) {
-        if (binding.peek()) {
-          throw new Error("代回复服务已启动，不能重复启动。");
-        }
-        await assistant?.start(ctx);
-        try {
-          await service.start(ctx);
-          binding.publish(running);
-        } catch (error) {
-          await service.stop();
-          await assistant?.stop();
-          throw error;
-        }
+      id: identity.id,
+      start(ctx) {
+        binding.publish(identity);
+        identity.start(ctx);
       },
       async stop() {
-        binding.remove(running);
-        await service.stop();
-        await assistant?.stop();
+        binding.remove(identity);
+        await identity.stop();
       },
     });
   },

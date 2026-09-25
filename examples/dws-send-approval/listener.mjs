@@ -343,6 +343,13 @@ export function createListenerService(api, config, store, dependencies = {}) {
         // Validate before saving, so an invalid enabled scope cannot replace a working configuration.
         const checked = validatePreferences(next);
         if (checked.enabled) {
+          try {
+            await dependencies.prepareStart?.();
+            if (closed) throw new Error("监听服务已停止。");
+          } catch (error) {
+            await stopChildren();
+            throw error;
+          }
           checkStart(checked);
         }
         const saved = await preferences.save(checked);
@@ -362,6 +369,9 @@ export function createListenerService(api, config, store, dependencies = {}) {
       await store.load(ctx.stateDir);
       await preferences.load(ctx.stateDir);
       closed = false;
+      if (preferences.snapshot().enabled)
+        await dependencies.prepareStart?.({ verifyProfile: false });
+      if (closed) return;
       try {
         await reconcile(preferences.snapshot());
       } catch {
