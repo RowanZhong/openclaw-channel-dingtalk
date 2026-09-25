@@ -32,7 +32,7 @@ export function isListenerReady(line, config) {
     : keys.length === 1 && match[2] === keys[0];
 }
 
-export function readConfig(raw = {}) {
+export function readConfig(raw = {}, { discovery = false } = {}) {
   const config = {
     agentId: "main",
     accountId: "default",
@@ -68,8 +68,9 @@ export function readConfig(raw = {}) {
   }
   // One profile only; DWS recommends corpId:userId for an exact account identity.
   if (
-    typeof config.profile !== "string" ||
-    !/^[a-zA-Z0-9_-]{1,128}(?::[a-zA-Z0-9_-]{1,128})?$/.test(config.profile)
+    !(discovery && config.profile === undefined) &&
+    (typeof config.profile !== "string" ||
+      !/^[a-zA-Z0-9_-]{1,128}(?::[a-zA-Z0-9_-]{1,128})?$/.test(config.profile))
   ) {
     throw new Error("profile must be one profile name or exact corpId:userId selector");
   }
@@ -122,7 +123,11 @@ export function readConfig(raw = {}) {
   ) {
     throw new Error("listener.ignoreSenderOpenIds must contain stable open IDs");
   }
-  if (["all-direct", COMBINED_LISTENER_KIND].includes(listener.kind) && ignored.length === 0) {
+  if (
+    !discovery &&
+    ["all-direct", COMBINED_LISTENER_KIND].includes(listener.kind) &&
+    ignored.length === 0
+  ) {
     throw new Error(
       "all-direct requires ignoreSenderOpenIds including the approval bot, to avoid notification loops",
     );

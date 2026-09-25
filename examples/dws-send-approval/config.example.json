@@ -2,9 +2,7 @@
   "commands": {
     "text": true,
     "allowFrom": {
-      "dingtalk": [
-        "OWNER_STAFF_ID"
-      ]
+      "dingtalk": ["OWNER_STAFF_ID"]
     }
   },
   "approvals": {
@@ -28,15 +26,11 @@
           "agentId": "main",
           "accountId": "default",
           "ownerUserId": "OWNER_STAFF_ID",
-          "profile": "PROFILE_NAME",
           "dwsPath": "/absolute/path/to/dws",
           "mode": "approval",
           "timeoutMs": 120000,
           "listener": {
-            "enabled": false,
-            "ignoreSenderOpenIds": [
-              "APPROVAL_BOT_OPEN_DINGTALK_ID"
-            ]
+            "enabled": false
           },
           "assistant": {
             "enabled": true,

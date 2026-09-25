@@ -1,6 +1,6 @@
 # 钉钉个人代回复助手 · 技术方案与安装配置
 
-**开发及运维指南 · 0.5.2 · 2026-09-24**
+**开发及运维指南 · 0.6.0 · 2026-09-25**
 
 面向开发人员和平台管理员。员工操作另见[员工使用手册](../user/dws-reply-assistant-manual.html)。适用一名员工一个 Pod、独立 OpenClaw 实例；兼容验证覆盖 OpenClaw 2026.7.1-2 与 2026.8.1。
 
@@ -12,7 +12,7 @@
 
 ### 一条消息如何走到发送
 
-1. **接入与筛选。** 从配置的 DWS profile 接收事件，检查监听开关、私聊/群 @本人/额外发送者规则，按业务消息去重；未命中范围的来信不进入助手。
+1. **接入与筛选。** 从后台自动发现并校验的 DWS profile 接收事件，先排除本人及审批机器人，再检查监听开关、私聊/群 @本人/额外发送者规则，按业务消息去重；未命中范围的来信不进入助手。
 2. **草稿与自动答复。** 普通消息生成待确认草稿；命中本人预授权规则时，只逐字使用已授权固定正文，并检查期限与频率。模型生成内容不进入免确认自动发送路径。
 3. **本人确认。** 卡片回调使用社区插件提供的可信用户 ID，核对本人、账号、卡片、令牌、到期时间和草稿版本。页面上显示的接收对象和正文必须与即将发送的版本一致。
 4. **定向发送。** 发送器再次核对监听范围、暂停状态及偏好版本，再用固定 DWS 可执行路径和参数发送；接收目标来自保存的事件，不接受模型或表单另行指定。先记录发送中状态，再执行请求，结果不明时不自动重试。
@@ -21,7 +21,7 @@
 
 当前助手模式的来信走上述专用流程，员工自己在钉钉机器人或 Web 中发起的日常请求仍走原来的主会话。保留的 `before_tool_call` 钩子为旧版监听 Agent 路径提供额外控制；它先判断**宿主工具上下文中的 `sessionKey`** ，再判断命令，而不是扫描所有用户消息或全局禁用 DWS 发信。
 
-旧路径在派发任务之前，先把事件对应的专用会话登记到 `sources.json`：会话键形如 `agent:<agentId>:dws-listener:<hash>`，hash 来自已配置 profile 与事件 ID；登记记录也绑定 profile。钩子核对宿主传来的完整会话键、agentId 和登记记录。消息正文中自称“本人发起”“来自 Web”，或者包含同样的字符串，都不能替代这些宿主字段。
+旧路径在派发任务之前，先把事件对应的专用会话登记到 `sources.json`：会话键形如 `agent:<agentId>:dws-listener:<hash>`，hash 来自已绑定 profile 与事件 ID；登记记录也绑定 profile。钩子核对宿主传来的完整会话键、agentId 和登记记录。消息正文中自称“本人发起”“来自 Web”，或者包含同样的字符串，都不能替代这些宿主字段。
 
 | 实际来源与动作 | 插件处理 | 对正常使用的影响 |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ DWS 认证事件 → 范围过滤、业务消息去重 → 持久化草稿/收�
 ```
 
 - **社区插件** 只新增卡片投递与 Stream 回调适配层。通过已有 Stream 连接传递回调的用户 ID、账号、卡片 ID，不从消息正文或表单字段推断身份。没有新增 HTTP 端口或第二条社区插件 Stream 连接。
-- **自定义插件** 负责个人偏好、监听、草稿、自动授权、通知和发送。两个仓库使用同一份 0.5.2 业务代码，社区适配层按两版 SDK 的导入路径分别编译。
+- **自定义插件** 负责个人偏好、监听、草稿、自动授权、通知和发送。两个仓库使用同一份 0.6.0 业务代码，社区适配层按两版 SDK 的导入路径分别编译。
 - **无工具拟稿** 使用宿主 `runtime.llm.complete`，只传写作要求、当前来信、同一会话最近最多 5 条已监听消息及本条本人提供的资料；不启动有工具的 Agent。不同会话上下文不混合，历史未发送草稿不作为已发事实。
 - **确认校验** 绑定本人 staffId、社区账号、outTrackId、一次性按钮令牌、到期时间和草稿版本。接收会话只能来自可信 DWS 事件，表单不能更换接收人、DWS profile 或执行命令。本人以外点击、转发卡、旧版本、重复点击都会被拒绝。
 - **发送器** 用固定可执行路径、绑定 profile 和 argv（`shell:false`）发送。私聊使用 `chat +messages-send --as user`；群消息使用 `chat +messages-reply`，绑定监听事件的 `--conversation-id`、`--message-id`、`--ref-sender`，并按已审阅正文生成稳定幂等键。人工发送、编辑后发送和固定自动回复共用该发送器。引用失败不回退普通群消息；无本地来源信息时保留待处理，网络或结果不明确时标为 unknown，禁止自动重发。`--yes` 只由授权后的代码添加。DWS 1.0.58 的 `im.message-reply.v1` 回执与普通发送格式不同，必须分别校验；引用回复不等同于独立话题写入。
@@ -52,7 +52,7 @@ DWS 认证事件 → 范围过滤、业务消息去重 → 持久化草稿/收�
 
 **拟稿的 Agent 选择。** 两个宿主都会把显式 `agentId` 当成可能的权限覆盖请求。插件仅在配置可确定为隐式 main 或唯一 Agent，且没有不同 systemAgent 时省略该参数，使用宿主自身的默认模型选择；不会因权限失败自动换 Agent、换模型或退回有工具的主会话。多 Agent、非默认 Agent 或无法确定归属时仍显式传入配置的 `agentId`，由宿主权限策略决定是否允许；不要为了单员工默认配置而开启跨 Agent 权限。权限不足时卡片保留草稿并给出提示，日志只记录草稿编号及受限错误码，不记录来信、凭据或提供商原始错误。
 
-操作卡片的截止时间由独立字段 `card_expires_note` 投递，模板在按钮下方以右对齐的小号备注显示“卡片有效期至 MM/DD HH:mm”。它只控制卡片回调；监听设置持续生效，草稿和自动答复授权分别检查自己的到期时间。升级时需新建普通卡片模板、导入并发布配套 JSON，再更新 `assistant.cardTemplateId`。已发布的普通卡片模板不能原地编辑，旧模板没有这个备注组件。
+操作卡片的截止时间由独立字段 `card_expires_note` 投递，模板在按钮下方以右对齐的小号备注显示“卡片有效期至 MM/DD HH:mm”。它只控制卡片回调；监听设置持续生效，草稿和自动答复授权分别检查自己的到期时间。从不含备注组件的早期版本升级时，需新建普通卡片模板、导入并发布配套 JSON，再更新 `assistant.cardTemplateId`。0.5.2 升级到本次 0.6.0 沿用已发布模板，无需再次发布；本次也未修改社区适配层。
 
 新版等待用户确认只保存状态，不占 main 执行 lane；模型拟稿有自己的串行队列，单次最长 30 秒。DWS 调用最长 20 秒，卡片 API 请求最长 15 秒。Stream 回调接收后异步处理，避免模型请求占住回调确认。
 
@@ -67,13 +67,13 @@ DWS 认证事件 → 范围过滤、业务消息去重 → 持久化草稿/收�
 | OpenClaw 2026.8.1 | 上游 3.8.1，最新拉取的 main，f7422db83b3322c636e9b0ddec47d4583c05b238 | codex/dws-reply-assistant-2026.8.1 |
 | OpenClaw 2026.7.1-2 | 本地兼容版 3.6.11，2387afda9f2b74a8a5d3bc02a278e5cb67be63e9 | codex/dws-reply-assistant-2026.7.1-2 |
 
-需要同时安装对应的**改造版社区插件** 与 **dws-send-approval 0.5.2** 。不修改 OpenClaw 核心或 DWS 源码。上游 3.8.1 包仍要求新宿主，不可安装到旧宿主。
+需要同时安装对应的**改造版社区插件** 与 **dws-send-approval 0.6.0** 。不修改 OpenClaw 核心或 DWS 源码。上游 3.8.1 包仍要求新宿主，不可安装到旧宿主。
 
 卡片模板已于 2026-09-24 在测试组织的钉钉开发平台成功导入、编译和发布，发布前诊断为 0。请使用 [钉钉开发平台卡片入口](https://open-dev.dingtalk.com/fe/card)，选择目标组织，在 **消息卡片 → 普通卡片** 下新建，关联实际机器人应用。不要进入个人 AI 卡片页面，也不要把请求体当作模板源码导入。
 
 包内有两份模板：`templates/dws-reply-assistant-card.json` 是可维护的编辑器导入源码；`templates/dws-reply-assistant-card.platform-export.json` 是本次实际发布后从平台导出的文件。导入到本企业后编译、预览、发布，复制平台生成的完整模板 ID（包括 `.schema` 后缀）到 `assistant.cardTemplateId`。源码中的空 `widgetInfo` 由平台编译生成。
 
-本次测试模板 ID 为 `b053717f-2e9a-4326-9e90-560371cc7506.schema`，仅作为验证记录，**不能直接作为其他企业或应用的通用配置值** 。实际目标租户仍需验证应用可用范围和客户端表现。
+当前真机使用的含备注模板 ID 为 `a883cfea-0a38-42a1-8f16-e91fa66057a2.schema`，仅作为验证记录，**不能直接作为其他企业或应用的通用配置值** 。实际目标租户仍需验证应用可用范围和客户端表现。
 
 模板需能被机器人所属应用使用；同一应用下可统一分发同一个 ID，跨应用需配置可用范围或分别发布。卡片回调为 STREAM，复用社区插件已有卡片回调处理。与 `dingtalk_ask_user_question` 表单模板是不同的模板，不要混用。
 
@@ -83,10 +83,10 @@ DWS 认证事件 → 范围过滤、业务消息去重 → 持久化草稿/收�
 
 ```bash
 # 旧宿主安装自定义插件
-openclaw plugins install /absolute/path/dws-send-approval-0.5.2.tgz --force
+openclaw plugins install /absolute/path/dws-send-approval-0.6.0.tgz --force
 
 # 新宿主安装自定义插件
-openclaw plugins install /absolute/path/dws-send-approval-0.5.2.tgz --force --accept-capabilities
+openclaw plugins install /absolute/path/dws-send-approval-0.6.0.tgz --force --accept-capabilities
 ```
 
 社区改造包按对应宿主用同一安装命令安装；不要同时从原目录和新包加载同一个社区插件。源码加载方式下，修改 `plugins.load.paths` 指向对应新工作目录，并先执行 `pnpm run build:runtime`，宿主实际加载 `dist/index.js`。
@@ -104,20 +104,61 @@ openclaw channels status --probe --json
 
 | 字段 | 来源与含义 |
 | --- | --- |
-| ownerUserId / OC_OWNER_STAFF_ID | 本人给社区机器人发消息时的 senderStaffId。支持 `/whoami` 的版本可在私聊查询；不是姓名、企业工号或 DWS 开放 ID |
-| profile / OC_DWS_PROFILE | 同一系统账号、同一 DWS_CONFIG_DIR 下，执行 `dws profile list --format json`。核对所属组织和本人，选实际 profile 名，不盲取第一项 |
-| dwsPath | Pod 中的绝对可执行路径；由 `command -v dws` 确认。样例的 /usr/local/bin/dws 应按镜像调整 |
-| APPROVAL_BOT_OPEN_DINGTALK_ID / OC_APPROVAL_BOT_OPEN_ID | 社区机器人在 DWS 个人消息事件里的 sender_open_dingtalk_id；不是 clientId、robotCode 或本人的 staffId |
-| assistant.cardTemplateId / OC_DWS_ASSISTANT_CARD_TEMPLATE_ID | 本应用可使用的已发布代回复助手卡片模板 ID |
-| accountId / agentId | 已配置的社区机器人账号和模型配置来源，通常 default / main |
+| ownerUserId / OC_OWNER_STAFF_ID | 仍由平台提供：本人给社区机器人发消息时的 senderStaffId。支持 `/whoami` 的版本可在私聊查询；不是姓名、企业自定义工号或 DWS 开放 ID |
+| dwsPath | 仍由镜像/平台配置：Pod 内绝对可执行路径。用同一运行用户执行 `command -v dws` 核对；不依赖自动搜索 PATH |
+| accountId | 不填时为 `default`，优先读取 `channels.dingtalk.accounts.default`，否则读取顶层 `channels.dingtalk`；指定命名账号时读取 `channels.dingtalk.accounts[accountId]`，按社区插件规则继承顶层 clientId。不会自动选择列表中的第一个账号 |
+| profile | 0.6.0 自动执行 `dws profile list --format json`，校验 `currentProfile` 对应的唯一当前账号、组织、userId 和 DWS 授权应用，再固定为 `corpId:userId`。userId 必须等于 ownerUserId |
+| 审批机器人的开放 ID | 0.6.0 自动查找；不再配置 APPROVAL_BOT_OPEN_DINGTALK_ID 或 OC_APPROVAL_BOT_OPEN_ID。它是社区机器人在个人 IM 事件里的 sender_open_dingtalk_id，不是 clientId/robotCode，也不是主人的 UserId |
+| assistant.cardTemplateId / OC_DWS_ASSISTANT_CARD_TEMPLATE_ID | 本应用可使用的已发布代回复助手卡片模板 ID，本次无需修改模板 |
+| agentId | 模型配置来源，通常 `main`，与 DWS 账号选择无关 |
 
-获取机器人开放 ID：先保持本插件监听关闭，以同一 DWS profile 执行有界观察；让 A 在社区机器人私聊发一条测试消息，找到机器人的实际回复事件，核对内容和发送者后复制 sender_open_dingtalk_id。
+### 自动发现如何执行
+
+启动服务入口只安排后台工作，立即返回。后台先读取当前 profile、校验员工，再读取绑定缓存与个人设置。监听关闭时只做本地 profile 查询；不查询本人开放 ID 或机器人、不建立 IM 订阅。员工已保存“开启”时，或者本人主动启用监听时，本人及机器人身份就绪后才创建消费进程。
+
+启用监听前还会按 ownerUserId 精确查询本人的开放 ID，用于过滤本人发出的消息。DWS 可能把本人以用户身份发送的消息也推送回来；不依赖发送者姓名或消息正文判断，避免再次生成草稿或循环回复。本人及机器人查询固定使用刚校验的 profile，顺序如下；`ROBOT_NAME` 来自匹配 clientId 的真实结果，不由模型填写：
 
 ```bash
-dws --profile PROFILE_NAME event +listen-im --kind all-direct --events message --duration 2m
+dws profile list --format json
+dws --profile CORP_ID:USER_ID contact user search --query OWNER_USER_ID --format json
+dws --profile CORP_ID:USER_ID chat bot search --page 1 --size 50 --format json
+# robotList 中 robotCode == 对应钉钉 channel 的 clientId，取得 robotName
+dws --profile CORP_ID:USER_ID chat bot find --query ROBOT_NAME --limit 20 --format json
+# result.bots 中精确匹配名称，取得唯一 botOpenDingTalkId
 ```
 
-观察输出含个人消息，避免收集不必要正文或上传完整输出；观察结束后再开启插件。`ignoreSenderOpenIds` 用于排除审批/助手机器人，防止提醒被再次当来信处理；如个人事件可能包含本人的发出消息，也把已核实的本人开放 ID 加入排除列表。
+当前企业部署前提是员工创建自己的机器人且机器人名称唯一。代码仍检查空结果、重复结果、非法字段和分页，不会随意取第一项。search 最多 5 页 × 50 项；find 最多 5 页 × 20 项，游标重复或超限即停止。
+
+成功结果自动加入运行时的发送者排除列表，防止审批提醒再次触发代回复。`listener.ignoreSenderOpenIds` 现在仅用于管理员额外排除的对象，可不填。发现结果不写回 `openclaw.json`。
+
+### 启动、失败隔离与缓存
+
+| 情形 | 插件行为 | Gateway / 主会话 |
+| --- | --- | --- |
+| DWS 已登录、个人监听关闭 | 本地校验 profile、加载个人状态；本人开放 ID 和机器人身份按需获取 | 服务启动入口立即返回 |
+| DWS 已登录、个人监听开启 | 校验身份，复用有效缓存或后台查询机器人，再恢复原范围 | 不等待查询及订阅就绪 |
+| DWS 尚未登录 / 授权不可用 | 显示“等待 DWS 登录”；保留个人偏好与草稿，不启动监听 | 不抛出服务启动失败，不影响普通钉钉 / Web 会话 |
+| CLI 缺失、权限错误、无效结果或超时 | 显示对应故障，拒绝代回复；可重新检测 | 故障限定于助手，不作为 Gateway 就绪失败 |
+| 登录员工、组织、授权应用或机器人绑定变化 | 暂停旧运行时并拒绝自动重新绑定；保留原数据 | 原主会话继续按宿主原权限运行 |
+
+profile 单次最多 5 秒，本人/机器人查询单次最多 10 秒，每轮身份初始化或按需身份解析总预算 30 秒。超时/停止发送 SIGTERM，500 毫秒后仍未退出则 SIGKILL；完成或取消后清理定时器和子进程。CLI 输出总量不超过 1 MiB，不把原始 stderr、令牌或登录凭据写入用户提示。
+
+自动启动只有明确可重试的错误会额外重试最多 2 次，基础间隔 5 秒、30 秒，加随机抖动并遵守较长的服务端 retry-after。未登录、账号不符、结果不唯一等不会循环重试。没有登录态轮询，也没有每条消息的身份查询；登录后由员工 `/dws identity refresh`、再次启用或重启触发检测。同一实例内并发检测合并，主动刷新若遇到正在初始化会串行执行，不会被静默忽略。
+
+缓存位于 `<service stateDir>/dws-send-approval/identity.json`，0600、原子写入，本人及机器人结果有效期 24 小时。绑定包含员工、组织/profile、DWS OAuth clientId、社区 accountId/clientId 和 DWS 配置目录；同一员工换应用也不能无提示复用旧缓存。过期在下一次启动、启用或刷新时处理，不按固定周期访问平台。`/dws identity refresh` 强制重新查询，不清空偏好或草稿，也不擅自开启监听；如果个人原本开启，会短暂停止后按原范围恢复，重建订阅期间的历史消息不会补读。
+
+旧版显式 `profile` 仍接受，但只作为一致性检查；推荐从配置中删除，改为自动发现。升级时务必删除配置中的 `${OC_DWS_PROFILE}` 和机器人 ID 占位引用，不能仅删除环境变量，否则宿主在加载配置阶段就可能因变量缺失失败。若原状态保存了别名而不是规范 `corpId:userId`，会保守拒绝身份不一致；管理员先备份并核对旧状态后迁移，不手工复制另一个员工的 identity.json。
+
+### 员工与运维自检
+
+在本人机器人私聊中，每条单独发送：
+
+```text
+/dws identity
+/dws identity refresh
+```
+
+第一个只读取内存状态，不启动 CLI，显示员工、profile、机器人应用和已解析的开放 ID、查询时间与缓存来源；第二个立即回复“已开始后台身份检测”，后台检测后再用第一个查看结果。两者都校验本人身份、钉钉账号及私聊来源，不能在群聊、Web 或其他员工会话冒用。未登录时也可以查看此状态入口；需要登录的员工完成 DWS 授权后再刷新。
 
 ### 单实例配置
 
@@ -154,15 +195,11 @@ dws --profile PROFILE_NAME event +listen-im --kind all-direct --events message -
           "agentId": "main",
           "accountId": "default",
           "ownerUserId": "OWNER_STAFF_ID",
-          "profile": "PROFILE_NAME",
           "dwsPath": "/absolute/path/to/dws",
           "mode": "approval",
           "timeoutMs": 120000,
           "listener": {
-            "enabled": false,
-            "ignoreSenderOpenIds": [
-              "APPROVAL_BOT_OPEN_DINGTALK_ID"
-            ]
+            "enabled": false
           },
           "assistant": {
             "enabled": true,
@@ -183,24 +220,24 @@ dws --profile PROFILE_NAME event +listen-im --kind all-direct --events message -
 
 ## 5. 15000 个 Pod 的统一部署
 
-同一镜像、同一 ConfigMap 模板，员工差异由开户平台注入环境变量：
+同一镜像、同一 ConfigMap 模板。profile 和机器人开放 ID 已由插件自动发现；剩余身份和模板由开户平台提供：
 
 | 变量 | 是否因人不同 |
 | --- | --- |
 | OC_OWNER_STAFF_ID | 是；与本 Pod 员工绑定 |
-| OC_DWS_PROFILE | 是；必须是该员工已授权的 DWS profile |
-| OC_APPROVAL_BOT_OPEN_ID | 按机器人绑定；同一机器人可相同 |
 | OC_DWS_ASSISTANT_CARD_TEMPLATE_ID | 按应用授权范围共享或分别配置 |
 
 直接使用包内 `config.kubernetes.example.json`，宿主支持字符串中的 `${ENV_NAME}` 替换。环境变量缺失应由部署校验发现，不能把另一个员工的默认身份补给当前实例。DWS OAuth 登录态由每个员工独立授权并保存；复制 profile 名不能复制出有效授权。
 
 OpenClaw 状态目录和 DWS 配置目录挂载员工独立的持久卷。不要让两个运行中的 Pod 共用同一员工状态卷、profile 和监听；更新策略确保同一员工只有一个活动实例。共享 ConfigMap 只负责初始默认值，不写回员工设置。
 
-员工的规则在 `<service stateDir>/dws-send-approval/preferences.json`；草稿、按钮令牌、自动授权、冷却和记录在 `assistant.sqlite`（含运行时 WAL）；旧来源保护在 `sources.json`。目录 0700、数据库 0600。备份/迁移应暂停服务并完整保留状态，或使用 SQLite 一致性备份；不要只复制活跃数据库而遗漏 WAL。
+自动身份缓存为同目录的 `identity.json`；员工的规则在 `<service stateDir>/dws-send-approval/preferences.json`；草稿、按钮令牌、自动授权、冷却和记录在 `assistant.sqlite`（含运行时 WAL）；旧来源保护在 `sources.json`。目录 0700、数据库 0600。备份/迁移应暂停服务并完整保留状态，或使用 SQLite 一致性备份；不要只复制活跃数据库而遗漏 WAL。
 
 首次默认关闭。员工主动开启后，Pod 重建从个人持久卷恢复其选择；这与“新员工默认不开启”并不冲突。自动授权到期自动失效；卡片默认有效 **30 分钟** ，`assistant.cardTtlMinutes` 可设 1–1440 分钟；绝对到期，翻页、修改及保存都不延长。每次新发 `/dws` 会停用旧卡。草稿默认 24 小时，`draftTtlMinutes` 可设 10–10080 分钟，两者互不替代。最多 200 条待处理、1000 张卡片记录；已完成记录保留 30 天，结果未知记录保留待核实。到期卡片保留最多 7 天用于回写失效状态。服务端按绝对时间拒绝回调，不依赖前端是否及时刷新。后台每 30 秒巡检，每轮最多回写 10 张失效卡；网络失败继续重试，不能恢复其操作权限。升级前已被清理的历史记录无法回写卡面，但点击同样被拒绝。
 
-全部私聊 + 所有群 @本人可合并为一个 DWS consume 进程；指定人员可能按唯一目标增加消费进程，最多 41 个（两个各 20 人列表并集 + 一个广泛订阅）。DWS 自身的事件总线进程、连接、认证与平台订阅配额也要纳入集群预算。群范围过滤在本地，不会为每个群额外创建一个消费进程。
+身份发现仅顺序启动短生命周期 CLI，同一解析过程最多一个查询子进程，不增加常驻身份查询进程。全部私聊 + 所有群 @本人可合并为一个 DWS consume 进程；指定人员可能按唯一目标增加消费进程，最多 41 个（两个各 20 人列表并集 + 一个广泛订阅）。DWS 自身的事件总线进程、连接、认证与平台订阅配额也要纳入集群预算。群范围过滤在本地，不会为每个群额外创建一个消费进程。
+
+15000 Pod 应分批滚动发布，并保留员工 PVC 的身份缓存。冷缓存且已开启监听的实例仍需访问机器人接口；插件的有限重试和抖动不能替代企业侧批次、配额与整体容量控制。DWS 配置目录和运行用户必须一致，容器临时目录也应保持一致。
 
 升级前先 `/dws-listen off`，结束旧宿主审批，备份偏好、sources.json 和整个助手状态目录；安装两个匹配包并重启后再由员工开启。回滚 0.4.0 时恢复升级前偏好快照，因为它不认识新增的 inbox 模式；保留发送记录供核对，不把 unknown 状态批量重试。
 
@@ -213,6 +250,34 @@ OpenClaw 状态目录和 DWS 配置目录挂载员工独立的持久卷。不要
 72 小时是本次表单实例的最长等待时间；社区原有表单在 Gateway 重启时会终止，不能把它理解为跨重启继续收集 72 小时。它与助手 SQLite 中可恢复的草稿是两个独立功能。
 
 ## 7. 验证、性能与交付状态
+
+### 0.6.0 自动身份发现与启动隔离验收
+
+两版各 221 项自动化测试通过，保留全部 182 项原回归并新增 39 项身份测试。使用实际安装的两个宿主 SDK 验证命令注册、运行时预热后的命令绑定及本人私聊鉴权。真实宿主服务调度器中注入慢查询、未登录、缺少 CLI 与挂起，后续独立服务均正常启动；测得插件服务启动入口约 0.03–0.46 ms。这是本机入口调用时间，不是 Pod/Gateway 总启动时间，也不是生产性能保证。
+
+DWS 1.0.58 在本机已登录环境连续 5 次只读测量：profile list 中位约 189 ms，本人开放 ID 查询约 534 ms，bot search 约 526 ms，bot find 约 571 ms；完整链路约 1.81–1.88 秒，单个查询进程最大 RSS 约 40.0 MiB，查询顺序执行且退出后不常驻。该结果不覆盖生产 Linux、平台限流、网络故障及 15000 Pod 并发。
+
+2026-09-25 已完成两版钉钉桌面真机验收，使用真实 DWS 1.0.58、本人私聊及测试群来信、实际模型生成草稿，再通过钉钉卡片操作发送。结果如下：
+
+| 场景 | OpenClaw 2026.7.1-2 | OpenClaw 2026.8.1 |
+| --- | --- | --- |
+| 无显式 profile / 机器人开放 ID 启动 | 自动识别本人账号；默认关闭监听 | 同左 |
+| `/dws identity` 与后台刷新 | 本人私聊可见；立即回复，不擅自开启监听 | 同左 |
+| 全部私聊 + 全部群 @本人 | 真实接收、自动弹出审批卡 | 同左 |
+| AI 私聊草稿审批发送 | O-AI：真实生成、审阅、点击发送并在原私聊看到回复 | N-AI：同流程通过 |
+| AI 群草稿修改后发送 | O-EDIT：卡片修改正文后发送，实际正文与输入一致 | N-EDIT：同流程通过 |
+| 群回复关联原消息 | 原文引用、@原发送者、“1条回复”显示正确 | 同左 |
+| 本人回复再次进入监听 | 修复后本轮两条来信只产生两条草稿，均发送；无额外本人草稿 | 同左 |
+| 有效缓存与个人开关 | 热重启复用缓存，保留个人开启设置 | 同左 |
+
+新版最初测试发现：DWS 会把本人以用户身份发送的私聊回复作为接收事件推回，旧版相同代码也存在风险。两版已统一增加本人开放 ID 精确查询、监听前过滤和已保存草稿发送前复核；上表的 AI 用例均在修复后执行。不能把早期固定草稿测试视为该问题已经排除。
+
+旧版还通过 CLI 包装器模拟未登录：网关和钉钉主通道正常启动，身份显示等待登录；移除模拟故障后执行后台刷新，无需重启即可恢复。实际 DWS 账号未退出登录。旧版模型登录凭据过期问题通过同一账号的本机有效凭据续期解决，未改变网络安全校验；之后真实模型调用和上述两条 AI 用例通过。
+
+两版测试临时配置和个人状态已恢复，临时旧版网关停止，原新版网关恢复并确认 `running=true`、`connected=true`。本轮只改自定义插件及配套文档，未改社区插件源代码或卡片模板。脱敏验收记录见 `docs/assets/dws-identity-validation.json`，只读资源测量见 `docs/assets/dws-identity-discovery-benchmark.json`；安装包内对应 `identity-validation.json`、`identity-discovery-benchmark.json`。
+
+### 历史验证与资源基线（0.5.x）
+
 
 | 验证范围 | 结果 |
 | --- | --- |

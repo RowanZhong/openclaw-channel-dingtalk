@@ -1,0 +1,182 @@
+{
+  "cli": "1.0.58",
+  "platform": "macOS local; warm authentication; sequential",
+  "rounds": 5,
+  "scope": "profile list + exact owner ID lookup + single-page bot search + single-page bot find; no writes/messages/subscriptions",
+  "summary": {
+    "profile list": {
+      "n": 5,
+      "median_seconds": 0.1885,
+      "min_seconds": 0.1775,
+      "max_seconds": 0.1998,
+      "max_peak_rss_mib": 35.94,
+      "median_cpu_seconds": 0.12
+    },
+    "owner lookup": {
+      "n": 5,
+      "median_seconds": 0.5344,
+      "min_seconds": 0.5137,
+      "max_seconds": 0.6055,
+      "max_peak_rss_mib": 40.03,
+      "median_cpu_seconds": 0.18
+    },
+    "bot search": {
+      "n": 5,
+      "median_seconds": 0.526,
+      "min_seconds": 0.5198,
+      "max_seconds": 0.5406,
+      "max_peak_rss_mib": 39.83,
+      "median_cpu_seconds": 0.2
+    },
+    "bot find": {
+      "n": 5,
+      "median_seconds": 0.5711,
+      "min_seconds": 0.555,
+      "max_seconds": 0.6142,
+      "max_peak_rss_mib": 39.89,
+      "median_cpu_seconds": 0.2
+    }
+  },
+  "samples": [
+    {
+      "command": "profile list",
+      "wall_seconds": 0.1839,
+      "exit_code": 0,
+      "peak_rss_mib": 35.06,
+      "cpu_seconds": 0.12
+    },
+    {
+      "command": "owner lookup",
+      "wall_seconds": 0.5344,
+      "exit_code": 0,
+      "peak_rss_mib": 39.98,
+      "cpu_seconds": 0.18
+    },
+    {
+      "command": "bot search",
+      "wall_seconds": 0.5222,
+      "exit_code": 0,
+      "peak_rss_mib": 39.83,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "bot find",
+      "wall_seconds": 0.5711,
+      "exit_code": 0,
+      "peak_rss_mib": 39.34,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "profile list",
+      "wall_seconds": 0.1965,
+      "exit_code": 0,
+      "peak_rss_mib": 35.38,
+      "cpu_seconds": 0.12
+    },
+    {
+      "command": "owner lookup",
+      "wall_seconds": 0.5559,
+      "exit_code": 0,
+      "peak_rss_mib": 39.42,
+      "cpu_seconds": 0.18
+    },
+    {
+      "command": "bot search",
+      "wall_seconds": 0.526,
+      "exit_code": 0,
+      "peak_rss_mib": 39.67,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "bot find",
+      "wall_seconds": 0.6055,
+      "exit_code": 0,
+      "peak_rss_mib": 39.64,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "profile list",
+      "wall_seconds": 0.1998,
+      "exit_code": 0,
+      "peak_rss_mib": 35.47,
+      "cpu_seconds": 0.14
+    },
+    {
+      "command": "owner lookup",
+      "wall_seconds": 0.5227,
+      "exit_code": 0,
+      "peak_rss_mib": 39.52,
+      "cpu_seconds": 0.18
+    },
+    {
+      "command": "bot search",
+      "wall_seconds": 0.5406,
+      "exit_code": 0,
+      "peak_rss_mib": 39.55,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "bot find",
+      "wall_seconds": 0.556,
+      "exit_code": 0,
+      "peak_rss_mib": 39.89,
+      "cpu_seconds": 0.18
+    },
+    {
+      "command": "profile list",
+      "wall_seconds": 0.1775,
+      "exit_code": 0,
+      "peak_rss_mib": 35.69,
+      "cpu_seconds": 0.12
+    },
+    {
+      "command": "owner lookup",
+      "wall_seconds": 0.5137,
+      "exit_code": 0,
+      "peak_rss_mib": 39.7,
+      "cpu_seconds": 0.16
+    },
+    {
+      "command": "bot search",
+      "wall_seconds": 0.5198,
+      "exit_code": 0,
+      "peak_rss_mib": 39.47,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "bot find",
+      "wall_seconds": 0.6142,
+      "exit_code": 0,
+      "peak_rss_mib": 39.44,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "profile list",
+      "wall_seconds": 0.1885,
+      "exit_code": 0,
+      "peak_rss_mib": 35.94,
+      "cpu_seconds": 0.14
+    },
+    {
+      "command": "owner lookup",
+      "wall_seconds": 0.6055,
+      "exit_code": 0,
+      "peak_rss_mib": 40.03,
+      "cpu_seconds": 0.22
+    },
+    {
+      "command": "bot search",
+      "wall_seconds": 0.532,
+      "exit_code": 0,
+      "peak_rss_mib": 39.48,
+      "cpu_seconds": 0.2
+    },
+    {
+      "command": "bot find",
+      "wall_seconds": 0.555,
+      "exit_code": 0,
+      "peak_rss_mib": 39.39,
+      "cpu_seconds": 0.18
+    }
+  ]
+}

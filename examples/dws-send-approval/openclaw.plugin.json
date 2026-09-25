@@ -8,7 +8,7 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["ownerUserId", "profile", "dwsPath", "listener"],
+    "required": ["ownerUserId", "dwsPath", "listener"],
     "properties": {
       "agentId": {
         "type": "string",
@@ -25,7 +25,8 @@
       },
       "profile": {
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "description": "Deprecated: optional consistency check only. Identity is discovered from DWS currentProfile."
       },
       "dwsPath": {
         "type": "string",
@@ -55,7 +56,8 @@
               "type": "string",
               "minLength": 1
             },
-            "uniqueItems": true
+            "uniqueItems": true,
+            "description": "Additional excluded senders. The channel robot open ID is discovered automatically."
           },
           "enabled": {
             "type": "boolean",

@@ -47,6 +47,16 @@ try {
       await writeFile(join(staging, `${target}.${extension}`), document);
     }
   }
+  for (const name of ["identity-validation", "identity-discovery-benchmark"]) {
+    let evidence;
+    try {
+      evidence = await readFile(new URL(`../../../docs/assets/dws-${name}.json`, import.meta.url));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      evidence = await readFile(join(root, `${name}.json`));
+    }
+    await writeFile(join(staging, `${name}.json`), evidence);
+  }
   await writeFile(
     join(staging, "GUIDE.md"),
     "# 文档入口\n\n- [技术方案与安装配置](DEVELOPER.html)\n- [员工使用手册](USER-MANUAL.html)\n",
