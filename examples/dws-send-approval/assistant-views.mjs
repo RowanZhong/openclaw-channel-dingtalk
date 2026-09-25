@@ -1,6 +1,6 @@
 import { buildConfigView } from "./assistant-config-views.mjs";
 import { targetInput } from "./assistant-directory.mjs";
-import { PENDING } from "./assistant-store.mjs";
+import { PENDING, EDITABLE } from "./assistant-store.mjs";
 
 const button = (label, op, extra = {}) => ({ label, op, ...extra });
 const field = (name, label, type = "TEXT", extra = {}) => ({
@@ -230,9 +230,8 @@ export function buildView(name, state, args = {}) {
       ];
     } else if (PENDING.has(d.status)) {
       view.buttons = [
-        ...(d.status === "pending"
-          ? [button("发送", "send"), button("修改", "edit", { id: d.id })]
-          : []),
+        ...(d.status === "pending" ? [button("发送", "send")] : []),
+        ...(EDITABLE.has(d.status) ? [button("修改", "edit", { id: d.id })] : []),
         button("重新拟稿", "regenerate", { id: d.id }),
         button("忽略", "ignore"),
         button("我来处理", "pause", { id: d.id }),
@@ -244,9 +243,13 @@ export function buildView(name, state, args = {}) {
   } else if (name === "inbox" || name === "history") {
     const history = name === "history",
       page = Math.max(0, Number(args.page) || 0),
-      all = store.list(history ? null : [...PENDING, "unknown"]);
+      all = store
+        .list(history ? null : [...PENDING, "unknown"])
+        .filter((d) => !args.notificationIds || args.notificationIds.includes(d.id));
     const rows = all.slice(page * 3, page * 3 + 3);
-    view.title = history ? "处理记录" : "待我处理";
+    view.title = history ? "处理记录" : args.notificationIds ? "本次待回复" : "待我处理";
+    view.notificationRefs = all.map((d) => ({ id: d.id, version: d.version }));
+    const pagination = args.notificationIds ? { notificationIds: args.notificationIds } : {};
     view.description =
       `共${all.length}条 · 第${page + 1}页\n\n` +
       rows
@@ -269,8 +272,10 @@ export function buildView(name, state, args = {}) {
       ...(!history && rows.length
         ? [button("发送所选", "send-selected"), button("忽略所选", "ignore-selected")]
         : []),
-      ...(page > 0 ? [button("上一页", name, { page: page - 1 })] : []),
-      ...(all.length > (page + 1) * 3 ? [button("下一页", name, { page: page + 1 })] : []),
+      ...(page > 0 ? [button("上一页", name, { ...pagination, page: page - 1 })] : []),
+      ...(all.length > (page + 1) * 3
+        ? [button("下一页", name, { ...pagination, page: page + 1 })]
+        : []),
       home,
     ];
   } else {

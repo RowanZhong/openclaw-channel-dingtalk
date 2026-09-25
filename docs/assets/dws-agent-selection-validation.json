@@ -1,0 +1,61 @@
+{
+  "version": "0.6.1",
+  "date": "2026-09-25",
+  "hosts": {
+    "2026.7.1-2": {
+      "unitTests": {
+        "passed": 250,
+        "failed": 0
+      },
+      "actualHostCompletionFixture": "passed",
+      "actualHostCommandsAndIdentity": "passed",
+      "device": {
+        "fiveAgentAiDraftAndApproval": "passed",
+        "authorizationFailureThenManualSend": "passed",
+        "failureTrigger": "new-incoming-message",
+        "incomingCount": 2,
+        "draftCount": 2,
+        "sentCount": 2,
+        "selfEchoDraftCount": 0,
+        "groupQuoteReply": "not-repeated-in-this-round",
+        "postPatchRestartAndRegenerateCardReuse": "not-run-on-this-host"
+      },
+      "configAndPluginStateRestored": true
+    },
+    "2026.8.1": {
+      "unitTests": {
+        "passed": 250,
+        "failed": 0
+      },
+      "actualHostCompletionFixture": "passed",
+      "actualHostCommandsAndIdentity": "passed",
+      "device": {
+        "fiveAgentAiDraftAndApproval": "passed",
+        "authorizationFailureThenManualSend": "passed",
+        "failureTrigger": "regenerate-existing-group-draft",
+        "incomingCount": 2,
+        "draftCount": 2,
+        "sentCount": 2,
+        "selfEchoDraftCount": 0,
+        "groupQuoteReply": "passed",
+        "postPatchRestartAndRegenerateCardReuse": "passed",
+        "notificationCardsBeforeAndAfterFixVerification": [
+          3,
+          3
+        ]
+      },
+      "configAndPluginStateRestored": true
+    }
+  },
+  "scope": {
+    "communitySourceChanged": false,
+    "cardTemplateChanged": false,
+    "coreOrDwsChanged": false,
+    "newPermissionsRequired": false
+  },
+  "limitations": [
+    "本机钉钉桌面验收，不代表企业 Kubernetes 或手机端验收",
+    "未新增 15000 Pod 压测或资源性能保证",
+    "本轮重复提醒的原卡复用真机检查在新版完成，两版自动化覆盖相同逻辑"
+  ]
+}

@@ -22,8 +22,8 @@
 @media print{.code-block,.table-scroll{overflow:visible;break-inside:auto}.code-block pre,.code-block code{white-space:pre-wrap;overflow-wrap:anywhere}.table-scroll table{table-layout:fixed}.table-scroll th,.table-scroll td,.table-scroll td:nth-child(2){min-width:0;font-size:10px;padding:6px}}
 
 .card-expiry{text-align:right;color:#84909d;font-size:12px;line-height:18px;margin-top:12px}
-</style></head><body data-guide="developer"><header><div class="edition">FIELD GUIDE / 2026.09 · v0.6.0</div><div class="eyebrow">DINGTALK · PERSONAL REPLY ASSISTANT</div><h1>钉钉个人代回复助手<br>技术方案与安装配置</h1><p>面向开发人员与平台管理员：架构、部署、身份绑定、模板发布、验证与运维。</p><div class="badges"><span>助手 0.6.0</span><span>OpenClaw 2026.7.1-2 / 2026.8.1</span><span>默认关闭监听</span><span>开发与运维</span></div><div class="journey"><div><b>01 · 理清边界</b><small>架构与可信身份</small></div><div><b>02 · 统一部署</b><small>配置模板与员工隔离</small></div><div><b>03 · 可复核交付</b><small>测试、性能与运维</small></div></div></header><div class="layout"><aside><strong>CONTENTS · 阅读导航</strong><a href="#sec-1">1. 整体方案与定向控制原理 </a><a href="#sec-2">2. 技术架构与边界 </a><a href="#sec-3">3. 管理员安装和卡片模板 </a><a href="#sec-4">4. 配置项从哪里来 </a><a href="#sec-5">5. 15000 个 Pod 的统一部署 </a><a href="#sec-6">6. 本次同时调整的社区能力 </a><a href="#sec-7">7. 验证、性能与交付状态 </a><a href="#sec-8">8. 卡片协议、组件与发布验收 </a><a href="#sec-9">9. 开发、打包与交付 </a></aside><main><nav class="doc-switch"><a href="../user/dws-reply-assistant-manual.html">员工使用手册 ↗</a><a href="#sec-1">从第一节开始 ↓</a></nav><article>
-<p><strong>开发及运维指南 · 0.6.0 · 2026-09-25</strong></p>
+</style></head><body data-guide="developer"><header><div class="edition">FIELD GUIDE / 2026.09 · v0.6.1</div><div class="eyebrow">DINGTALK · PERSONAL REPLY ASSISTANT</div><h1>钉钉个人代回复助手<br>技术方案与安装配置</h1><p>面向开发人员与平台管理员：架构、部署、身份绑定、模板发布、验证与运维。</p><div class="badges"><span>助手 0.6.1</span><span>OpenClaw 2026.7.1-2 / 2026.8.1</span><span>默认关闭监听</span><span>开发与运维</span></div><div class="journey"><div><b>01 · 理清边界</b><small>架构与可信身份</small></div><div><b>02 · 统一部署</b><small>配置模板与员工隔离</small></div><div><b>03 · 可复核交付</b><small>测试、性能与运维</small></div></div></header><div class="layout"><aside><strong>CONTENTS · 阅读导航</strong><a href="#sec-1">1. 整体方案与定向控制原理 </a><a href="#sec-2">2. 技术架构与边界 </a><a href="#sec-3">3. 管理员安装和卡片模板 </a><a href="#sec-4">4. 配置项从哪里来 </a><a href="#sec-5">5. 15000 个 Pod 的统一部署 </a><a href="#sec-6">6. 本次同时调整的社区能力 </a><a href="#sec-7">7. 验证、性能与交付状态 </a><a href="#sec-8">8. 卡片协议、组件与发布验收 </a><a href="#sec-9">9. 开发、打包与交付 </a></aside><main><nav class="doc-switch"><a href="../user/dws-reply-assistant-manual.html">员工使用手册 ↗</a><a href="#sec-1">从第一节开始 ↓</a></nav><article>
+<p><strong>开发及运维指南 · 0.6.1 · 2026-09-25</strong></p>
 <p>面向开发人员和平台管理员。员工操作另见<a href="./../user/dws-reply-assistant-manual.html">员工使用手册</a>。适用一名员工一个 Pod、独立 OpenClaw 实例；兼容验证覆盖 OpenClaw 2026.7.1-2 与 2026.8.1。</p>
 <section class="doc-section" id="sec-1"><h2 id="_1-整体方案与定向控制原理" tabindex="-1">1. 整体方案与定向控制原理 <a class="header-anchor" href="#_1-整体方案与定向控制原理" aria-label="Permalink to &quot;1. 整体方案与定向控制原理&quot;">&ZeroWidthSpace;</a></h2>
 <p>这套方案为每名员工的独立 OpenClaw 实例增加一条<strong>受控的个人消息处理流程</strong> ：DWS 用员工已登录的身份接收消息，自定义插件按员工设置筛选来信、生成草稿并管理授权，社区钉钉插件负责投递卡片和接收本人操作。员工可以确认后发送，也可以提前授权有范围、有期限的固定答复。平台统一部署代码和配置模板，员工自己的身份、监听偏好与状态保留在各自 Pod 的持久化目录中。</p>
@@ -79,14 +79,40 @@
 </code></pre></figure>
 <ul>
 <li><strong>社区插件</strong> 只新增卡片投递与 Stream 回调适配层。通过已有 Stream 连接传递回调的用户 ID、账号、卡片 ID，不从消息正文或表单字段推断身份。没有新增 HTTP 端口或第二条社区插件 Stream 连接。</li>
-<li><strong>自定义插件</strong> 负责个人偏好、监听、草稿、自动授权、通知和发送。两个仓库使用同一份 0.6.0 业务代码，社区适配层按两版 SDK 的导入路径分别编译。</li>
+<li><strong>自定义插件</strong> 负责个人偏好、监听、草稿、自动授权、通知和发送。两个仓库使用同一份 0.6.1 业务代码，社区适配层按两版 SDK 的导入路径分别编译。</li>
 <li><strong>无工具拟稿</strong> 使用宿主 <code>runtime.llm.complete</code>，只传写作要求、当前来信、同一会话最近最多 5 条已监听消息及本条本人提供的资料；不启动有工具的 Agent。不同会话上下文不混合，历史未发送草稿不作为已发事实。</li>
 <li><strong>确认校验</strong> 绑定本人 staffId、社区账号、outTrackId、一次性按钮令牌、到期时间和草稿版本。接收会话只能来自可信 DWS 事件，表单不能更换接收人、DWS profile 或执行命令。本人以外点击、转发卡、旧版本、重复点击都会被拒绝。</li>
 <li><strong>发送器</strong> 用固定可执行路径、绑定 profile 和 argv（<code>shell:false</code>）发送。私聊使用 <code>chat +messages-send --as user</code>；群消息使用 <code>chat +messages-reply</code>，绑定监听事件的 <code>--conversation-id</code>、<code>--message-id</code>、<code>--ref-sender</code>，并按已审阅正文生成稳定幂等键。人工发送、编辑后发送和固定自动回复共用该发送器。引用失败不回退普通群消息；无本地来源信息时保留待处理，网络或结果不明确时标为 unknown，禁止自动重发。<code>--yes</code> 只由授权后的代码添加。DWS 1.0.58 的 <code>im.message-reply.v1</code> 回执与普通发送格式不同，必须分别校验；引用回复不等同于独立话题写入。</li>
 <li><strong>重启恢复</strong> 先把 sending 状态写入数据库，再发出请求。发送成功才记 sent；超时、断线或进程中断记 unknown，不自动重试，避免重复发信。卡片和草稿可恢复；结果不明时需本人核对钉钉实际记录。</li>
 </ul>
-<p><strong>拟稿的 Agent 选择。</strong> 两个宿主都会把显式 <code>agentId</code> 当成可能的权限覆盖请求。插件仅在配置可确定为隐式 main 或唯一 Agent，且没有不同 systemAgent 时省略该参数，使用宿主自身的默认模型选择；不会因权限失败自动换 Agent、换模型或退回有工具的主会话。多 Agent、非默认 Agent 或无法确定归属时仍显式传入配置的 <code>agentId</code>，由宿主权限策略决定是否允许；不要为了单员工默认配置而开启跨 Agent 权限。权限不足时卡片保留草稿并给出提示，日志只记录草稿编号及受限错误码，不记录来信、凭据或提供商原始错误。</p>
-<p>操作卡片的截止时间由独立字段 <code>card_expires_note</code> 投递，模板在按钮下方以右对齐的小号备注显示“卡片有效期至 MM/DD HH:mm”。它只控制卡片回调；监听设置持续生效，草稿和自动答复授权分别检查自己的到期时间。从不含备注组件的早期版本升级时，需新建普通卡片模板、导入并发布配套 JSON，再更新 <code>assistant.cardTemplateId</code>。0.5.2 升级到本次 0.6.0 沿用已发布模板，无需再次发布；本次也未修改社区适配层。</p>
+<p><strong>拟稿的 Agent 选择（0.6.1 修正）。</strong> 插件在拟稿时读取宿主当前的已解析配置，使用宿主 SDK 解析 Agent 归属，而不只检查 Agent 数量或猜测 <code>main</code>。当配置的 <code>agentId</code> 与宿主默认归属一致时省略请求中的 <code>agentId</code>，避免把正常拟稿误判为跨 Agent 覆盖。SDK 按需加载，不加入 Gateway 启动等待链。</p>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>环境</th>
+<th>默认归属解析</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026.7.1-2</td>
+<td>首个 <code>default:true</code>；无标记时取列表首项；无 Agent 时按宿主隐式 main 规则</td>
+</tr>
+<tr>
+<td>2026.8.1</td>
+<td>优先 systemAgent，再按宿主的显式/兼容归属规则解析；支持 <code>agents.entries</code>。显式空列表、多个候选或 <code>ownership:explicit</code> 不伪装成唯一 main</td>
+</tr>
+<tr>
+<td>两版通用</td>
+<td>使用 <code>runtime.config.current()</code> 的最新已解析配置，兼容 <code>$include</code> 展开；找不到指定 Agent 或未展开的配置时拒绝拟稿并给出诊断</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>企业五 Agent 示例：</strong> <code>main</code> 标记 <code>default:true</code>，另有 <code>mail/come/bpm/code</code>，插件配置 <code>agentId:&quot;main&quot;</code>，正常拟稿无需开放 <code>llm.allowAgentIdOverride</code>，无需删除其他 Agent，也无需改 <code>subagents.allowAgents</code>。后者约束子 Agent 运行，与本方案的无工具完成接口不同。真正指定非默认 Agent 时仍由宿主权限策略决定是否允许；无法确定归属时也不会自动换 Agent、换模型或退回有工具主会话。</p>
+<p>权限不足、Agent 不存在及配置无法核实有不同的安全提示。日志只记录草稿编号和受限错误码，不记录来信、凭据或提供商原始错误。拟稿失败与仅整理记录可点「修改」手工填写回复，也可重新拟稿；手动发送仍校验本人、来源会话、正文长度、草稿版本、有效期、监听开关、暂停及平台禁发。发送结果未知不能用手动修改绕过防重复发送。</p>
+<p><code>/dws-reply preview</code> 使用宿主为当前命令绑定的无工具接口，仅试写、无发送；多 Agent 环境中预览成功不能替代后台监听拟稿验收，后台仍按上述插件 <code>agentId</code> 与宿主默认归属检查。</p>
+<p>操作卡片的截止时间由独立字段 <code>card_expires_note</code> 投递，模板在按钮下方以右对齐的小号备注显示“卡片有效期至 MM/DD HH:mm”。它只控制卡片回调；监听设置持续生效，草稿和自动答复授权分别检查自己的到期时间。从不含备注组件的早期版本升级时，需新建普通卡片模板、导入并发布配套 JSON，再更新 <code>assistant.cardTemplateId</code>。0.5.2 升级到本次 0.6.1 沿用已发布模板，无需再次发布；本次也未修改社区适配层。</p>
+<p><strong>即时提醒去重（0.6.1）。</strong> 只把尚未成功提醒的草稿版本加入新通知；多条合并时保留本批消息范围，翻页或打开其中一条不会忘记其他已提醒项。成功投递/更新后才把版本与有效卡片关联写入 SQLite，失败保留重试；状态有上限，不新增进程或轮询。重启后原卡有效则不重复推送；过期卡允许重新提醒，设置为定时汇总时仍按员工选择汇总待办。原卡主动重新拟稿会更新其版本记录，不再另弹同条通知。编辑中的页面继续保留。</p>
 <p>新版等待用户确认只保存状态，不占 main 执行 lane；模型拟稿有自己的串行队列，单次最长 30 秒。DWS 调用最长 20 秒，卡片 API 请求最长 15 秒。Stream 回调接收后异步处理，避免模型请求占住回调确认。</p>
 <p>这不表示完全没有同步工作：SQLite 的短事务是同步执行，CPU、磁盘、内存、模型额度仍与主实例共享。命令注册和后台服务通过完整配置指纹绑定，兼容宿主的运行时预热重新注册。持久化不可用、队列超限等情况会停止监听接入，不静默丢弃后继续自动发送。修复问题后由员工重新开启；若状态要求重启，按日志处理。</p>
 <p>旧的 <code>before_tool_call</code> 来源保护仍保留：对已登记的监听专用会话执行发送控制，对来源缺失或疑似监听但无法核实的会话保守拒绝；匹配的命令为 <code>dws chat message send</code> 与 <code>dws chat +messages-send</code>。旧兼容执行路径明确指定 <code>lane: dws-send-approval</code>。<code>assistant.enabled:false</code> 才回到旧方案；旧方案的两命令拦截不能覆盖任意脚本、HTTP 或其他外发工具，不能当作整个主 Agent 的数据隔离沙箱。</p>
@@ -112,7 +138,8 @@
 </tr>
 </tbody>
 </table></div>
-<p>需要同时安装对应的<strong>改造版社区插件</strong> 与 <strong>dws-send-approval 0.6.0</strong> 。不修改 OpenClaw 核心或 DWS 源码。上游 3.8.1 包仍要求新宿主，不可安装到旧宿主。</p>
+<p>需要同时安装对应的<strong>改造版社区插件</strong> 与 <strong>dws-send-approval 0.6.1</strong> 。不修改 OpenClaw 核心或 DWS 源码。上游 3.8.1 包仍要求新宿主，不可安装到旧宿主。</p>
+<p><strong>从 0.6.0 升级到 0.6.1：</strong> 本次只需替换自定义插件包并重启 Gateway；已安装的对应改造版社区插件、已发布模板及个人状态继续沿用。你们的 <code>main default:true + mail/come/bpm/code</code> 配置和现有 <code>agentId:&quot;main&quot;</code> 保持不变，不添加跨 Agent 授权。保留 PVC；修复后可对原失败记录点「重新拟稿」，或点「修改」手动答复。</p>
 <p>卡片模板已于 2026-09-24 在测试组织的钉钉开发平台成功导入、编译和发布，发布前诊断为 0。请使用 <a href="https://open-dev.dingtalk.com/fe/card" target="_blank" rel="noreferrer">钉钉开发平台卡片入口</a>，选择目标组织，在 <strong>消息卡片 → 普通卡片</strong> 下新建，关联实际机器人应用。不要进入个人 AI 卡片页面，也不要把请求体当作模板源码导入。</p>
 <p>包内有两份模板：<code>templates/dws-reply-assistant-card.json</code> 是可维护的编辑器导入源码；<code>templates/dws-reply-assistant-card.platform-export.json</code> 是本次实际发布后从平台导出的文件。导入到本企业后编译、预览、发布，复制平台生成的完整模板 ID（包括 <code>.schema</code> 后缀）到 <code>assistant.cardTemplateId</code>。源码中的空 <code>widgetInfo</code> 由平台编译生成。</p>
 <p>当前真机使用的含备注模板 ID 为 <code>a883cfea-0a38-42a1-8f16-e91fa66057a2.schema</code>，仅作为验证记录，<strong>不能直接作为其他企业或应用的通用配置值</strong> 。实际目标租户仍需验证应用可用范围和客户端表现。</p>
@@ -120,10 +147,10 @@
 <p>首次部署先配置身份和模板，暂关闭插件条目；安装后启用条目，保留 <code>listener.enabled:false</code>。若使用 <code>plugins.allow</code>，追加 <code>dws-send-approval</code> 并保留现有钉钉插件 ID。</p>
 <p><code>listener.enabled</code> 只在不存在个人设置时作为初始化默认值。员工通过卡片或 <code>/dws-listen on/off</code> 操作，写入 <code>&lt;service stateDir&gt;/dws-send-approval/preferences.json</code>，不会修改 <code>openclaw.json</code>。以后启动优先恢复该员工的已保存选择；PVC 必须持久化此状态目录。管理员仅修改默认值不会覆盖已有选择；需要强制停用整个插件时，关闭 <code>plugins.entries[&quot;dws-send-approval&quot;].enabled</code>。关闭插件不会清除个人偏好，再次加载时仍会恢复已保存设置。</p>
 <figure class="code-block"><figcaption>命令示例</figcaption><pre tabindex="0" aria-label="命令示例"><code># 旧宿主安装自定义插件
-openclaw plugins install /absolute/path/dws-send-approval-0.6.0.tgz --force
+openclaw plugins install /absolute/path/dws-send-approval-0.6.1.tgz --force
 
 # 新宿主安装自定义插件
-openclaw plugins install /absolute/path/dws-send-approval-0.6.0.tgz --force --accept-capabilities
+openclaw plugins install /absolute/path/dws-send-approval-0.6.1.tgz --force --accept-capabilities
 </code></pre></figure>
 <p>社区改造包按对应宿主用同一安装命令安装；不要同时从原目录和新包加载同一个社区插件。源码加载方式下，修改 <code>plugins.load.paths</code> 指向对应新工作目录，并先执行 <code>pnpm run build:runtime</code>，宿主实际加载 <code>dist/index.js</code>。</p>
 <figure class="code-block"><figcaption>命令示例</figcaption><pre tabindex="0" aria-label="命令示例"><code>openclaw config validate
@@ -314,6 +341,16 @@ dws --profile CORP_ID:USER_ID chat bot find --query ROBOT_NAME --limit 20 --form
 <p><code>dingtalk_ask_user_question</code> 定向群表单可指定 <strong>1–1000 个不重复的 staffId</strong> ，<code>timeoutMinutes</code> 最大 <strong>4320（72 小时）</strong> 。无 target 的旧表单仍使用原 5 分钟行为。扩大插件上限不代表钉钉平台必然接受每个实际文件或群场景，平台权限和接口限制仍按返回结果处理。</p>
 <p>72 小时是本次表单实例的最长等待时间；社区原有表单在 Gateway 重启时会终止，不能把它理解为跨重启继续收集 72 小时。它与助手 SQLite 中可恢复的草稿是两个独立功能。</p>
 </section><section class="doc-section" id="sec-7"><h2 id="_7-验证、性能与交付状态" tabindex="-1">7. 验证、性能与交付状态 <a class="header-anchor" href="#_7-验证、性能与交付状态" aria-label="Permalink to &quot;7. 验证、性能与交付状态&quot;">&ZeroWidthSpace;</a></h2>
+<h3 id="_0-6-1-多-agent-拟稿及失败恢复验收" tabindex="-1">0.6.1 多 Agent 拟稿及失败恢复验收 <a class="header-anchor" href="#_0-6-1-多-agent-拟稿及失败恢复验收" aria-label="Permalink to &quot;0.6.1 多 Agent 拟稿及失败恢复验收&quot;">&ZeroWidthSpace;</a></h3>
+<ul>
+<li>两版各 250 项本地回归，覆盖企业五 Agent、默认标记不在首位、非 main 默认、当前配置刷新、Agent 不存在、非默认权限拒绝、旧版首项回退、新版 systemAgent 与 keyed entries。</li>
+<li><code>scripts/verify-model-host.mjs &lt;OpenClaw安装目录&gt;</code> 使用真实宿主完成接口和仅本机模拟模型，核验实际选择的模型、无工具输入及非默认拒绝，不使用员工凭据或外部模型服务。</li>
+<li>拟稿失败后卡片修改、短命令修改、仅整理手动答复和重新拟稿均有回归；过期、暂停、配置变化、禁发、结果未知及重复提交仍拒绝发送。</li>
+<li>2026-09-25 两版桌面真机均通过五 Agent 配置下的真实 AI 拟稿、审批发送和权限拒绝后的手动补写发送。旧版对新私聊触发权限拒绝，新版对已收到的群消息重新拟稿触发拒绝；均未增加跨 Agent 权限。</li>
+<li>两版各两条真实来信、两条草稿、两条测试回复；没有本人回复回流形成的额外草稿。新版手动回复还验证了原文引用、@原发送者及“1 条回复”。</li>
+<li>本轮发现即时提醒把已推送草稿再次放入后续汇总卡，导致同一记录出现两个入口；没有重复生成或重复发送。两版均已增加成功投递版本记录、分批提醒范围及重启去重。新版真机重启和重新拟稿都复用原卡，验证前后通知卡总数保持 3 张；修复前已存在的历史卡不会自动撤回。</li>
+<li>测试临时配置和个人状态均按快照恢复。详细脱敏记录见 <code>docs/assets/dws-agent-selection-validation.json</code>，安装包内为 <code>agent-selection-validation.json</code>。</li>
+</ul>
 <h3 id="_0-6-0-自动身份发现与启动隔离验收" tabindex="-1">0.6.0 自动身份发现与启动隔离验收 <a class="header-anchor" href="#_0-6-0-自动身份发现与启动隔离验收" aria-label="Permalink to &quot;0.6.0 自动身份发现与启动隔离验收&quot;">&ZeroWidthSpace;</a></h3>
 <p>两版各 221 项自动化测试通过，保留全部 182 项原回归并新增 39 项身份测试。使用实际安装的两个宿主 SDK 验证命令注册、运行时预热后的命令绑定及本人私聊鉴权。真实宿主服务调度器中注入慢查询、未登录、缺少 CLI 与挂起，后续独立服务均正常启动；测得插件服务启动入口约 0.03–0.46 ms。这是本机入口调用时间，不是 Pod/Gateway 总启动时间，也不是生产性能保证。</p>
 <p>DWS 1.0.58 在本机已登录环境连续 5 次只读测量：profile list 中位约 189 ms，本人开放 ID 查询约 534 ms，bot search 约 526 ms，bot find 约 571 ms；完整链路约 1.81–1.88 秒，单个查询进程最大 RSS 约 40.0 MiB，查询顺序执行且退出后不常驻。该结果不覆盖生产 Linux、平台限流、网络故障及 15000 Pod 并发。</p>

@@ -1,6 +1,6 @@
 {
   "name": "dws-send-approval",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Personal DingTalk reply assistant with owner cards, persistent drafts and controlled sends.",
   "license": "MIT",
@@ -20,7 +20,8 @@
     "DEVELOPER.*",
     "USER-MANUAL.*",
     "identity-validation.json",
-    "identity-discovery-benchmark.json"
+    "identity-discovery-benchmark.json",
+    "agent-selection-validation.json"
   ],
   "type": "module",
   "scripts": {

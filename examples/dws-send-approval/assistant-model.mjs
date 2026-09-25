@@ -1,26 +1,23 @@
+import { completionAgent } from "./assistant-agent.mjs";
 import { safeText } from "./assistant-settings.mjs";
-// Both supported hosts reject even an explicit default agent as an override.
-// Omit it only when the configured owner is unambiguous; never retry against
-// another agent after an authorization failure.
-export function completionAgent(api, config) {
-  const agents = api.config?.agents;
-  const roster = agents?.entries ?? agents?.list;
-  const ids = Array.isArray(roster)
-    ? roster.map((entry) => entry?.id)
-    : roster && typeof roster === "object" ? Object.keys(roster) : [];
-  const systemAgent = agents?.defaults?.systemAgent?.agentId;
-  const implicit = roster === undefined ? "main" : ids.length === 1 ? ids[0] : undefined;
-  if (implicit === config.agentId && (!systemAgent || systemAgent === implicit)) return {};
-  return { agentId: config.agentId };
-}
+export { completionAgent } from "./assistant-agent.mjs";
 export function draftFailure(error) {
   const raw = error?.code;
-  const code = typeof raw === "string" && /^LLM_[A-Z_]{1,64}$/.test(raw)
-    ? raw : /cannot override .*agent/.test(error?.message ?? "")
-      ? "LLM_COMPLETION_NOT_AUTHORIZED" : "DRAFT_FAILED";
-  const message = code === "LLM_COMPLETION_NOT_AUTHORIZED"
-    ? "拟稿权限不足，请管理员核对 Agent 与插件权限；也可自己修改回复。"
-    : "拟稿未完成；可重试或自己修改回复。";
+  const code =
+    typeof raw === "string" && /^LLM_[A-Z_]{1,64}$/.test(raw)
+      ? raw
+      : /cannot override .*agent/.test(error?.message ?? "")
+        ? "LLM_COMPLETION_NOT_AUTHORIZED"
+        : "DRAFT_FAILED";
+  const messages = {
+    LLM_COMPLETION_NOT_AUTHORIZED:
+      "拟稿的 Agent 选择未获宿主授权，请管理员核对默认 Agent 与插件 agentId；可点“修改”手动填写回复。",
+    LLM_DRAFT_AGENT_NOT_CONFIGURED:
+      "插件配置的拟稿 Agent 不在当前实例中，请管理员核对 agentId；可点“修改”手动填写回复。",
+    LLM_DRAFT_CONFIG_UNAVAILABLE:
+      "无法核实当前 Agent 配置，请管理员检查配置加载；可点“修改”手动填写回复。",
+  };
+  const message = messages[code] ?? "拟稿未完成；可重新拟稿或点“修改”手动填写回复。";
   return { code, message };
 }
 export async function draftReply(api, config, draft, hint = "", material = "", signal) {
@@ -28,7 +25,7 @@ export async function draftReply(api, config, draft, hint = "", material = "", s
     throw new Error("宿主未提供无工具拟稿接口。");
   }
   const result = await api.runtime.llm.complete({
-    ...completionAgent(api, config),
+    ...(await completionAgent(api, config)),
     messages: [
       {
         role: "system",

@@ -47,7 +47,11 @@ try {
       await writeFile(join(staging, `${target}.${extension}`), document);
     }
   }
-  for (const name of ["identity-validation", "identity-discovery-benchmark"]) {
+  for (const name of [
+    "identity-validation",
+    "identity-discovery-benchmark",
+    "agent-selection-validation",
+  ]) {
     let evidence;
     try {
       evidence = await readFile(new URL(`../../../docs/assets/dws-${name}.json`, import.meta.url));

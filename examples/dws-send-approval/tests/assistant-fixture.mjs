@@ -5,7 +5,7 @@ import { createAssistant } from "../assistant.mjs";
 import { readConfig } from "../config.mjs";
 import { initialPreferences } from "../preferences.mjs";
 import { replySnapshot } from "../rules.mjs";
-export async function fixture(t, overrides = {}) {
+export async function fixture(t, overrides = {}, configOverrides = {}) {
   const dir = await mkdtemp(join(tmpdir(), "dws-assistant-test-"));
   const config = readConfig({
     ownerUserId: "A",
@@ -13,6 +13,7 @@ export async function fixture(t, overrides = {}) {
     dwsPath: "/nonexistent/dws",
     listener: { ignoreSenderOpenIds: ["BOT"] },
     assistant: { cardTemplateId: "template.schema" },
+    ...configOverrides,
   });
   let prefs = initialPreferences(config);
   prefs.enabled = true;
