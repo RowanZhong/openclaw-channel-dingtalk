@@ -51,6 +51,8 @@ try {
     "identity-validation",
     "identity-discovery-benchmark",
     "agent-selection-validation",
+    "topic-validation",
+    "topic-benchmark",
   ]) {
     let evidence;
     try {

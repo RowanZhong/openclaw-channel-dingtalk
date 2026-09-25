@@ -1,3 +1,4 @@
+import { buildTopicView } from "./assistant-topic-views.mjs";
 import { buildConfigView } from "./assistant-config-views.mjs";
 import { targetInput } from "./assistant-directory.mjs";
 import { PENDING, EDITABLE } from "./assistant-store.mjs";
@@ -18,6 +19,9 @@ const select = (name, label, values, value) =>
 const text = (name, label, value = "") => field(name, label, "TEXT_AREA", { defaultValue: value });
 const labels = {
   generating: "正在拟稿",
+  classifying: "正在识别主题",
+  "topic-review": "主题待本人判断",
+  filtered: "未匹配指定主题",
   pending: "待确认",
   inbox: "仅整理",
   stale: "有新消息，需刷新",
@@ -57,7 +61,7 @@ export function buildView(name, state, args = {}) {
   const home = button("返回首页", "home");
   if (name === "home") {
     const count = store.list([...PENDING, "unknown"]).length;
-    view.description = `监听：${prefs.enabled ? "已开启" : "已关闭"}（${{ off: "已关闭", ready: "就绪", starting: "连接中", failed: "故障", unavailable: "初始化中" }[listener.state] || "待检查"}）\n私聊：${{ off: "关闭", all: "全部", users: "指定人员" }[prefs.rules.dm.mode]}；群@我：${{ off: "关闭", all: "所有群", groups: "指定群" }[prefs.rules.at.mode]}；额外发送者：${prefs.rules.sender.ids.length}人\n待处理：${count}条；有效自动答复：${settings.autoRules.filter((r) => r.expires > Date.now()).length}条\n发送使用你的身份；未授权内容由你确认。`;
+    view.description = `监听：${prefs.enabled ? "已开启" : "已关闭"}（${{ off: "已关闭", ready: "就绪", starting: "连接中", failed: "故障", unavailable: "初始化中" }[listener.state] || "待检查"}）\n私聊：${{ off: "关闭", all: "全部", users: "指定人员" }[prefs.rules.dm.mode]}；群@我：${{ off: "关闭", all: "所有群", groups: "指定群" }[prefs.rules.at.mode]}；额外发送者：${prefs.rules.sender.ids.length}人\n待处理：${count}条；关键词自动授权：${settings.autoRules.filter((r) => r.expires > Date.now()).length}条\n主题识别：${settings.topics?.enabled ? "开启" : "关闭"}；有效自动主题：${settings.topics?.enabled ? settings.topics.rules.filter((r) => r.enabled && r.action === "auto" && r.expires > Date.now()).length : 0}条\n发送使用你的身份；未授权内容由你确认。`;
     view.buttons = [
       button("查看待回复", "inbox"),
       button("监听范围", "listen"),
@@ -90,6 +94,7 @@ export function buildView(name, state, args = {}) {
       button("设置私聊", "listen-dm"),
       button("设置群 @本人", "listen-at"),
       button("设置额外发送者", "listen-sender"),
+      button("消息主题", "topics"),
       button("校验人员或群", "directory"),
       home,
     ];
@@ -153,6 +158,8 @@ export function buildView(name, state, args = {}) {
       args.results.map((x) => `${x.name} · ${x.userId || x.id}`).join("\n") +
       "\n校验成功，未改变监听范围。";
     view.buttons = [button("监听范围", "listen"), button("继续校验", "directory"), home];
+  } else if (buildTopicView(name, state, args, view)) {
+    // Reuse dynamic forms and six buttons; no new platform template variables.
   } else if (buildConfigView(name, state, args, view, input)) {
     // Configuration pages are kept short and grouped by one user decision.
   } else if (name === "pauses") {
@@ -183,7 +190,7 @@ export function buildView(name, state, args = {}) {
       throw new Error("这条记录不存在或已清理。");
     }
     view.title = `#${d.id}-${d.version} · ${draftLabel(d, directory)}`;
-    view.description = `${labels[d.status] || d.status}\n${d.reply.direct ? "私聊回复" : "引用回复此条群消息"}\n原消息：${d.event.content.slice(0, 3000)}\n\n将以你的身份回复：\n${d.text || "尚未生成"}${d.error ? `\n${d.error}` : ""}`;
+    view.description = `${labels[d.status] || d.status}\n${d.reply.direct ? "私聊回复" : "引用回复此条群消息"}\n原消息：${d.event.content.slice(0, 3000)}\n\n将以你的身份回复：\n${d.text || "尚未生成"}${d.error ? `\n${d.error}` : ""}${d.topic ? `\n\n消息主题：${d.topic.name || "未确定"} · ${d.topic.reasonLabel || "待核对"}` : ""}`;
     view.refs = [{ id: d.id, version: d.version }];
     if (name === "edit") {
       view.description = `接收对象与原消息不变。${d.reply.direct ? "" : "发送时引用此条群消息。"}修改后点击发送即发送输入框中的完整正文。\n原消息：${d.event.content.slice(0, 160)}`;

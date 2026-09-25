@@ -1,3 +1,7 @@
+import { createTopicControls } from "./assistant-topic-controls.mjs";
+import { classifyTopic, createTopicQueue } from "./assistant-topic-model.mjs";
+import { TOPIC_PAGES } from "./assistant-topic-views.mjs";
+import { eligibleTopics, normalizeTopicDecision, topicDisposition, TOPIC_REASONS } from "./assistant-topic-rules.mjs";
 import { randomUUID } from "node:crypto";
 import { bridge } from "./assistant-bridge.mjs";
 import { cardFormFields } from "./assistant-card-protocol.mjs";
@@ -15,6 +19,7 @@ import {
   validateSettings,
   safeText,
   autoAnswer,
+  matchingAutoRules,
   quietNow,
 } from "./assistant-settings.mjs";
 import { AssistantStore, PENDING, EDITABLE, messageKey } from "./assistant-store.mjs";
@@ -24,6 +29,7 @@ import { matchesRules, replySnapshot } from "./rules.mjs";
 import { previewLiteral } from "./send-preview.mjs";
 
 const NAV = new Set([
+  ...TOPIC_PAGES,
   "home",
   "listen",
   "listen-dm",
@@ -68,6 +74,9 @@ export function createAssistant(api, config, dependencies = {}) {
     maintenanceBusy = false,
     directoryRefresh;
   const jobs = new Set();
+  const topicQueue = createTopicQueue({ complete: dependencies.classify ?? ((content, rules, signal) => classifyTopic(api, config, content, rules, signal)), now, ...dependencies.topicQueueOptions });
+  const classify = async (content, rules, valid) => normalizeTopicDecision(
+    await topicQueue.run(content, rules, signal?.signal, valid), rules);
   const settings = () => validateSettings(store.get("settings") ?? initialSettings());
   const directory = () => store.get("directory") ?? [];
   const transport = () => dependencies.transport ?? bridge().channel;
@@ -76,7 +85,7 @@ export function createAssistant(api, config, dependencies = {}) {
     promise.finally(() => jobs.delete(promise)).catch(() => {});
     return promise;
   };
-  const attentionStates = ["pending", "inbox", "stale", "draft-error", "unknown"];
+  const attentionStates = ["pending", "inbox", "stale", "draft-error", "topic-review", "unknown"];
   const notifications = createNotificationQueue({
     now,
     ...dependencies.notificationTimers,
@@ -246,6 +255,7 @@ export function createAssistant(api, config, dependencies = {}) {
       ...prefs.reply.users.map((x) => ({ kind: "user", id: x.id })),
       ...prefs.reply.groups.map((x) => ({ kind: "group", id: x.id })),
       ...s.notifications.priorityUsers.map((id) => ({ kind: "user", id })),
+      ...s.topics.rules.flatMap((r) => ["user", "group"].includes(r.scope) ? r.targets.map((id) => ({ kind: r.scope, id })) : []),
       ...s.autoRules
         .filter((x) => ["user", "group"].includes(x.scope))
         .map((x) => ({ kind: x.scope, id: x.target })),
@@ -398,6 +408,9 @@ export function createAssistant(api, config, dependencies = {}) {
     ) {
       throw new Error("监听已暂停或本条已不在处理范围内。");
     }
+    if ((d.topicRevision ?? 0) !== s.topics.revision) {
+      throw new Error("主题设置已变化，请重新拟稿后确认。");
+    }
     if (prefs.revision !== d.preferenceRevision) {
       throw new Error("回复设置已变化，请重新拟稿后确认。");
     }
@@ -428,10 +441,17 @@ export function createAssistant(api, config, dependencies = {}) {
       d = { ...d, text: safeText(edited) };
     }
     if (automaticRule) {
-      const s = settings(),
-        rule = autoAnswer(d.event, d.reply, s, now());
+      const s = settings();
+      let rule;
+      if (automaticRule.kind === "topic") {
+        const eligible = eligibleTopics(s.topics, d.event, d.reply);
+        const result = topicDisposition(d.topic?.decision ?? { outcome: "review", reason: "changed" }, eligible,
+          s, d.reply, matchingAutoRules(d.event, d.reply, s, now()), now());
+        if (s.topics.enabled && d.topicRevision === s.topics.revision && result.kind === "auto") rule = result.rule;
+      } else rule = autoAnswer(d.event, d.reply, s, now());
       if (!rule || rule.id !== automaticRule.id || rule.text !== d.text) {
-        throw new Error("自动答复授权已变化。");
+        store.put({ ...d, status: "topic-review", text: "", error: "自动答复授权已变化或冲突；请本人判断。", updated: now() });
+        return;
       }
       const window = store.get("auto-rate") ?? { since: now(), count: 0 };
       if (now() - window.since >= 3600000) {
@@ -474,13 +494,15 @@ export function createAssistant(api, config, dependencies = {}) {
     if (!automaticRule) notice(store.draft(d.id));
     await refreshCards(d.id);
   }
-  async function generate(ref, hint = "", material = "") {
+  async function generate(ref, hint = "", material = "", manual = false) {
     let d = currentDraft(ref, true);
     const prefs = listener.snapshot();
     d = store.put({
       ...d,
       reply: replySnapshot(d.event, prefs),
       preferenceRevision: prefs.revision,
+      topicRevision: settings().topics.revision,
+      topic: manual && d.topic ? { ...d.topic, reasonLabel: "本人要求重新拟稿", decision: { outcome: "review", reason: "ambiguous" } } : d.topic,
       status: "generating",
       version: d.version + 1,
       updated: now(),
@@ -513,10 +535,10 @@ export function createAssistant(api, config, dependencies = {}) {
     await refreshCards(d.id);
   }
   async function processEvent(event, prefs, reply) {
-    if (closed || settings().pauses[event.conversation_id] > now()) {
+    if (closed || !prefs.enabled || !matchesRules(event, prefs) || reply.mode === "off" || settings().pauses[event.conversation_id] > now()) {
       return;
     }
-    const d = store.create(event, prefs, reply, now());
+    let d = store.create(event, prefs, reply, now());
     if (!d) {
       return;
     }
@@ -531,28 +553,56 @@ export function createAssistant(api, config, dependencies = {}) {
         track(refreshCards(previous.id));
       }
     }
-    const s = settings(),
-      rule = autoAnswer(event, reply, s, now());
-    // Admission persists immediately. Network/model work continues outside the
-    // listener drain, so another conversation can enter while drafts await review.
-    track(
-      (async () => {
-        if (rule) {
-          const pending = store.put({ ...d, status: "pending", text: rule.text });
-          await deliver({ id: d.id, version: pending.version }, undefined, rule);
-        } else if (reply.mode === "inbox") {
-          store.put({ ...d, status: "inbox" });
-        } else if (reply.mode === "fixed") {
-          store.put({ ...d, status: "pending", text: reply.text });
-        } else {
-          await generate({ id: d.id, version: d.version });
+    const s = settings();
+    d = store.put({ ...d, topicRevision: s.topics.revision,
+      status: s.topics.enabled ? "classifying" : d.status });
+    // Admission remains immediate. Bounded classification and model/network work run in background.
+    const current = () => !closed && store.draft(d.id)?.version === d.version &&
+      ["generating", "classifying"].includes(store.draft(d.id)?.status);
+    const valid = () => current() && listener.snapshot().enabled && listener.snapshot().revision === prefs.revision &&
+      settings().topics.revision === s.topics.revision && !(settings().pauses[event.conversation_id] > now());
+    const review = (reason) => {
+      d = store.put({ ...d, status: "topic-review", text: "", error: TOPIC_REASONS[reason] || TOPIC_REASONS.failed,
+        topic: { ...d.topic, reasonLabel: TOPIC_REASONS[reason] || TOPIC_REASONS.failed }, updated: now() });
+    };
+    track((async () => {
+      if (s.topics.enabled) {
+        const eligible = eligibleTopics(s.topics, event, reply);
+        const decision = eligible.length ? await classify(event.content, eligible, valid) :
+          { outcome: s.topics.mode === "only" && !s.topics.rules.some((r) => r.enabled) ? "review" : "none",
+            reason: s.topics.rules.some((r) => r.enabled) ? "none" : "no_rules", ruleIds: [] };
+        if (!current()) return;
+        if (!valid()) { review("changed"); notice(d); return; }
+        const latestSettings = settings();
+        const result = topicDisposition(decision, eligible, latestSettings, reply,
+          matchingAutoRules(event, reply, latestSettings, now()), now());
+        d = store.put({ ...d, topic: { decision, name: result.rule?.name,
+          reasonLabel: TOPIC_REASONS[result.reason || decision.reason], ruleId: result.rule?.id } });
+        if (result.kind === "review") { review(result.reason); notice(d); return; }
+        if (result.kind === "none" && s.topics.mode === "only") {
+          store.put({ ...d, status: "filtered", updated: now() }); return;
         }
-        notice(store.draft(d.id));
-      })().catch(() => {
-        notice(store.draft(d.id));
-        api.logger?.warn?.("[DWSAssistant] background operation stopped; inspect draft status");
-      }),
-    );
+        if (["auto", "confirm", "inbox"].includes(result.kind)) {
+          d = store.put({ ...d, status: result.kind === "inbox" ? "inbox" : "pending",
+            text: result.kind === "inbox" ? "" : result.rule.text, updated: now() });
+          if (result.kind === "auto") await deliver({ id: d.id, version: d.version }, undefined, { ...result.rule, kind: "topic" });
+          notice(store.draft(d.id)); return;
+        }
+      }
+      if (!valid()) { if (current()) { review("changed"); notice(d); } return; }
+      const rule = autoAnswer(event, reply, settings(), now());
+      if (rule) {
+        const pending = store.put({ ...d, status: "pending", text: rule.text });
+        await deliver({ id: d.id, version: pending.version }, undefined, rule);
+      } else if (reply.mode === "inbox") store.put({ ...d, status: "inbox" });
+      else if (reply.mode === "fixed") store.put({ ...d, status: "pending", text: reply.text });
+      else await generate({ id: d.id, version: d.version });
+      notice(store.draft(d.id));
+    })().catch(() => {
+      if (current()) review("failed");
+      if (!closed) notice(store.draft(d.id));
+      api.logger?.warn?.("[DWSAssistant] background operation stopped; inspect draft status");
+    }));
   }
   function selected(card, values) {
     const ids = array(values.selected);
@@ -588,6 +638,7 @@ export function createAssistant(api, config, dependencies = {}) {
     }
     return values;
   }
+  const topicControls = createTopicControls({ settings, directory, saveSettings, assertLive, targets, cacheTargets, show, classify, now });
   async function operation(card, action, raw) {
     const replace = card.outTrackId;
     if (NAV.has(action.op)) {
@@ -609,6 +660,7 @@ export function createAssistant(api, config, dependencies = {}) {
     ) {
       throw new Error("设置已变化，请重新打开页面。");
     }
+    if (action.op.startsWith("topic-")) return topicControls(card, action, v);
     if (action.op === "toggle") {
       await listener.update((p) => {
         p.enabled = !p.enabled;
@@ -769,7 +821,7 @@ export function createAssistant(api, config, dependencies = {}) {
     } else if (action.op === "open-selected") {
       return show("draft", { id: selected(card, v)[0].id }, replace);
     } else if (action.op === "generate") {
-      await generate(card.refs[0], `${v.style}\n${v.hint}`, v.material);
+      await generate(card.refs[0], `${v.style}\n${v.hint}`, v.material, true);
       return show("draft", { id: card.refs[0].id }, replace);
     } else if (action.op === "send" || action.op === "edit-send") {
       await deliver(card.refs[0], action.op === "edit-send" ? v.body : undefined);

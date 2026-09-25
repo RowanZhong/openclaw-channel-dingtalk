@@ -22,16 +22,30 @@
 @media print{.code-block,.table-scroll{overflow:visible;break-inside:auto}.code-block pre,.code-block code{white-space:pre-wrap;overflow-wrap:anywhere}.table-scroll table{table-layout:fixed}.table-scroll th,.table-scroll td,.table-scroll td:nth-child(2){min-width:0;font-size:10px;padding:6px}}
 
 .card-expiry{text-align:right;color:#84909d;font-size:12px;line-height:18px;margin-top:12px}
-</style></head><body data-guide="developer"><header><div class="edition">FIELD GUIDE / 2026.09 · v0.6.1</div><div class="eyebrow">DINGTALK · PERSONAL REPLY ASSISTANT</div><h1>钉钉个人代回复助手<br>技术方案与安装配置</h1><p>面向开发人员与平台管理员：架构、部署、身份绑定、模板发布、验证与运维。</p><div class="badges"><span>助手 0.6.1</span><span>OpenClaw 2026.7.1-2 / 2026.8.1</span><span>默认关闭监听</span><span>开发与运维</span></div><div class="journey"><div><b>01 · 理清边界</b><small>架构与可信身份</small></div><div><b>02 · 统一部署</b><small>配置模板与员工隔离</small></div><div><b>03 · 可复核交付</b><small>测试、性能与运维</small></div></div></header><div class="layout"><aside><strong>CONTENTS · 阅读导航</strong><a href="#sec-1">1. 整体方案与定向控制原理 </a><a href="#sec-2">2. 技术架构与边界 </a><a href="#sec-3">3. 管理员安装和卡片模板 </a><a href="#sec-4">4. 配置项从哪里来 </a><a href="#sec-5">5. 15000 个 Pod 的统一部署 </a><a href="#sec-6">6. 本次同时调整的社区能力 </a><a href="#sec-7">7. 验证、性能与交付状态 </a><a href="#sec-8">8. 卡片协议、组件与发布验收 </a><a href="#sec-9">9. 开发、打包与交付 </a></aside><main><nav class="doc-switch"><a href="../user/dws-reply-assistant-manual.html">员工使用手册 ↗</a><a href="#sec-1">从第一节开始 ↓</a></nav><article>
-<p><strong>开发及运维指南 · 0.6.1 · 2026-09-25</strong></p>
+
+/* Product overview and task-oriented quick start. */
+.feature-strip,.outcome-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:25px 0}.feature-strip>div,.outcome-grid>div{padding:20px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,var(--accent-soft),#fff)}.feature-strip span{display:block;font-size:11px;color:var(--accent);letter-spacing:1px;margin-bottom:10px}.feature-strip strong,.outcome-grid strong{display:block;font-size:16px;line-height:1.6}.feature-strip p,.outcome-grid p{font-size:13px;color:var(--muted);margin:10px 0 0}.quick-path{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:17px 20px;background:var(--accent-soft);border-radius:10px;color:var(--accent);margin:20px 0}.quick-path b{font-size:13px}.quick-path span{opacity:.5}@media(max-width:850px){.feature-strip,.outcome-grid{grid-template-columns:1fr}.feature-strip>div,.outcome-grid>div{padding:16px}.quick-path{gap:8px}}@media print{.feature-strip,.outcome-grid{grid-template-columns:1fr}.feature-strip>div,.outcome-grid>div{break-inside:avoid}}
+
+/* Recommended scenarios: readable star ratings and a compact comparison table. */
+.scenario-overview .table-scroll{border-top:3px solid var(--accent)}
+.scenario-overview table{min-width:690px;table-layout:fixed}
+.scenario-overview th:nth-child(1){width:16%}.scenario-overview th:nth-child(2){width:25%}.scenario-overview th:nth-child(3){width:27%}.scenario-overview th:nth-child(4){width:32%}
+.scenario-overview th,.scenario-overview td,.scenario-overview td:nth-child(2){min-width:0;padding:14px 12px;line-height:1.8}
+.scenario-overview td:nth-child(2) a{font-weight:600}.scenario-overview td:first-child{background:var(--accent-soft)}
+.scenario-rating{display:block;white-space:nowrap;font-size:16px;letter-spacing:1px;line-height:1.5;color:#937022}
+.scenario-rating .rating-muted{color:#afb5af}.rating-note{display:block;font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap}
+#sec-3 h3{margin-top:38px;padding-top:3px;padding-bottom:3px;font-size:19px}#sec-3 h4{font-size:14px;margin:24px 0 10px;color:var(--accent)}
+@media print{.scenario-overview table{min-width:0}.scenario-overview th,.scenario-overview td{padding:8px;font-size:10px}.scenario-rating{font-size:12px;letter-spacing:0}.rating-note{font-size:9px}}
+</style></head><body data-guide="developer"><header><div class="edition">FIELD GUIDE / 2026.09 · v0.7.0</div><div class="eyebrow">DINGTALK · PERSONAL REPLY ASSISTANT</div><h1>钉钉个人代回复助手<br>技术方案与安装配置</h1><p>面向开发人员与平台管理员：架构、部署、身份绑定、模板发布、验证与运维。</p><div class="badges"><span>助手 0.7.0</span><span>OpenClaw 2026.7.1-2 / 2026.8.1</span><span>默认关闭监听</span><span>开发与运维</span></div><div class="journey"><div><b>01 · 理清边界</b><small>架构与可信身份</small></div><div><b>02 · 统一部署</b><small>配置模板与员工隔离</small></div><div><b>03 · 可复核交付</b><small>测试、性能与运维</small></div></div></header><div class="layout"><aside><strong>CONTENTS · 阅读导航</strong><a href="#sec-1">1. 整体方案与定向控制原理 </a><a href="#sec-2">2. 技术架构与边界 </a><a href="#sec-3">3. 管理员安装和卡片模板 </a><a href="#sec-4">4. 配置项从哪里来 </a><a href="#sec-5">5. 15000 个 Pod 的统一部署 </a><a href="#sec-6">6. 本次同时调整的社区能力 </a><a href="#sec-7">7. 验证、性能与交付状态 </a><a href="#sec-8">8. 卡片协议、组件与发布验收 </a><a href="#sec-9">9. 开发、打包与交付 </a></aside><main><nav class="doc-switch"><a href="../user/dws-reply-assistant-manual.html">员工使用手册 ↗</a><a href="#sec-1">从第一节开始 ↓</a></nav><article>
+<p><strong>开发及运维指南 · 0.7.0 · 2026-09-25</strong></p>
 <p>面向开发人员和平台管理员。员工操作另见<a href="./../user/dws-reply-assistant-manual.html">员工使用手册</a>。适用一名员工一个 Pod、独立 OpenClaw 实例；兼容验证覆盖 OpenClaw 2026.7.1-2 与 2026.8.1。</p>
 <section class="doc-section" id="sec-1"><h2 id="_1-整体方案与定向控制原理" tabindex="-1">1. 整体方案与定向控制原理 <a class="header-anchor" href="#_1-整体方案与定向控制原理" aria-label="Permalink to &quot;1. 整体方案与定向控制原理&quot;">&ZeroWidthSpace;</a></h2>
-<p>这套方案为每名员工的独立 OpenClaw 实例增加一条<strong>受控的个人消息处理流程</strong> ：DWS 用员工已登录的身份接收消息，自定义插件按员工设置筛选来信、生成草稿并管理授权，社区钉钉插件负责投递卡片和接收本人操作。员工可以确认后发送，也可以提前授权有范围、有期限的固定答复。平台统一部署代码和配置模板，员工自己的身份、监听偏好与状态保留在各自 Pod 的持久化目录中。</p>
+<p>这套方案为每名员工的独立 OpenClaw 实例增加一条<strong>受控的个人消息处理流程</strong> ：DWS 用员工已登录的身份接收消息，自定义插件按员工设置筛选来源、识别消息主题、生成草稿并管理授权，社区钉钉插件负责投递卡片和接收本人操作。员工可以确认后发送，也可以提前授权有范围、有期限的固定答复。平台统一部署代码和配置模板，员工自己的身份、监听偏好与状态保留在各自 Pod 的持久化目录中。</p>
 <p>核心做法是<strong>把来信内容与可执行权限分开</strong> 。当前默认的助手模式不会把陌生人的消息交给有工具权限的主 Agent，而是调用宿主的无工具文本生成接口起草回复。拟稿输入限定为本条来信、同一会话的有限上下文、写作要求和本人为本条补充的资料。模型生成的文字不能直接执行命令或更换接收人；只有插件中的发送器能把经过授权的完整正文发回绑定的来源会话。</p>
 <h3 id="一条消息如何走到发送" tabindex="-1">一条消息如何走到发送 <a class="header-anchor" href="#一条消息如何走到发送" aria-label="Permalink to &quot;一条消息如何走到发送&quot;">&ZeroWidthSpace;</a></h3>
 <ol>
 <li><strong>接入与筛选。</strong> 从后台自动发现并校验的 DWS profile 接收事件，先排除本人及审批机器人，再检查监听开关、私聊/群 @本人/额外发送者规则，按业务消息去重；未命中范围的来信不进入助手。</li>
-<li><strong>草稿与自动答复。</strong> 普通消息生成待确认草稿；命中本人预授权规则时，只逐字使用已授权固定正文，并检查期限与频率。模型生成内容不进入免确认自动发送路径。</li>
+<li><strong>主题、草稿与自动答复。</strong> 启用主题后，在已允许来源内按语义判断同类问题；明确未命中按员工策略分流，不确定或失败交给本人。普通消息生成待确认草稿；命中本人预授权规则时，只逐字使用已授权固定正文，并检查期限与频率。模型生成内容不进入免确认自动发送路径。</li>
 <li><strong>本人确认。</strong> 卡片回调使用社区插件提供的可信用户 ID，核对本人、账号、卡片、令牌、到期时间和草稿版本。页面上显示的接收对象和正文必须与即将发送的版本一致。</li>
 <li><strong>定向发送。</strong> 发送器再次核对监听范围、暂停状态及偏好版本，再用固定 DWS 可执行路径和参数发送；接收目标来自保存的事件，不接受模型或表单另行指定。先记录发送中状态，再执行请求，结果不明时不自动重试。</li>
 </ol>
@@ -54,7 +68,7 @@
 </tr>
 <tr>
 <td>DWS 事件进入默认助手模式</td>
-<td>范围过滤 → 无工具拟稿/固定正文 → 本人确认或精确预授权 → 固定发送器</td>
+<td>范围过滤 → 可选主题判类 → 无工具拟稿/固定正文 → 本人确认或精确预授权 → 固定发送器</td>
 <td>仅处理员工选择的消息范围</td>
 </tr>
 <tr>
@@ -79,7 +93,7 @@
 </code></pre></figure>
 <ul>
 <li><strong>社区插件</strong> 只新增卡片投递与 Stream 回调适配层。通过已有 Stream 连接传递回调的用户 ID、账号、卡片 ID，不从消息正文或表单字段推断身份。没有新增 HTTP 端口或第二条社区插件 Stream 连接。</li>
-<li><strong>自定义插件</strong> 负责个人偏好、监听、草稿、自动授权、通知和发送。两个仓库使用同一份 0.6.1 业务代码，社区适配层按两版 SDK 的导入路径分别编译。</li>
+<li><strong>自定义插件</strong> 负责个人偏好、监听、草稿、自动授权、通知和发送。两个仓库使用同一份 0.7.0 业务代码，社区适配层按两版 SDK 的导入路径分别编译。</li>
 <li><strong>无工具拟稿</strong> 使用宿主 <code>runtime.llm.complete</code>，只传写作要求、当前来信、同一会话最近最多 5 条已监听消息及本条本人提供的资料；不启动有工具的 Agent。不同会话上下文不混合，历史未发送草稿不作为已发事实。</li>
 <li><strong>确认校验</strong> 绑定本人 staffId、社区账号、outTrackId、一次性按钮令牌、到期时间和草稿版本。接收会话只能来自可信 DWS 事件，表单不能更换接收人、DWS profile 或执行命令。本人以外点击、转发卡、旧版本、重复点击都会被拒绝。</li>
 <li><strong>发送器</strong> 用固定可执行路径、绑定 profile 和 argv（<code>shell:false</code>）发送。私聊使用 <code>chat +messages-send --as user</code>；群消息使用 <code>chat +messages-reply</code>，绑定监听事件的 <code>--conversation-id</code>、<code>--message-id</code>、<code>--ref-sender</code>，并按已审阅正文生成稳定幂等键。人工发送、编辑后发送和固定自动回复共用该发送器。引用失败不回退普通群消息；无本地来源信息时保留待处理，网络或结果不明确时标为 unknown，禁止自动重发。<code>--yes</code> 只由授权后的代码添加。DWS 1.0.58 的 <code>im.message-reply.v1</code> 回执与普通发送格式不同，必须分别校验；引用回复不等同于独立话题写入。</li>
@@ -111,11 +125,30 @@
 <p><strong>企业五 Agent 示例：</strong> <code>main</code> 标记 <code>default:true</code>，另有 <code>mail/come/bpm/code</code>，插件配置 <code>agentId:&quot;main&quot;</code>，正常拟稿无需开放 <code>llm.allowAgentIdOverride</code>，无需删除其他 Agent，也无需改 <code>subagents.allowAgents</code>。后者约束子 Agent 运行，与本方案的无工具完成接口不同。真正指定非默认 Agent 时仍由宿主权限策略决定是否允许；无法确定归属时也不会自动换 Agent、换模型或退回有工具主会话。</p>
 <p>权限不足、Agent 不存在及配置无法核实有不同的安全提示。日志只记录草稿编号和受限错误码，不记录来信、凭据或提供商原始错误。拟稿失败与仅整理记录可点「修改」手工填写回复，也可重新拟稿；手动发送仍校验本人、来源会话、正文长度、草稿版本、有效期、监听开关、暂停及平台禁发。发送结果未知不能用手动修改绕过防重复发送。</p>
 <p><code>/dws-reply preview</code> 使用宿主为当前命令绑定的无工具接口，仅试写、无发送；多 Agent 环境中预览成功不能替代后台监听拟稿验收，后台仍按上述插件 <code>agentId</code> 与宿主默认归属检查。</p>
-<p>操作卡片的截止时间由独立字段 <code>card_expires_note</code> 投递，模板在按钮下方以右对齐的小号备注显示“卡片有效期至 MM/DD HH:mm”。它只控制卡片回调；监听设置持续生效，草稿和自动答复授权分别检查自己的到期时间。从不含备注组件的早期版本升级时，需新建普通卡片模板、导入并发布配套 JSON，再更新 <code>assistant.cardTemplateId</code>。0.5.2 升级到本次 0.6.1 沿用已发布模板，无需再次发布；本次也未修改社区适配层。</p>
+<p>操作卡片的截止时间由独立字段 <code>card_expires_note</code> 投递，模板在按钮下方以右对齐的小号备注显示“卡片有效期至 MM/DD HH:mm”。它只控制卡片回调；监听设置持续生效，草稿和自动答复授权分别检查自己的到期时间。从不含备注组件的早期版本升级时，需新建普通卡片模板、导入并发布配套 JSON，再更新 <code>assistant.cardTemplateId</code>。0.5.2 及以上升级到本次 0.7.0 沿用已发布模板，无需再次发布；本次也未修改社区适配层。</p>
 <p><strong>即时提醒去重（0.6.1）。</strong> 只把尚未成功提醒的草稿版本加入新通知；多条合并时保留本批消息范围，翻页或打开其中一条不会忘记其他已提醒项。成功投递/更新后才把版本与有效卡片关联写入 SQLite，失败保留重试；状态有上限，不新增进程或轮询。重启后原卡有效则不重复推送；过期卡允许重新提醒，设置为定时汇总时仍按员工选择汇总待办。原卡主动重新拟稿会更新其版本记录，不再另弹同条通知。编辑中的页面继续保留。</p>
 <p>新版等待用户确认只保存状态，不占 main 执行 lane；模型拟稿有自己的串行队列，单次最长 30 秒。DWS 调用最长 20 秒，卡片 API 请求最长 15 秒。Stream 回调接收后异步处理，避免模型请求占住回调确认。</p>
 <p>这不表示完全没有同步工作：SQLite 的短事务是同步执行，CPU、磁盘、内存、模型额度仍与主实例共享。命令注册和后台服务通过完整配置指纹绑定，兼容宿主的运行时预热重新注册。持久化不可用、队列超限等情况会停止监听接入，不静默丢弃后继续自动发送。修复问题后由员工重新开启；若状态要求重启，按日志处理。</p>
 <p>旧的 <code>before_tool_call</code> 来源保护仍保留：对已登记的监听专用会话执行发送控制，对来源缺失或疑似监听但无法核实的会话保守拒绝；匹配的命令为 <code>dws chat message send</code> 与 <code>dws chat +messages-send</code>。旧兼容执行路径明确指定 <code>lane: dws-send-approval</code>。<code>assistant.enabled:false</code> 才回到旧方案；旧方案的两命令拦截不能覆盖任意脚本、HTTP 或其他外发工具，不能当作整个主 Agent 的数据隔离沙箱。</p>
+<h3 id="消息主题与固定说明-0-7-0" tabindex="-1">消息主题与固定说明（0.7.0） <a class="header-anchor" href="#消息主题与固定说明-0-7-0" aria-label="Permalink to &quot;消息主题与固定说明（0.7.0）&quot;">&ZeroWidthSpace;</a></h3>
+<p>新增“监听范围 → 消息主题”，是来源之后的筛选层。现有私聊、群 @本人、额外发送者三组取并集不变；主题不能把未获来源授权的消息纳入。默认关闭，员工卡片设置保存在 PVC 上既有 SQLite 的 settings 中，不改 <code>openclaw.json</code>，不增加环境变量、必填字段或 DWS 常驻进程。</p>
+<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>可信来源与员工开关 → 回复/暂停规则 → 适用主题集合
+                                         ↓
+                              无工具模型调用，严格结构化判类
+                         ┌───────────────┼────────────────┐
+                      唯一命中        明确未命中       不确定/错误/冲突
+                         ↓               ↓                ↓
+                  本人保存的规则动作    未命中策略          本人判断
+                         ↓          原有流程 / 仅留记录   修改或重拟后确认
+                  固定模板/确认/整理
+                         ↓
+                 发送前再核对身份、来源、版本、授权、限额与原会话
+</code></pre></figure>
+<p>模型只能返回 <code>outcome/ruleIds/coversWholeMessage/reason</code>，不接收模型生成的收件人和发送正文。规则与模板来自员工保存的服务端状态，外来消息作为不可信数据。自动发送必须唯一匹配且整条问题可覆盖；排除、复合问题、多规则冲突、未知 ID、额外返回字段和解析失败均转人工。语义识别存在误判可能，这些约束不等于对任意恶意输入的数学保证；不让判类执行工具或读取私有资料，是独立于语义准确率的限制。</p>
+<p>调用 <code>api.runtime.llm.complete</code>，沿用 0.6.1 的默认 Agent 解析，不启动 Agent 会话或占用 main lane。每实例判类并发 1，最多 32 个运行/排队请求，排队上限 30 秒、单次调用超时 15 秒，不自动重试。提供方忽略取消时，旧调用结束前不再启动新判类，后续转人工。每条适用消息最多一次判类，明确未命中且沿用 AI 回复模式时可能再调用一次拟稿；模拟试判也占模型请求。主题关闭或该来源没有适用主题时不调用判类模型。Gateway 启动和关闭监听均不新增模型请求。</p>
+<p>settings 仍为 version 1，新增可选 <code>topics:{enabled,mode,revision,rules}</code>，读旧状态时填默认值，既有偏好不变。规则保存、停用、删除及主题模式变更递增独立 revision；仅修改提醒不会使判类失效。来源偏好与主题版本在模型返回后和发送前双重检查，设置中途变化不能继续自动发送。重启将 classifying 恢复为 topic-review，将 sending 恢复为 unknown；不自动重试发送。filtered 记录沿用 30 天终态清理策略。同一会话新来信仍使旧待办失效，包括后来明确被主题过滤的消息。</p>
+<p>主题动作支持自动固定模板、模板待确认、只整理。自动授权最长 7 天，到期仍匹配但转模板待确认；同一规则同一会话冷却最少 5 分钟，与既有关键词自动规则共享每小时 30 条上限。主题自动规则与关键词授权命中不同正文时转人工。“不处理”、暂停、只整理优先。群内发送沿用已验证的原消息引用发送路径。</p>
+<p>卡片复用既有动态 <code>form.fields</code>、6 个按钮和有效期备注；每页不超过 4 个字段，六步向导最终确认读取服务端保存的摘要。自动授权必须至少完成一条正向试判；试判页面不发送、不扩大来源，不续期已有规则。<strong>已有 0.6.1 部署只需更新自定义插件并重启，不更改社区插件、模板 ID、卡片 JSON 或宿主核心。</strong> 从更早版本升级时，仍先满足下文既有社区桥接和模板要求。</p>
 </section><section class="doc-section" id="sec-3"><h2 id="_3-管理员安装和卡片模板" tabindex="-1">3. 管理员安装和卡片模板 <a class="header-anchor" href="#_3-管理员安装和卡片模板" aria-label="Permalink to &quot;3. 管理员安装和卡片模板&quot;">&ZeroWidthSpace;</a></h2>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
@@ -138,8 +171,9 @@
 </tr>
 </tbody>
 </table></div>
-<p>需要同时安装对应的<strong>改造版社区插件</strong> 与 <strong>dws-send-approval 0.6.1</strong> 。不修改 OpenClaw 核心或 DWS 源码。上游 3.8.1 包仍要求新宿主，不可安装到旧宿主。</p>
-<p><strong>从 0.6.0 升级到 0.6.1：</strong> 本次只需替换自定义插件包并重启 Gateway；已安装的对应改造版社区插件、已发布模板及个人状态继续沿用。你们的 <code>main default:true + mail/come/bpm/code</code> 配置和现有 <code>agentId:&quot;main&quot;</code> 保持不变，不添加跨 Agent 授权。保留 PVC；修复后可对原失败记录点「重新拟稿」，或点「修改」手动答复。</p>
+<p>需要同时安装对应的<strong>改造版社区插件</strong> 与 <strong>dws-send-approval 0.7.0</strong> 。不修改 OpenClaw 核心或 DWS 源码。上游 3.8.1 包仍要求新宿主，不可安装到旧宿主。</p>
+<p><strong>从 0.6.1 升级到 0.7.0：</strong> 仅替换自定义插件包并重启 Gateway。保留 PVC、对应社区改造版、已发布模板 ID 及现有配置；主题默认关闭，不替员工新增自动发送授权。卡片新增入口由动态页面承载，无需重新导入或发布模板。</p>
+<p><strong>历史升级说明，0.6.0 → 0.6.1：</strong> 本次只需替换自定义插件包并重启 Gateway；已安装的对应改造版社区插件、已发布模板及个人状态继续沿用。你们的 <code>main default:true + mail/come/bpm/code</code> 配置和现有 <code>agentId:&quot;main&quot;</code> 保持不变，不添加跨 Agent 授权。保留 PVC；修复后可对原失败记录点「重新拟稿」，或点「修改」手动答复。</p>
 <p>卡片模板已于 2026-09-24 在测试组织的钉钉开发平台成功导入、编译和发布，发布前诊断为 0。请使用 <a href="https://open-dev.dingtalk.com/fe/card" target="_blank" rel="noreferrer">钉钉开发平台卡片入口</a>，选择目标组织，在 <strong>消息卡片 → 普通卡片</strong> 下新建，关联实际机器人应用。不要进入个人 AI 卡片页面，也不要把请求体当作模板源码导入。</p>
 <p>包内有两份模板：<code>templates/dws-reply-assistant-card.json</code> 是可维护的编辑器导入源码；<code>templates/dws-reply-assistant-card.platform-export.json</code> 是本次实际发布后从平台导出的文件。导入到本企业后编译、预览、发布，复制平台生成的完整模板 ID（包括 <code>.schema</code> 后缀）到 <code>assistant.cardTemplateId</code>。源码中的空 <code>widgetInfo</code> 由平台编译生成。</p>
 <p>当前真机使用的含备注模板 ID 为 <code>a883cfea-0a38-42a1-8f16-e91fa66057a2.schema</code>，仅作为验证记录，<strong>不能直接作为其他企业或应用的通用配置值</strong> 。实际目标租户仍需验证应用可用范围和客户端表现。</p>
@@ -147,10 +181,10 @@
 <p>首次部署先配置身份和模板，暂关闭插件条目；安装后启用条目，保留 <code>listener.enabled:false</code>。若使用 <code>plugins.allow</code>，追加 <code>dws-send-approval</code> 并保留现有钉钉插件 ID。</p>
 <p><code>listener.enabled</code> 只在不存在个人设置时作为初始化默认值。员工通过卡片或 <code>/dws-listen on/off</code> 操作，写入 <code>&lt;service stateDir&gt;/dws-send-approval/preferences.json</code>，不会修改 <code>openclaw.json</code>。以后启动优先恢复该员工的已保存选择；PVC 必须持久化此状态目录。管理员仅修改默认值不会覆盖已有选择；需要强制停用整个插件时，关闭 <code>plugins.entries[&quot;dws-send-approval&quot;].enabled</code>。关闭插件不会清除个人偏好，再次加载时仍会恢复已保存设置。</p>
 <figure class="code-block"><figcaption>命令示例</figcaption><pre tabindex="0" aria-label="命令示例"><code># 旧宿主安装自定义插件
-openclaw plugins install /absolute/path/dws-send-approval-0.6.1.tgz --force
+openclaw plugins install /absolute/path/dws-send-approval-0.7.0.tgz --force
 
 # 新宿主安装自定义插件
-openclaw plugins install /absolute/path/dws-send-approval-0.6.1.tgz --force --accept-capabilities
+openclaw plugins install /absolute/path/dws-send-approval-0.7.0.tgz --force --accept-capabilities
 </code></pre></figure>
 <p>社区改造包按对应宿主用同一安装命令安装；不要同时从原目录和新包加载同一个社区插件。源码加载方式下，修改 <code>plugins.load.paths</code> 指向对应新工作目录，并先执行 <code>pnpm run build:runtime</code>，宿主实际加载 <code>dist/index.js</code>。</p>
 <figure class="code-block"><figcaption>命令示例</figcaption><pre tabindex="0" aria-label="命令示例"><code>openclaw config validate
@@ -341,6 +375,12 @@ dws --profile CORP_ID:USER_ID chat bot find --query ROBOT_NAME --limit 20 --form
 <p><code>dingtalk_ask_user_question</code> 定向群表单可指定 <strong>1–1000 个不重复的 staffId</strong> ，<code>timeoutMinutes</code> 最大 <strong>4320（72 小时）</strong> 。无 target 的旧表单仍使用原 5 分钟行为。扩大插件上限不代表钉钉平台必然接受每个实际文件或群场景，平台权限和接口限制仍按返回结果处理。</p>
 <p>72 小时是本次表单实例的最长等待时间；社区原有表单在 Gateway 重启时会终止，不能把它理解为跨重启继续收集 72 小时。它与助手 SQLite 中可恢复的草稿是两个独立功能。</p>
 </section><section class="doc-section" id="sec-7"><h2 id="_7-验证、性能与交付状态" tabindex="-1">7. 验证、性能与交付状态 <a class="header-anchor" href="#_7-验证、性能与交付状态" aria-label="Permalink to &quot;7. 验证、性能与交付状态&quot;">&ZeroWidthSpace;</a></h2>
+<h3 id="_0-7-0-消息主题验证" tabindex="-1">0.7.0 消息主题验证 <a class="header-anchor" href="#_0-7-0-消息主题验证" aria-label="Permalink to &quot;0.7.0 消息主题验证&quot;">&ZeroWidthSpace;</a></h3>
+<p>两版各 <strong>289 项</strong> 自定义插件测试通过，覆盖来源边界、三种主题动作、两种未命中策略、提示注入形态、非法模型返回、冲突、配置中途变更、冷却/限额、队列溢出/超时、重启恢复、卡片权限、向导返回与试判。两版安装宿主的 completion 集成使用本地模型夹具通过，验证默认 Agent 解析及无工具判类；该项不等同于钉钉真机。</p>
+<p><strong>钉钉桌面客户端真机。</strong> 两版都完成六步主题配置、真实模型模拟试判、不同问法私聊自动发送、群内 @本人自动引用原消息回复，以及故障排除转本人判断并主动推送卡片。旧版“只关注指定主题”将午餐问题过滤且未回复；新版同一会话 30 分钟冷却内的第二条同义问题记为“频率限制，本次未发”，客户端确认没有第二条回复。新版管理页的多选停用也已保存成功。旧版标记为 O-TOPIC-COOL 的消息实际相隔约 8 分钟，超过当时 5 分钟设置，不能计入冷却通过项。</p>
+<p>三种处理动作中的模板确认/只整理、未命中沿用原流程、冲突、过期、挂起和重启恢复等分支由自动化回归覆盖，本轮没有逐项安排好友真机发送。详细结果随包提供 <code>topic-validation.json</code>，微基准原始数据为 <code>topic-benchmark.json</code>。临时配置和员工状态已按快照恢复；恢复后的频道连接单独探测确认。</p>
+<p><strong>资源与容量边界。</strong> 本机 macOS arm64 / Node v26.8.1 的独立进程微基准：20 个规则 ID 下做 50000 次结构校验约 8.23 ms；瞬时提交 2000 个模拟判类请求，32 个进入有界队列，1968 个直接转繁忙回退，观测并发峰值 1，约 75.28 ms 完成（模拟服务耗时 2 ms）。该测试进程 RSS 从 52.80 MiB 到 61.05 MiB，GC 后 heap 从 3.64 MiB 到 4.05 MiB，CPU 约 18.90 ms。这里是整个独立 Node 测试进程的占用，不能当成插件在 Gateway 中的常驻增量。</p>
+<p>微基准没有真实模型、DWS、网络或卡片请求；不能据此推导真实消息吞吐，也没有完成 15000 Pod 容量压测。新增成本主要是每条适用来信的模型请求；每实例并发 1 仍可能在全企业形成大量并行请求，需要企业模型网关统一限流并按实际流量测预算。未进入主题、明确命中来源前不调用模型；主题判类不新增 DWS 进程。复现脚本为 <code>node --expose-gc examples/dws-send-approval/scripts/benchmark-topics.mjs</code>，数值随设备、Node 和负载变化。</p>
 <h3 id="_0-6-1-多-agent-拟稿及失败恢复验收" tabindex="-1">0.6.1 多 Agent 拟稿及失败恢复验收 <a class="header-anchor" href="#_0-6-1-多-agent-拟稿及失败恢复验收" aria-label="Permalink to &quot;0.6.1 多 Agent 拟稿及失败恢复验收&quot;">&ZeroWidthSpace;</a></h3>
 <ul>
 <li>两版各 250 项本地回归，覆盖企业五 Agent、默认标记不在首位、非 main 默认、当前配置刷新、Agent 不存在、非默认权限拒绝、旧版首项回退、新版 systemAgent 与 keyed entries。</li>

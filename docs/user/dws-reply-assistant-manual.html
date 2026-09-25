@@ -22,252 +22,409 @@
 @media print{.code-block,.table-scroll{overflow:visible;break-inside:auto}.code-block pre,.code-block code{white-space:pre-wrap;overflow-wrap:anywhere}.table-scroll table{table-layout:fixed}.table-scroll th,.table-scroll td,.table-scroll td:nth-child(2){min-width:0;font-size:10px;padding:6px}}
 
 .card-expiry{text-align:right;color:#84909d;font-size:12px;line-height:18px;margin-top:12px}
-</style></head><body data-guide="user"><header><div class="edition">FIELD GUIDE / 2026.09 · v0.6.1</div><div class="eyebrow">DINGTALK · PERSONAL REPLY ASSISTANT</div><h1>钉钉个人代回复助手<br>员工使用手册</h1><p>从自己的钉钉机器人私聊开始，自主选择监听范围、确认回复与设置自动答复。</p><div class="badges"><span>助手 0.6.1</span><span>OpenClaw 2026.7.1-2 / 2026.8.1</span><span>默认关闭监听</span><span>员工使用</span></div><div class="journey"><div><b>01 · 自主选择</b><small>从监听范围开始</small></div><div><b>02 · 看清再发</b><small>完整正文由你确认</small></div><div><b>03 · 少些打断</b><small>固定答复与汇总提醒</small></div></div></header><div class="layout"><aside><strong>CONTENTS · 阅读导航</strong><a href="#sec-1">1. 这个助手能帮你做什么 </a><a href="#preview">交互预览</a><a href="#sec-2">2. 员工怎么用 </a><a href="#sec-3">3. 监听范围和自助设置 </a><a href="#sec-4">4. 卡片不可用时的文字备用方式 </a><a href="#sec-5">5. 常见问题 </a><a href="#sec-6">6. 暂停、隐私和异常处理 </a><a href="#sec-7">附录 A · 代回复助手完整功能使用说明书 </a></aside><main><nav class="doc-switch"><a href="../contributor/dws-reply-assistant-deployment.html">开发与运维指南 ↗</a><a href="#sec-1">从第一节开始 ↓</a></nav><article>
-<p><strong>版本 0.6.1 · 2026-09-25</strong></p>
-<p>面向已开通的员工。只需在自己的钉钉机器人私聊中操作；安装、企业权限和故障诊断请交给管理员，参见<a href="./../contributor/dws-reply-assistant-deployment.html">开发与部署指南</a>。</p>
-<section class="doc-section" id="sec-1"><h2 id="_1-这个助手能帮你做什么" tabindex="-1">1. 这个助手能帮你做什么 <a class="header-anchor" href="#_1-这个助手能帮你做什么" aria-label="Permalink to &quot;1. 这个助手能帮你做什么&quot;">&ZeroWidthSpace;</a></h2>
-<p>代回复助手帮你把选定的钉钉来信整理成<strong>可确认的回复草稿</strong> ，减少反复切换会话和输入重复回复。你决定监听哪些人、哪些群里的 @本人，决定回复风格，也决定什么时候发送。所有设置和确认都可以在自己的钉钉机器人私聊卡片中完成。</p>
-<p>它适合两类工作：需要判断的消息，由 AI 起草、你看清后点发送；“正在开会，稍后回复”这类重复答复，由你提前确认固定正文、范围、有效期和频率，之后自动发送。第一次使用默认不监听，准备好后再自己开启。</p>
+
+/* Product overview and task-oriented quick start. */
+.feature-strip,.outcome-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:25px 0}.feature-strip>div,.outcome-grid>div{padding:20px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,var(--accent-soft),#fff)}.feature-strip span{display:block;font-size:11px;color:var(--accent);letter-spacing:1px;margin-bottom:10px}.feature-strip strong,.outcome-grid strong{display:block;font-size:16px;line-height:1.6}.feature-strip p,.outcome-grid p{font-size:13px;color:var(--muted);margin:10px 0 0}.quick-path{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:17px 20px;background:var(--accent-soft);border-radius:10px;color:var(--accent);margin:20px 0}.quick-path b{font-size:13px}.quick-path span{opacity:.5}@media(max-width:850px){.feature-strip,.outcome-grid{grid-template-columns:1fr}.feature-strip>div,.outcome-grid>div{padding:16px}.quick-path{gap:8px}}@media print{.feature-strip,.outcome-grid{grid-template-columns:1fr}.feature-strip>div,.outcome-grid>div{break-inside:avoid}}
+
+/* Recommended scenarios: readable star ratings and a compact comparison table. */
+.scenario-overview .table-scroll{border-top:3px solid var(--accent)}
+.scenario-overview table{min-width:690px;table-layout:fixed}
+.scenario-overview th:nth-child(1){width:16%}.scenario-overview th:nth-child(2){width:25%}.scenario-overview th:nth-child(3){width:27%}.scenario-overview th:nth-child(4){width:32%}
+.scenario-overview th,.scenario-overview td,.scenario-overview td:nth-child(2){min-width:0;padding:14px 12px;line-height:1.8}
+.scenario-overview td:nth-child(2) a{font-weight:600}.scenario-overview td:first-child{background:var(--accent-soft)}
+.scenario-rating{display:block;white-space:nowrap;font-size:16px;letter-spacing:1px;line-height:1.5;color:#937022}
+.scenario-rating .rating-muted{color:#afb5af}.rating-note{display:block;font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap}
+#sec-3 h3{margin-top:38px;padding-top:3px;padding-bottom:3px;font-size:19px}#sec-3 h4{font-size:14px;margin:24px 0 10px;color:var(--accent)}
+@media print{.scenario-overview table{min-width:0}.scenario-overview th,.scenario-overview td{padding:8px;font-size:10px}.scenario-rating{font-size:12px;letter-spacing:0}.rating-note{font-size:9px}}
+</style></head><body data-guide="user"><header><div class="edition">FIELD GUIDE / 2026.09 · v0.7.0</div><div class="eyebrow">DINGTALK · PERSONAL REPLY ASSISTANT</div><h1>钉钉个人代回复助手<br>员工使用手册</h1><p>从自己的钉钉机器人私聊开始，自主选择监听范围、确认回复与设置自动答复。</p><div class="badges"><span>助手 0.7.0</span><span>OpenClaw 2026.7.1-2 / 2026.8.1</span><span>默认关闭监听</span><span>员工使用</span></div><div class="journey"><div><b>01 · 自主选择</b><small>从监听范围开始</small></div><div><b>02 · 看清再发</b><small>完整正文由你确认</small></div><div><b>03 · 少些重复</b><small>同类问题，统一答复</small></div></div></header><div class="layout"><aside><strong>CONTENTS · 阅读导航</strong><a href="#sec-1">1. 先看它能帮你做什么 </a><a href="#preview">交互预览</a><a href="#sec-2">2. 五分钟快速上手：让 AI 帮你拟一条回复 </a><a href="#sec-3">3. 实用场景：从高频咨询到重点事项整理 </a><a href="#sec-4">4. 日常工作：看清、修改、批量处理 </a><a href="#sec-5">5. 常用入口与排查路线 </a><a href="#sec-6">附录 A · 代回复助手完整功能使用说明书 </a></aside><main><nav class="doc-switch"><a href="../contributor/dws-reply-assistant-deployment.html">开发与运维指南 ↗</a><a href="#sec-1">从第一节开始 ↓</a></nav><article>
+<p><strong>版本 0.7.0 · 2026-09-25</strong></p>
+<p>适用于 OpenClaw 2026.7.1-2 / 2026.8.1。日常操作都在<strong>自己的钉钉机器人私聊</strong>中完成。安装、企业权限与故障诊断见<a href="./../contributor/dws-reply-assistant-deployment.html">开发与部署指南</a>。</p>
+<section class="doc-section" id="sec-1"><h2 id="_1-先看它能帮你做什么" tabindex="-1">1. 先看它能帮你做什么 <a class="header-anchor" href="#_1-先看它能帮你做什么" aria-label="Permalink to &quot;1. 先看它能帮你做什么&quot;">&ZeroWidthSpace;</a></h2>
+<p>把你选定的来信交给助手：<strong>需要斟酌的回复，AI 先起草，你看后发送；反复被问的同一类问题，AI 识别不同问法，再使用你预先写好的说明。</strong> 你决定关注谁、关注什么、怎样回复以及什么时候暂停。首次安装默认不监听，升级也保留你的选择。</p>
+<div class="feature-strip">
+<div><span>01 · 理解来信</span><strong>不同问法，同一问题</strong><p>用问题描述、典型问法和排除情形定义消息主题，无须穷举关键词。</p></div>
+<div><span>02 · 准备答复</span><strong>因消息而写，也能统一口径</strong><p>普通来信生成可修改的 AI 草稿；主题来信使用你保存的固定说明。</p></div>
+<div><span>03 · 保留控制</span><strong>重要的你确认，重复的少打断</strong><p>自动答复限定正文、范围、期限和频率；判断不清时回到待处理。</p></div>
+</div>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
 <tr>
-<th>功能</th>
-<th>你能做什么</th>
-<th>带来的好处</th>
+<th>你想解决的问题</th>
+<th>对应功能</th>
+<th>从哪里进入</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>自选监听范围</td>
-<td>全部或指定人员的私聊；全部或指定群里的 @本人；按需组合</td>
-<td>把注意力放在需要代处理的消息上</td>
+<td>同事反复问同一功能，但问法各不相同</td>
+<td>消息主题识别＋固定说明；可以自动发，也可由你确认</td>
+<td>监听范围 → 消息主题</td>
 </tr>
 <tr>
-<td>按对象设置回复方式</td>
-<td>默认、联系人、群分别设置 AI 草稿、固定草稿、仅整理或不处理</td>
-<td>不同工作关系使用不同答复要求</td>
+<td>每条消息都需要结合内容组织语言</td>
+<td>AI 起草，可修改、重拟；发送前看完整正文</td>
+<td>回复方式 → AI 起草，我确认发送</td>
 </tr>
 <tr>
-<td>一键确认与修改</td>
-<td>看清原消息、接收对象和完整正文，直接发送或修改后发送</td>
-<td>不必输入长串审批命令</td>
+<td>不同联系人、群需要不同回复要求</td>
+<td>默认、群、联系人分别设置</td>
+<td>回复方式 → 专属规则</td>
 </tr>
 <tr>
-<td>重新拟稿</td>
-<td>选择更简短、更正式，或为本条补充要求与资料</td>
-<td>保留你的判断，减少从头写回复的工作</td>
+<td>消息多，不想频繁切换会话</td>
+<td>汇总提醒、重点联系人、批量处理</td>
+<td>自动答复与提醒 → 提醒设置</td>
 </tr>
 <tr>
-<td>固定答复预授权</td>
-<td>指定正文、对象、关键词、期限和最小间隔；随时撤销</td>
-<td>重复消息不必每条再点确认</td>
+<td>需要自己接手或暂时不处理</td>
+<td>暂停全部 / 暂停一个会话 / 不处理规则</td>
+<td>首页 / 草稿里的“我来处理”</td>
 </tr>
 <tr>
-<td>汇总与批量处理</td>
-<td>选择提醒方式、间隔、免打扰、重点联系人；勾选多条处理</td>
-<td>减少打断，集中处理待回复消息</td>
-</tr>
-<tr>
-<td>随时自己接手</td>
-<td>暂停全部监听，或暂停一个会话，之后再恢复</td>
-<td>忙时交给助手整理，需要时自己处理</td>
-</tr>
-<tr>
-<td>自动识别与身份自检</td>
-<td>自动读取本人 DWS 账号及社区机器人；用两条短命令检查、刷新</td>
-<td>不必自己查找或填写 profile 和机器人开放 ID</td>
-</tr>
-<tr>
-<td>可核对的处理记录</td>
-<td>查看待确认、已发送、忽略或结果待核实等状态</td>
-<td>知道哪些消息处理到了哪一步</td>
+<td>想知道有没有发出、为什么没自动回复</td>
+<td>处理记录、主题结果、明确失败状态</td>
+<td>首页 → 处理记录</td>
 </tr>
 </tbody>
 </table></div>
-<p><strong>你的控制始终保留：</strong> 普通 AI 草稿要确认后才发送；免逐条确认只适用于你明确授权的固定正文。助手不会为了补充回复自行调用工具查找文件、邮件或记忆。你自己的 Web/钉钉主会话仍按原有方式使用，本插件不为已识别的普通主会话额外增加代回复审批。</p>
-<p>建议先选择一个小范围，使用“AI 起草，我确认”熟悉卡片，再为重复场景配置固定自动答复。下面的交互示意用于了解页面；实际设置请到钉钉机器人私聊完成。</p>
-</section><div class="demo" id="preview"><h2>员工会看到什么</h2><p class="caption">离线页面示意，字段来自实际代码，使用预设示例数据。输入不会保存或真实校验，点击不会发送消息；实际设置请在钉钉中完成。</p><div class="tabs" id="tabs"></div><div class="phone"><div class="botline">我的工作助手 · 仅本人操作</div><div id="notice" role="status"></div><div class="card"><div class="cardtitle" id="cardtitle"></div><div class="cardbody"><div class="description" id="description"></div><div id="fields"></div><div class="actions" id="actions"></div><div class="card-expiry">卡片有效期至 09/24 15:30</div></div></div></div></div><section class="doc-section" id="sec-2"><h2 id="_2-员工怎么用" tabindex="-1">2. 员工怎么用 <a class="header-anchor" href="#_2-员工怎么用" aria-label="Permalink to &quot;2. 员工怎么用&quot;">&ZeroWidthSpace;</a></h2>
-<p>管理员安装两个配套插件、发布卡片模板并绑定本人身份后，员工在<strong>自己的钉钉机器人私聊</strong> 发送 <code>/dws</code>，打开代回复助手。首次默认关闭监听；安装插件不等于替所有员工开启监听。Web 主会话继续照常使用。</p>
+<p><strong>两种 AI 能力要分清：</strong> AI 拟稿根据来信生成新文字，必须由你确认；主题识别只负责判断是否适用已保存规则，自动发送时正文逐字来自你的模板。助手不会自行查找你的文件、邮件、私人记忆来填充答复。主题识别仍可能误判，先试判并从小范围启用。</p>
+</section><div class="demo" id="preview"><h2>员工会看到什么</h2><p class="caption">离线页面示意，字段来自实际代码，使用预设示例数据。输入不会保存或真实校验，点击不会发送消息；实际设置请在钉钉中完成。</p><div class="tabs" id="tabs"></div><div class="phone"><div class="botline">我的工作助手 · 仅本人操作</div><div id="notice" role="status"></div><div class="card"><div class="cardtitle" id="cardtitle"></div><div class="cardbody"><div class="description" id="description"></div><div id="fields"></div><div class="actions" id="actions"></div><div class="card-expiry">卡片有效期至 09/24 15:30</div></div></div></div></div><section class="doc-section" id="sec-2"><h2 id="_2-五分钟快速上手-让-ai-帮你拟一条回复" tabindex="-1">2. 五分钟快速上手：让 AI 帮你拟一条回复 <a class="header-anchor" href="#_2-五分钟快速上手-让-ai-帮你拟一条回复" aria-label="Permalink to &quot;2. 五分钟快速上手：让 AI 帮你拟一条回复&quot;">&ZeroWidthSpace;</a></h2>
+<div class="quick-path"><b>登录自检</b><span>→</span><b>选来源</b><span>→</span><b>设回复</b><span>→</span><b>开启监听</b><span>→</span><b>看清再发</b></div>
 <ol>
-<li>点「监听范围」查看三组总览，再点「设置私聊」「设置群 @本人」或「设置额外发送者」。每次只修改一组，点「校验并保存本组」后返回总览。未保存可点「取消，返回范围」。</li>
-<li>点「回复方式」：选择「AI 起草，我确认发送」「固定正文，仍由我确认」「只整理消息」或「不处理」。可分别设置默认规则、联系人和群的要求。</li>
-<li>回首页点「开启监听」。之后可随时暂停，设置修改无需重启 Pod。</li>
-<li>收到审批卡或汇总卡后查看原消息、接收对象和<strong>完整回复正文</strong> ，点「发送」即可。无需输入长审批命令。也可修改、重新拟稿、忽略，或点「我来处理」暂时暂停这个会话。</li>
-<li>对重复性答复，点「自动答复与提醒 → 新增自动答复」，明确授权固定正文、适用范围、关键词、期限和频率。授权有效期间可直接自动发送，不再逐条确认。</li>
+<li><strong>确认身份就绪。</strong> 在本人机器人私聊发送 <code>/dws identity</code>。若提示等待登录，完成企业提供的 DWS 登录，再发 <code>/dws identity refresh</code>；稍后查询状态。你不需要手填 profile 或机器人开放 ID。</li>
+<li><strong>打开 <code>/dws</code>，先选一个小范围。</strong> 进入「监听范围 → 设置私聊」，选指定人员，填写真实 UserId，点击校验并保存。也可以选择指定群里的 @本人。人员和群的填写规则见 <a href="#manual-scope">A.02</a>。</li>
+<li><strong>设置回复方式。</strong> 选择「AI 起草，我确认发送」，写下要求，例如“简洁礼貌；不编造时间、进展或承诺”。保存后返回首页。</li>
+<li><strong>点击「开启监听」。</strong> 先用 <code>/dws-listen status</code> 确认实际就绪，再请所选同事发一条真实消息。保存设置不会自动开启监听。</li>
+<li><strong>处理第一条草稿。</strong> 收到卡片后，看原消息、接收对象及完整回复。合适就点「发送」；需要调整就点「修改」或「重新拟稿」。群内发送会引用原消息。试用结束可回首页「暂停全部」。</li>
 </ol>
-<h3 id="第一次使用-登录与身份自检" tabindex="-1">第一次使用：登录与身份自检 <a class="header-anchor" href="#第一次使用-登录与身份自检" aria-label="Permalink to &quot;第一次使用：登录与身份自检&quot;">&ZeroWidthSpace;</a></h3>
-<p>管理员完成部署后，你只需使用本人 DWS 登录。助手自动识别你的 profile 和对应机器人，不需要手填机器人开放 ID。可先在机器人私聊发送 <code>/dws identity</code> 查看状态。首次安装仍然默认关闭监听。</p>
-<p>如果显示“等待 DWS 登录”，先完成平台提供的 DWS 登录/授权，再单独发送 <code>/dws identity refresh</code>。机器人会立即告诉你检测已在后台开始；稍后发送 <code>/dws identity</code> 看结果。刷新不自动开启监听，不删除已有设置和草稿。原本已经开启监听时，刷新会短暂停止并按原范围恢复；停止期间的历史消息不会补读。</p>
-<p>“身份已就绪”说明本地绑定已通过校验；是否已经接收消息还要看 <code>/dws-listen status</code> 的实际状态。监听关闭时提示“机器人身份：启用监听时查询”是正常现象。身份不匹配或查询失败时，助手暂停代回复，你仍可使用普通钉钉 / Web 主会话；请按提示重新登录或联系管理员，不要把其他人的 profile 填进配置。</p>
-<p>助手会自动识别并排除本人发出的消息及审批机器人的消息，避免把自己的回复再次生成草稿。查询的是经过核对的开放 ID，不按姓名或正文过滤。若身份查询失败，监听暂不启动，原有个人设置保留。</p>
-<h3 id="页面怎么走" tabindex="-1">页面怎么走 <a class="header-anchor" href="#页面怎么走" aria-label="Permalink to &quot;页面怎么走&quot;">&ZeroWidthSpace;</a></h3>
+<p>没有弹卡时，先主动 <code>/dws</code> 查看「待回复」，再检查提醒方式、免打扰和实际监听状态。系统横幅及声音还取决于钉钉客户端通知设置。AI 拟稿失败时，也可以在卡片里点「修改」，填写自己的回复后发送。</p>
+</section><section class="doc-section" id="sec-3"><h2 id="_3-实用场景-从高频咨询到重点事项整理" tabindex="-1">3. 实用场景：从高频咨询到重点事项整理 <a class="header-anchor" href="#_3-实用场景-从高频咨询到重点事项整理" aria-label="Permalink to &quot;3. 实用场景：从高频咨询到重点事项整理&quot;">&ZeroWidthSpace;</a></h2>
+<p><a id="manual-scenarios"></a></p>
+<p>以下四个场景按推荐程度排列，星级综合考虑日常适用性、使用频率和上手收益。可先从与工作职责最接近的场景开始。</p>
+<div class="scenario-overview">
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
 <tr>
-<th>入口</th>
-<th>下一步</th>
-<th>保存结果</th>
+<th>推荐程度</th>
+<th>应用场景</th>
+<th>核心价值</th>
+<th>回复与处理方式</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>监听范围</td>
-<td>私聊 / 群 @本人 / 额外发送者，分别编辑</td>
-<td>只保存当前组，返回范围总览</td>
+<td><span class="scenario-rating" role="img" aria-label="五星推荐">★★★★★</span><span class="rating-note">优先体验</span></td>
+<td><a href="#scenario-topic">高频同类咨询，自动统一解答</a></td>
+<td>理解不同问法，减少重复答疑，保持说明口径一致</td>
+<td>AI 识别意图，明确命中后发送本人预先授权的固定说明</td>
 </tr>
 <tr>
-<td>回复方式</td>
-<td>修改默认；或指定人员 / 群 → 校验对象 → 编辑处理方式与正文</td>
-<td>保存后返回回复总览；可删除专属规则</td>
+<td><span class="scenario-rating" role="img" aria-label="五星推荐">★★★★★</span><span class="rating-note">重点推荐</span></td>
+<td><a href="#scenario-groups">多项目群 @消息，集中审阅回复</a></td>
+<td>减少会话切换，分别准备回复，集中确认处理</td>
+<td>AI 按各条来信拟稿；本人逐条或批量确认，引用各自原消息回复</td>
 </tr>
 <tr>
-<td>新增自动答复</td>
-<td>①范围 → ②正文与关键词 → ③期限 → ④频率 → ⑤完整摘要</td>
-<td>只有最后的“确认授权自动发送”才建立授权</td>
+<td><span class="scenario-rating" role="img" aria-label="四星推荐">★★★★<span class="rating-muted">☆</span></span><span class="rating-note">推荐使用</span></td>
+<td><a href="#scenario-material">补充已核实事实，生成针对性答复</a></td>
+<td>将简短事实整理成完整表达，准确回应具体问题</td>
+<td>本人补充资料，AI 重新拟稿，经审阅后发送</td>
 </tr>
 <tr>
-<td>查看 / 撤销授权</td>
-<td>核对已授权正文、勾选本页规则</td>
-<td>只撤销所选授权，空列表不显示撤销按钮</td>
-</tr>
-<tr>
-<td>提醒设置</td>
-<td>提醒方式 / 汇总间隔 / 免打扰 / 重点联系人</td>
-<td>每次只修改当前项</td>
-</tr>
-<tr>
-<td>待回复</td>
-<td>勾选 → 查看、发送或忽略</td>
-<td>操作仅针对本页勾选记录</td>
-</tr>
-<tr>
-<td>我来处理</td>
-<td>选择暂停期限</td>
-<td>暂停该会话；可到“暂停的会话”恢复</td>
+<td><span class="scenario-rating" role="img" aria-label="三星推荐">★★★<span class="rating-muted">☆☆</span></span><span class="rating-note">按需使用</span></td>
+<td><a href="#scenario-inbox">筛选关注主题，集中整理待办事项</a></td>
+<td>从已监听来信中筛选关注事项，减少无关消息提醒</td>
+<td>AI 判断主题，命中后只整理提醒，由本人决定如何处理</td>
 </tr>
 </tbody>
 </table></div>
-<p>自动答复向导可点“上一步”修改，已填内容保留；点“取消，不授权”不会建立自动发送规则。普通设置页的“返回”不保存未提交修改。每张卡片右下角以小字显示“卡片有效期至 09/24 15:30”。这仅是本张操作卡片的截止时间，不是已保存设置、待回复草稿或自动答复授权的截止时间；时间按账户设置计算。长正文、多个对象或多条记录可能需要滚动查看，发送前请读完整内容。</p>
-<p>普通本人主动发起的主会话请求不增加这套审批；只有本插件管理的个人 IM 监听进入该流程。</p>
-<h3 id="两种发送方式" tabindex="-1">两种发送方式 <a class="header-anchor" href="#两种发送方式" aria-label="Permalink to &quot;两种发送方式&quot;">&ZeroWidthSpace;</a></h3>
+</div>
+<p>第一次使用可先完成 Part 2 的基本收发流程，再选择一个场景试用。以下人名、群名、产品信息及回复内容均为示例，应替换为实际内容。</p>
+<p><a id="scenario-topic"></a></p>
+<h3 id="_3-1-高频同类咨询-自动统一解答" tabindex="-1">3.1 高频同类咨询，自动统一解答 <a class="header-anchor" href="#_3-1-高频同类咨询-自动统一解答" aria-label="Permalink to &quot;3.1 高频同类咨询，自动统一解答&quot;">&ZeroWidthSpace;</a></h3>
+<p><strong>适合谁：</strong> 经常解答同一产品、流程或功能使用问题的业务负责人、产品支持人员及内部系统管理员。</p>
+<p>例如，你负责一个文档工具，经常被问“怎么导出 PDF”“在哪下载 PDF 版本”“怎样保存成 PDF 格式”。问题表达不同，但需要的是同一份操作说明；“导出报错”“权限不足”等故障需要另行处理。</p>
+<p><strong>入口：</strong> 首页 → 监听范围 → 消息主题。</p>
+<h4 id="配置与使用" tabindex="-1">配置与使用 <a class="header-anchor" href="#配置与使用" aria-label="Permalink to &quot;配置与使用&quot;">&ZeroWidthSpace;</a></h4>
+<ol>
+<li><strong>限定来信来源。</strong> 在「监听范围」选择相关人员私聊，以及“产品支持群”里的 @本人。主题只能处理已经纳入监听的消息。普通群消息不会因内容相似就自动进入。</li>
+<li><strong>新增主题规则。</strong> 进入「新增主题规则」，按六步向导填写。主题来源选“全部已监听消息”，或进一步限定指定人员、指定群。</li>
+</ol>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
 <tr>
-<th>方式</th>
-<th>用户操作</th>
-<th>实际发送的内容</th>
+<th>字段</th>
+<th>填写示例</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>AI 草稿 / 固定草稿</td>
-<td>看清卡片后点发送；或修改后发送</td>
-<td>卡片绑定版本的完整正文，接收人固定为原会话</td>
+<td>主题名称</td>
+<td>导出 PDF 操作方法</td>
 </tr>
 <tr>
-<td>预授权自动答复</td>
-<td>提前授权固定正文、范围和有效期</td>
-<td>逐字发送已授权正文，不调用模型拼接私人资料</td>
+<td>关注的问题</td>
+<td>询问如何将在线文档导出为 PDF 文件，需要操作步骤或使用说明</td>
+</tr>
+<tr>
+<td>典型问法</td>
+<td>怎么导出 PDF？／在哪里下载 PDF 版本？／怎样另存为 PDF 文件？</td>
+</tr>
+<tr>
+<td>不适用情形</td>
+<td>导出失败、权限不足、报错、要求代为操作，或同时询问其他问题</td>
+</tr>
+<tr>
+<td>处理方式</td>
+<td>初次使用选“模板由我确认”；验证适用后可改为“自动发送固定说明”</td>
+</tr>
+<tr>
+<td>固定回复正文</td>
+<td>填写本产品的准确步骤或说明链接，最多 160 字符；此处应使用已经核实的操作指引</td>
 </tr>
 </tbody>
 </table></div>
-<p>例如：给全部已监听私聊授权「正在开会，稍后回复你。」，有效 1 小时，同一会话间隔至少 30 分钟。命中后自动答复一次；再次来信在冷却期内不重复发送。不同答案的自动规则同时命中时，转为草稿确认。每实例每小时最多自动发送 30 条，超出后保留待确认草稿。</p>
-<p>AI 模式不是“任意内容免审”。机器人不会自行读取文件、邮件、记忆或调用工具来补充资料。需要背景时，由本人在「重新拟稿」里为本条粘贴资料；新稿仍需确认。该资料不作为自动答复规则保存，但生成的草稿可能包含其中信息，请查看正文。</p>
-<h3 id="一次处理多条-减少打断" tabindex="-1">一次处理多条，减少打断 <a class="header-anchor" href="#一次处理多条-减少打断" aria-label="Permalink to &quot;一次处理多条，减少打断&quot;">&ZeroWidthSpace;</a></h3>
-<p>首次使用默认即时提醒：草稿就绪后约 2 秒主动推送审批卡，密集来信合并，两次提醒至少间隔 10 秒；后续消息会在合并窗口结束后补发，不必等待汇总周期。只有一条待办时直接展示完整草稿与发送、修改、忽略按钮，多条则展示列表。22:00–08:00（Asia/Shanghai）免打扰；可改成定时汇总或仅主动查看。升级保留你已有的提醒选择。固定自动回复成功只进入处理记录，也可用定时汇总查看；发送结果不明会请求你核实。免打扰和提醒开关不等于暂停自动发送。系统横幅与响铃取决于钉钉通知设置。</p>
-<p>每页显示最多 3 条，并展示各自接收对象与完整拟回复。只发送用户勾选的本页记录；不会把“全选”扩展到未来消息。不同私聊、不同群分别处理；同一条消息被多个监听规则命中只处理一次。<strong>同一会话又来新消息时，旧草稿失效，以新草稿为准。</strong> 这避免把已过时的答复发出去。</p>
-</section><section class="doc-section" id="sec-3"><h2 id="_3-监听范围和自助设置" tabindex="-1">3. 监听范围和自助设置 <a class="header-anchor" href="#_3-监听范围和自助设置" aria-label="Permalink to &quot;3. 监听范围和自助设置&quot;">&ZeroWidthSpace;</a></h2>
-<p>三个规则组取并集，顺序不影响最终设置。指定发送者组是额外范围，包含此人在群里未 @本人的发言；若只想监听私聊加群 @，请保持此组关闭。</p>
+<ol start="3">
+<li><strong>试判正反例。</strong> 在「模拟试判」分别输入新的同义问法和故障问题，每次点击「试判，不发送」。同义问法应明确命中；故障问题应提示排除或需本人判断。</li>
+<li><strong>选择未命中策略。</strong> 在「主题开关与未命中策略」选择“其他消息照常处理”，保留一般工作来信的原有处理流程；如果只希望关注这些主题，可选择“只关注指定主题”。不确定、冲突或识别失败仍交本人判断。</li>
+<li><strong>完成真实收发核对。</strong> 保存后开启监听，确认 <code>/dws-listen status</code> 就绪。请同事在选定来源中依次发送两种同义问法，逐条审阅模板；再发送一条故障问题，检查它进入待本人判断。上一条处理完成后再发下一条。</li>
+<li><strong>按需启用自动答复。</strong> 编辑已验证的主题，改选“自动发送固定说明”，完成一次明确匹配的试判，设置授权期限和同一会话间隔，核对最终摘要后确认授权。授权最长 7 天；初次可选择 1 小时、30 分钟间隔观察效果。</li>
+</ol>
+<h4 id="如何判断设置正确" tabindex="-1">如何判断设置正确 <a class="header-anchor" href="#如何判断设置正确" aria-label="Permalink to &quot;如何判断设置正确&quot;">&ZeroWidthSpace;</a></h4>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
 <tr>
-<th>规则组</th>
-<th>可选范围</th>
+<th>收到的消息</th>
+<th>预期结果</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>私聊 dm</td>
-<td>关闭 / 全部私聊 / 指定单个或多个联系人</td>
+<td>“想把在线文档保存成 PDF，应该点哪里？”</td>
+<td>明确命中时，按主题动作生成固定草稿或发送已授权说明</td>
 </tr>
 <tr>
-<td>群 @本人 at</td>
-<td>关闭 / 所有群 @本人 / 指定单个或多个群 @本人</td>
+<td>“导出 PDF 提示权限不足，怎么解决？”</td>
+<td>属于故障排除情形，转本人判断，不自动发送操作模板</td>
 </tr>
 <tr>
-<td>额外发送者 sender</td>
-<td>关闭 / 指定人员在私聊与群里的来信</td>
+<td>“今天午餐有什么菜？”</td>
+<td>明确未命中；按策略沿用原流程，或仅保留“未匹配主题”记录</td>
+</tr>
+<tr>
+<td>同一会话在冷却期内再次询问同类问题</td>
+<td>本次不重复自动发送，记为“频率限制，本次未发”；冷却结束后不补发</td>
 </tr>
 </tbody>
 </table></div>
-<p>每组指定 ID 最多 20 个；“全部私聊 / 所有群 @本人”不受这个名单长度限制。指定群规则会在收到群 @事件后按可信会话 ID 过滤；它不会处理这些群里所有普通消息。</p>
-<h3 id="人员和群怎么填" tabindex="-1">人员和群怎么填 <a class="header-anchor" href="#人员和群怎么填" aria-label="Permalink to &quot;人员和群怎么填&quot;">&ZeroWidthSpace;</a></h3>
-<ul>
-<li><strong>人员：</strong> 填钉钉 UserId，不填姓名、手机号或 DWS openDingTalkId。企业自定义工号不一定等于 UserId，拿不准时请管理员提供通讯录里的 UserId。</li>
-<li><strong>群：</strong> 填钉钉中显示的完整群名称，例如 <code>项目协作群</code>。无法找到、不可见或重名都会提示，不会随意选择一个群。重名时按提示填写 <code>完整群名#完整会话ID</code>。</li>
-<li><strong>多人或多群：</strong> 用英文逗号、中文逗号或换行分隔，重复项自动去重。每组最多 20 项。仅选择“指定人员/指定群”时使用下面的文本框；选择“全部”或“关闭”时忽略文本框内容。</li>
-</ul>
-<p>人员填写示例（示例 UserId 须替换为真实值）：</p>
-<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>staff_001,staff_002
-staff_003
-</code></pre></figure>
-<p>群填写示例：</p>
-<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>项目协作群
-产品评审群
-</code></pre></figure>
-<p>保存时会在线校验。成功后总览显示已选对象名称；查不到或有歧义时保留填写内容，修正后重试。返回已保存群的编辑页时可能显示“群名#ID”，这是为防止同名混淆，请保留后缀。按钮「校验人员或群」可以预先核对对象，不会改变监听范围。</p>
-<h3 id="全部私聊-指定群-本人" tabindex="-1">全部私聊 + 指定群 @本人 <a class="header-anchor" href="#全部私聊-指定群-本人" aria-label="Permalink to &quot;全部私聊 + 指定群 @本人&quot;">&ZeroWidthSpace;</a></h3>
-<p>在卡片里：①「设置私聊」选“全部私聊”并保存；②「设置群 @本人」选“指定群”，填写一个或多个完整群名并保存；③「额外发送者」保持关闭。确认总览后返回首页开启监听。需要所有群时，第②步改选“所有群 @本人”。三个范围没有配置顺序要求，关闭期间保存不会自动开启。</p>
-<p>仍支持文字配置，每条单独发送。以下配置同时监听所有私聊和所有群 @本人：</p>
-<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>/dws-listen off
-/dws-listen dm all
-/dws-listen at all
-/dws-listen sender off
-/dws-listen on
-</code></pre></figure>
-<p>全部私聊 + 仅 G1、G2 两个群 @本人：</p>
-<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>/dws-listen off
-/dws-listen dm all
-/dws-listen at groups G1,G2
-/dws-listen sender off
-/dws-listen on
-</code></pre></figure>
-<p><code>G1,G2</code> 必须替换为真实 openConversationId。关闭时命令只保存；开启时修改会立即应用。为避免配置中途短暂监听到不希望的范围，建议先关闭、设置、查看 <code>/dws-listen status</code>，最后开启。卡片里可以填写完整群名并校验，文字命令仍填写稳定会话 ID。设置结果会显示“群名称 · ID”；打开卡片时会自动补全人员和群名称；暂时查询失败会保留已有名称，从未获取过名称时显示“暂未获取名称”和完整 ID，不改变已保存的范围。</p>
-<p>回复设置优先级：任一匹配的「不处理」优先，其余联系人 &gt; 群 &gt; 默认。回复规则不扩大监听范围。AI 要求最多 2000 字符，回复正文最多 160 个 JavaScript 字符（emoji 可能计为两个）。</p>
-<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>/dws-reply default ai 简洁、礼貌；不要编造日期和承诺。
-/dws-reply group G1 fixed 已收到，我确认后回复。
-/dws-reply user U1 off
-/dws-reply default inbox
-</code></pre></figure>
-<p><code>fixed</code> 只固定草稿正文，仍需确认；需要自动发送，应在卡片中单独授权。每次更改偏好会增加版本，已有草稿发送前会检查版本；设置变化后需重新拟稿确认。</p>
-</section><section class="doc-section" id="sec-4"><h2 id="_4-卡片不可用时的文字备用方式" tabindex="-1">4. 卡片不可用时的文字备用方式 <a class="header-anchor" href="#_4-卡片不可用时的文字备用方式" aria-label="Permalink to &quot;4. 卡片不可用时的文字备用方式&quot;">&ZeroWidthSpace;</a></h2>
-<p>卡片是主要入口。网络或模板故障时，可先 <code>/dws list</code> 查看待处理编号，再 <code>/dws show 23</code> 查看第 23 条的完整草稿。机器人会返回类似：</p>
-<figure class="code-block"><figcaption>文本示例</figcaption><pre tabindex="0" aria-label="文本示例"><code>草稿 23-2 · pending
-接收会话：&quot;cid_EXAMPLE&quot;
-完整回复：&quot;我确认后回复你。&quot;
-发送 /ok 23-2；忽略 /no 23-2；修改 /edit 23-2 新正文
-</code></pre></figure>
-<p>直接复制机器人给出的短命令：<code>/ok 23-2</code>、<code>/no 23-2</code>，或 <code>/edit 23-2 我明早确认后回复你。</code>。<strong>23 是记录编号，2 是草稿版本，不需要自行编造。</strong> 重新拟稿或来新消息后，旧版本不能发送。<code>/ok 23</code> 会被拒绝，避免误发用户没看过的新正文。</p>
-<p>如果仍收到 <code>/approve plugin:…</code> 通知，说明实例正在使用旧兼容审批流程：只复制该通知提供的真实完整命令，不要填写示例占位符。本文的正常流程使用卡片按钮或 <code>/ok 编号-版本</code>。</p>
-<p><strong>群内回复如何关联来信？</strong> 人工发送、修改后发送和固定自动回复都会引用那条群消息，以你的身份回复。审批卡同时展示群、发送者和原消息。引用失败不会退回独立群消息；保留记录并提示核实。两版桌面真机已验证：原消息下方显示“1 条回复”，点开可在同一话题中查看对应回复。</p>
-</section><section class="doc-section" id="sec-5"><h2 id="_5-常见问题" tabindex="-1">5. 常见问题 <a class="header-anchor" href="#_5-常见问题" aria-label="Permalink to &quot;5. 常见问题&quot;">&ZeroWidthSpace;</a></h2>
-<p><strong>点击没有发送？</strong> 查看处理记录。pending 可确认；generating 等待拟稿；superseded 表示有更新来信；unknown 表示结果需人工核实。网络故障后不要直接重发 unknown，先核对原会话。</p>
-<p><strong>修改范围后旧稿不能发送？</strong> 旧稿绑定旧偏好版本，这是预期行为。重新拟稿并看清新正文后再确认。</p>
-<p><strong>卡片转发给别人能批准吗？</strong> 模板禁止转发按钮，服务端还会核对真实回调用户、账号、卡片和版本，别人不能代批。</p>
-<p><strong>AI 会自动查询我的工作资料吗？</strong> 不会。新助手只对明确输入做无工具拟稿。本人可为本条补充资料；整个主 Agent 的其他能力不受该插件隔离，因此仍需保留原有主会话权限管理。</p>
-<p><strong>卡片显示已失效？</strong> 默认 30 分钟到期，具体截止时间显示在卡片右下角；翻页和保存不会延长。重新发送 <code>/dws</code> 会替换此前手动打开的操作卡；自动推送的审批卡独立管理，新提醒不会使设置页或正在输入的草稿失效。审批卡仍按自身有效期、草稿版本和处理状态校验，旧版本不能重复发送。失效只针对卡片，不会自动停止已开启的监听或到期前授权的自动答复。草稿有自己的有效期，打开新卡后可查看尚未过期的草稿。</p>
-<p><strong>群名旁为什么还有 ID？</strong> 用来区分同名群。名称只帮助辨认，实际监听绑定 ID。打开卡片会自动查询缺失名称；群改名后最多可能暂存 1 小时旧名称。临时查询失败保留原名称；从未查到时显示“暂未获取名称”和完整 ID。确认网络或授权恢复后重新打开卡片即可，无需重新配置监听范围。</p>
-<p><strong>界面打开但监听未开启？</strong> 先用 <code>/dws identity</code> 检查自动身份状态，再检查已选范围、模板 ID、DWS 授权和消费进程就绪状态。保存范围不会偷偷开启监听。</p>
-<p><strong>为何不用长 <code>/approve</code>？</strong> 常规操作使用按钮或带版本的短命令。只有保留的旧宿主审批流程才使用 plugin 审批 ID。</p>
-</section><section class="doc-section" id="sec-6"><h2 id="_6-暂停、隐私和异常处理" tabindex="-1">6. 暂停、隐私和异常处理 <a class="header-anchor" href="#_6-暂停、隐私和异常处理" aria-label="Permalink to &quot;6. 暂停、隐私和异常处理&quot;">&ZeroWidthSpace;</a></h2>
-<p>不想继续代回复时，在首页点击「暂停全部」，或单独发送 <code>/dws-listen off</code>。已经发送的消息不会撤回；下次开启会恢复已保存的范围和要求。仅关闭提醒或开启免打扰，仍可能按已授权规则自动发送。</p>
-<p>点击「我来处理」只暂时暂停相应会话；可在暂停列表里恢复。查看「处理记录」可区分已发送、忽略、过期和结果不明。结果不明时，先查看原会话是否已收到，不要直接重复发送。</p>
-<p>AI 草稿可能出错。发送前看清完整正文和接收对象；不要把密码、令牌或不打算分享的资料粘贴到补充资料里。不同会话分别处理，同一条来信不因命中多个监听条件而重复发送。</p>
-<p>如卡片打不开，将发生时间、页面名称和错误提示提供给管理员；不要发送完整聊天记录或凭据。当前验收范围和已知限制见开发文档中的「真实平台验证记录」。</p>
-</section><section class="doc-section" id="sec-7"><h2 id="附录-a-·-代回复助手完整功能使用说明书" tabindex="-1">附录 A · 代回复助手完整功能使用说明书 <a class="header-anchor" href="#附录-a-·-代回复助手完整功能使用说明书" aria-label="Permalink to &quot;附录 A · 代回复助手完整功能使用说明书&quot;">&ZeroWidthSpace;</a></h2>
-<p>本附录是按功能查阅的完整操作指南，适用于助手 <strong>0.6.1</strong> 配合 OpenClaw <strong>2026.7.1-2 / 2026.8.1</strong>。以下按钮名称以实际卡片为准；界面示意只供学习，真实设置和审批都在<strong>本人钉钉机器人私聊</strong>中完成。</p>
+<p>自动答复逐字使用本人保存的正文，群内回复引用来信。授权到期后主题继续保留，固定正文改为由本人确认。试判帮助检查规则写法，不替代真实来源、群内 @及多规则冲突的核对。</p>
+<p><strong>调整或结束：</strong> 进入「查看与管理规则」，查看详情后编辑说明或重新授权；也可勾选停用。停用后按剩余主题和未命中策略处理。需要立即停止全部代回复时，回首页点「暂停全部」。完整说明见 <a href="#manual-topics">A.16</a>。</p>
+<p><a id="scenario-groups"></a></p>
+<h3 id="_3-2-多项目群-消息-集中审阅回复" tabindex="-1">3.2 多项目群 @消息，集中审阅回复 <a class="header-anchor" href="#_3-2-多项目群-消息-集中审阅回复" aria-label="Permalink to &quot;3.2 多项目群 @消息，集中审阅回复&quot;">&ZeroWidthSpace;</a></h3>
+<p><strong>适合谁：</strong> 同时参与多个项目群、经常被 @确认安排或提供意见的项目负责人、研发人员及协作接口人。</p>
+<p>例如，项目群甲请你评审方案，项目群乙确认联调安排，项目群丙咨询接口问题。助手分别准备草稿，你从待回复列表集中审阅，再发回各自会话。</p>
+<p><strong>入口：</strong> 首页 → 监听范围、回复方式、查看待回复。</p>
+<h4 id="配置与使用-1" tabindex="-1">配置与使用 <a class="header-anchor" href="#配置与使用-1" aria-label="Permalink to &quot;配置与使用&quot;">&ZeroWidthSpace;</a></h4>
+<ol>
+<li><strong>选择相关群。</strong> 进入「监听范围 → 设置群 @本人」，选择指定群，填写完整群名，多个群用逗号或换行分隔，校验并保存。若本次只处理项目群，私聊及额外发送者可关闭。</li>
+<li><strong>设置 AI 拟稿。</strong> 在「回复方式 → 修改默认规则」选择“AI起草，我确认”。写作要求可填：“简洁礼貌，回应对方提出的问题；没有明确依据时不编造进展、时间或承诺。”不同群需要不同表达时，在「设置指定群」分别保存专属规则。</li>
+<li><strong>保持人工确认方式。</strong> 本场景范围内不配置自动发送授权。已有主题时，将适用主题限定到其他来源，或确认其处理方式符合当前需要；希望所有已选群的 @消息都进入日常拟稿时，避免使用会过滤这些消息的“只关注指定主题”策略。</li>
+<li><strong>选择提醒节奏。</strong> 在「自动答复与提醒 → 提醒设置」选择即时提醒或定时汇总；再回首页开启监听并确认就绪。</li>
+<li><strong>集中审阅。</strong> 收到提醒后打开「查看待回复」，逐条查看群名、发送者、原消息及完整草稿。需要调整的先进入详情修改；确认合适的可勾选本页记录，点击「发送所选」。</li>
+</ol>
+<h4 id="如何判断设置正确-1" tabindex="-1">如何判断设置正确 <a class="header-anchor" href="#如何判断设置正确-1" aria-label="Permalink to &quot;如何判断设置正确&quot;">&ZeroWidthSpace;</a></h4>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>来信位置与内容</th>
+<th>预期结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>项目群甲真正 @你：“请帮忙评审方案。”</td>
+<td>生成对应甲群的草稿，等待确认</td>
+</tr>
+<tr>
+<td>项目群乙真正 @你：“周四联调是否可以？”</td>
+<td>生成另一条草稿，依据乙群来信组织表达</td>
+</tr>
+<tr>
+<td>同一群中的普通消息，未 @你，且未命中其他监听来源</td>
+<td>不进入助手</td>
+</tr>
+<tr>
+<td>在待回复列表批准两条草稿</td>
+<td>分别发送到原群、引用各自原消息并 @原发送者</td>
+</tr>
+</tbody>
+</table></div>
+<p>当前每页最多展示 3 条记录，批量操作只作用于本页所选项。不同群的上下文和正文分别处理。同一群又出现新来信时，较早未处理草稿会失效，请以最新记录为准。</p>
+<p><strong>调整或结束：</strong> 不再关注某个项目时，从指定群名单移除并保存；准备亲自接手某个会话时，在草稿详情点「我来处理」，选择暂停时长。批量操作见 <a href="#manual-batch">A.06</a>，暂停与恢复见 <a href="#manual-pause">A.10</a>。</p>
+<p><a id="scenario-material"></a></p>
+<h3 id="_3-3-补充已核实事实-生成针对性答复" tabindex="-1">3.3 补充已核实事实，生成针对性答复 <a class="header-anchor" href="#_3-3-补充已核实事实-生成针对性答复" aria-label="Permalink to &quot;3.3 补充已核实事实，生成针对性答复&quot;">&ZeroWidthSpace;</a></h3>
+<p><strong>适合谁：</strong> 已掌握项目进展、工作安排或处理结论，希望快速形成清晰答复的负责人及协作人员。</p>
+<p>例如，同事问：“接口什么时候能交付？是否影响周四联调？”你已经核实进展，可以把事实补充给当前草稿，再由 AI 组织语言。</p>
+<p><strong>入口：</strong> 待回复 → 选中消息详情 → 重新拟稿。</p>
+<h4 id="配置与使用-2" tabindex="-1">配置与使用 <a class="header-anchor" href="#配置与使用-2" aria-label="Permalink to &quot;配置与使用&quot;">&ZeroWidthSpace;</a></h4>
+<ol>
+<li><strong>接收并查看来信。</strong> 按 Part 2 配置监听和 AI 拟稿。先阅读原问题，确定回复需要哪些事实。</li>
+<li><strong>打开「重新拟稿」。</strong> 选择“按原要求”“更简短”或“更正式”，按需填写补充要求和本人资料。</li>
+</ol>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原消息</td>
+<td>接口什么时候能交付？是否影响周四联调？</td>
+</tr>
+<tr>
+<td>本人补充资料</td>
+<td>开发已完成，测试预计周三结束；目前周四联调计划保持不变</td>
+</tr>
+<tr>
+<td>补充写作要求</td>
+<td>先说明当前进展，再回应联调安排；保留“预计”的不确定性，不新增承诺</td>
+</tr>
+</tbody>
+</table></div>
+<ol start="3">
+<li><strong>生成并审阅新稿。</strong> 点击「重新拟稿」。核对事实、日期、确定程度及原问题是否得到回应；需要调整可直接「修改」，或再次补充要求后重拟。</li>
+<li><strong>确认发送。</strong> 确认接收对象和完整正文后点击「发送」。群内仍引用原消息回复。</li>
+</ol>
+<h4 id="如何判断结果合适" tabindex="-1">如何判断结果合适 <a class="header-anchor" href="#如何判断结果合适" aria-label="Permalink to &quot;如何判断结果合适&quot;">&ZeroWidthSpace;</a></h4>
+<p>符合上述资料的回复可以是：“接口开发已完成，测试预计周三结束，目前周四联调计划保持不变。”这是表达示例，实际草稿以卡片展示为准。本人资料中的“预计”应保留，草稿不应额外写入“保证交付”等未经提供的承诺。</p>
+<p>本人补充资料只用于当前草稿，不会自动成为后续主题模板。助手使用当前来信、可用的同会话近期上下文及本条补充资料起草；所需事实由你提供。点击「重新拟稿」本身不会发送，新正文仍需审阅。</p>
+<p><strong>调整或结束：</strong> 不准备回复时可返回草稿后忽略；需要自己接手时点「我来处理」。资料长度和完整操作见 <a href="#manual-regenerate">A.05</a>。</p>
+<p><a id="scenario-inbox"></a></p>
+<h3 id="_3-4-筛选关注主题-集中整理待办事项" tabindex="-1">3.4 筛选关注主题，集中整理待办事项 <a class="header-anchor" href="#_3-4-筛选关注主题-集中整理待办事项" aria-label="Permalink to &quot;3.4 筛选关注主题，集中整理待办事项&quot;">&ZeroWidthSpace;</a></h3>
+<p><strong>适合谁：</strong> 需要关注某类问题、准备亲自处理，同时希望减少无关提醒的产品负责人、项目协调人及支持人员。</p>
+<p>例如，你负责某产品的故障协调，希望收集“使用故障、上线阻塞”消息，把操作方法咨询留在原会话中自行查看。</p>
+<p><strong>入口：</strong> 首页 → 监听范围 → 消息主题。</p>
+<h4 id="配置与使用-3" tabindex="-1">配置与使用 <a class="header-anchor" href="#配置与使用-3" aria-label="Permalink to &quot;配置与使用&quot;">&ZeroWidthSpace;</a></h4>
+<ol>
+<li><strong>先确定接收范围。</strong> 选择相关人员私聊及项目群里的 @本人。只整理也以已选来源为边界；主题筛选不会读取未纳入监听的聊天。</li>
+<li><strong>新增关注主题。</strong> 名称可填“产品故障与上线阻塞”；关注问题描述为“反馈产品无法正常使用、功能报错，或明确阻碍项目上线的问题”；典型问法可填“打开页面一直报错”“这个问题卡住上线了”；排除情形可填“要求直接代为操作、同时提出多个不相关诉求，或缺少关键说明”。</li>
+<li><strong>选择「只整理提醒」。</strong> 无须填写固定回复正文或自动授权期限。确保该来源的回复方式未设为“不处理”，再分别试判一条故障反馈和一条操作咨询，核对主题是否符合预期。</li>
+<li><strong>选择「只关注指定主题」。</strong> 保存主题后，在「主题开关与未命中策略」选择此项。明确未命中的消息不进入待办；无法确定、属于排除情形、冲突或识别失败的消息仍保留给本人判断。排除情形用于提示转人工，因此不要把所有无关消息都写进该字段。</li>
+<li><strong>设置提醒并开始使用。</strong> 在提醒设置中选择即时或定时汇总，开启监听并确认就绪。通过「查看待回复」查看整理结果，按需忽略、亲自接手，或主动拟稿后确认回复。</li>
+</ol>
+<h4 id="如何判断设置正确-2" tabindex="-1">如何判断设置正确 <a class="header-anchor" href="#如何判断设置正确-2" aria-label="Permalink to &quot;如何判断设置正确&quot;">&ZeroWidthSpace;</a></h4>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>收到的消息</th>
+<th>预期结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“打开页面一直报错，今天无法完成上线验证。”</td>
+<td>明确命中时形成“仅整理”记录，按提醒设置通知，不自动拟稿或发送</td>
+</tr>
+<tr>
+<td>“在哪里下载 PDF 版本？”</td>
+<td>明确未命中时不进入待办；可在处理记录中看到“未匹配主题”</td>
+</tr>
+<tr>
+<td>“还是有问题，帮我看一下。”且信息不足</td>
+<td>保留待本人判断，不直接当作无关消息丢弃</td>
+</tr>
+</tbody>
+</table></div>
+<p>这里的“整理”是筛选并列入待处理清单；你仍需要判断事项优先级、责任归属及后续安排。即使存在其他有效自动授权，明确命中的“只整理提醒”主题也不会自动发送。</p>
+<p><strong>调整或结束：</strong> 关注事项变化时编辑主题及排除情形；恢复处理一般来信时，将未命中策略改为“其他消息照常处理”；停止接收时暂停监听。主题与通知选项详见 <a href="#manual-topics">A.16</a> 和 <a href="#manual-notifications">A.09</a>。</p>
+</section><section class="doc-section" id="sec-4"><h2 id="_4-日常工作-看清、修改、批量处理" tabindex="-1">4. 日常工作：看清、修改、批量处理 <a class="header-anchor" href="#_4-日常工作-看清、修改、批量处理" aria-label="Permalink to &quot;4. 日常工作：看清、修改、批量处理&quot;">&ZeroWidthSpace;</a></h2>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>你看到的情况</th>
+<th>推荐操作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>回复已合适</td>
+<td>看接收对象和完整正文，点发送</td>
+</tr>
+<tr>
+<td>需要改几个字</td>
+<td>点修改，保存并发送自己的正文</td>
+</tr>
+<tr>
+<td>想让 AI 重写</td>
+<td>点重新拟稿，补充本条要求或资料；新稿仍由你确认</td>
+</tr>
+<tr>
+<td>主题待判断 / 拟稿未完成</td>
+<td>修改后手动回复，或重新拟稿；没有草稿时不能直接发送</td>
+</tr>
+<tr>
+<td>暂时不想处理</td>
+<td>忽略；需要自己接手时点“我来处理”暂停该会话</td>
+</tr>
+<tr>
+<td>多条不同会话待回复</td>
+<td>在待回复列表勾选本页记录，核对完整正文后批量发送</td>
+</tr>
+<tr>
+<td>发出结果不明</td>
+<td>先检查原会话，避免重复发送</td>
+</tr>
+</tbody>
+</table></div>
+<p>默认即时提醒会合并密集消息；可改为定时汇总、仅主动查看，或设置免打扰和重点联系人。<strong>关闭提醒不等于关闭自动发送。</strong> 新提醒不会替换你正在填写的设置卡；历史卡片与草稿版本都会校验，已发送记录不能再发一次。</p>
+<p>每张卡片右下角的“卡片有效期至”只表示操作卡片的期限。监听设置持续保存，自动授权有自己的到期时间，草稿也有自己的有效期。过期后重发 <code>/dws</code> 打开新卡即可，设置不会消失。</p>
+</section><section class="doc-section" id="sec-5"><h2 id="_5-常用入口与排查路线" tabindex="-1">5. 常用入口与排查路线 <a class="header-anchor" href="#_5-常用入口与排查路线" aria-label="Permalink to &quot;5. 常用入口与排查路线&quot;">&ZeroWidthSpace;</a></h2>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>想做什么</th>
+<th>入口或独立发送的命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>打开所有设置及待办</td>
+<td><code>/dws</code></td>
+</tr>
+<tr>
+<td>暂停 / 恢复监听</td>
+<td><code>/dws-listen off</code> / <code>/dws-listen on</code></td>
+</tr>
+<tr>
+<td>检查真正接收消息了吗</td>
+<td><code>/dws-listen status</code></td>
+</tr>
+<tr>
+<td>检查 / 刷新本人身份</td>
+<td><code>/dws identity</code> / <code>/dws identity refresh</code></td>
+</tr>
+<tr>
+<td>管理同类问题答复</td>
+<td>监听范围 → 消息主题 → 查看与管理规则</td>
+</tr>
+<tr>
+<td>查看或撤销关键词授权</td>
+<td>自动答复与提醒 → 查看 / 撤销授权</td>
+</tr>
+<tr>
+<td>卡片暂不可用</td>
+<td><code>/dws list</code> → <code>/dws show 23</code>，复制返回的 <code>/ok 23-2</code>、<code>/no 23-2</code> 或 <code>/edit 23-2 新正文</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>23-2</code> 是示例：23 表示记录，2 表示版本，请使用机器人实际返回的值。修改设置后旧稿需按当前设置重新拟稿；同一来信不会因为命中多个监听来源而重复处理。自己的钉钉 / Web 主会话继续照常使用。</p>
+<p><strong>没有收到待办：</strong> 身份是否就绪 → 监听是否就绪 → 来源是否选中 → 是否需要群内真正 @本人 → 是否暂停或“不处理” → 是否明确未匹配主题 → 提醒是否被免打扰。<strong>没有自动发送：</strong> 主题结果 → 动作是否自动 → 授权是否到期 → 冷却 / 小时上限 → 是否存在冲突。详细边界见 <a href="#manual-help">A.15</a> 与 <a href="#manual-topics">A.16</a>。</p>
+</section><section class="doc-section" id="sec-6"><h2 id="附录-a-·-代回复助手完整功能使用说明书" tabindex="-1">附录 A · 代回复助手完整功能使用说明书 <a class="header-anchor" href="#附录-a-·-代回复助手完整功能使用说明书" aria-label="Permalink to &quot;附录 A · 代回复助手完整功能使用说明书&quot;">&ZeroWidthSpace;</a></h2>
+<p>本附录是按功能查阅的完整操作指南，适用于助手 <strong>0.7.0</strong> 配合 OpenClaw <strong>2026.7.1-2 / 2026.8.1</strong>。以下按钮名称以实际卡片为准；界面示意只供学习，真实设置和审批都在<strong>本人钉钉机器人私聊</strong>中完成。</p>
 <blockquote>
-<p><strong>先记住三件事：</strong> 监听范围决定接收什么；回复方式决定怎样起草；自动答复授权决定哪些固定正文可以免逐条确认。三者分别设置，修改其中一项不会替你扩大其他范围。</p>
+<p><strong>先记住四层：</strong> 来源决定处理谁的来信；主题判断是否属于关注的问题；回复方式决定怎样准备正文；授权决定是否免逐条确认。主题不会扩大监听来源。</p>
 </blockquote>
 <h3 id="功能索引" tabindex="-1">功能索引 <a class="header-anchor" href="#功能索引" aria-label="Permalink to &quot;功能索引&quot;">&ZeroWidthSpace;</a></h3>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
@@ -331,19 +488,23 @@ staff_003
 <td><a href="#manual-commands">A.13 完整快捷命令</a></td>
 </tr>
 <tr>
-<td>直接套用常见工作场景</td>
-<td><a href="#manual-recipes">A.14 场景配置示例</a></td>
+<td>查阅其他常用配置组合</td>
+<td><a href="#manual-recipes">A.14 补充配置示例</a></td>
 </tr>
 <tr>
 <td>查看使用上限、处理常见错误</td>
 <td><a href="#manual-help">A.15 限制与故障排查</a></td>
+</tr>
+<tr>
+<td>按语义识别同类问题、统一模板答复</td>
+<td><a href="#manual-topics">A.16 消息主题完整说明</a></td>
 </tr>
 </tbody>
 </table></div>
 <p><a id="manual-start"></a></p>
 <h3 id="a-01-首页与首次启用" tabindex="-1">A.01 首页与首次启用 <a class="header-anchor" href="#a-01-首页与首次启用" aria-label="Permalink to &quot;A.01 首页与首次启用&quot;">&ZeroWidthSpace;</a></h3>
 <p><strong>入口：</strong> 在自己的钉钉机器人私聊中，单独发送 <code>/dws</code>。</p>
-<p>首页显示个人监听开关、实际连接状态、三组监听范围、待处理数量和有效自动答复数量。<strong>“已开启（就绪）”才表示当前已具备接收条件。</strong> 如果显示“连接中”，等待后重新打开；显示“故障”时联系管理员检查，不能仅凭个人开关已开启就认为正在接收。</p>
+<p>首页显示个人监听开关、实际连接状态、三组监听范围、待处理数量、关键词自动授权数量、主题开关及有效自动主题数量。<strong>“已开启（就绪）”才表示当前已具备接收条件。</strong> 如果显示“连接中”，等待后重新打开；显示“故障”时联系管理员检查，不能仅凭个人开关已开启就认为正在接收。</p>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
 <tr>
@@ -358,7 +519,7 @@ staff_003
 </tr>
 <tr>
 <td>监听范围</td>
-<td>配置私聊、群内 @本人和额外发送者</td>
+<td>配置私聊、群内 @本人和额外发送者，进入消息主题</td>
 </tr>
 <tr>
 <td>回复方式</td>
@@ -528,7 +689,7 @@ staff_003
 </ul>
 <p>不同会话各发各的正文，批量操作不会合并收件人或跨会话发送。同一批发送也可能出现部分成功、部分结果待核实，请逐条查看状态；不要因某一条异常重发整批。</p>
 <p><a id="manual-auto"></a></p>
-<h3 id="a-07-固定自动答复-五步完成授权" tabindex="-1">A.07 固定自动答复：五步完成授权 <a class="header-anchor" href="#a-07-固定自动答复-五步完成授权" aria-label="Permalink to &quot;A.07 固定自动答复：五步完成授权&quot;">&ZeroWidthSpace;</a></h3>
+<h3 id="a-07-关键词固定自动答复-五步完成授权" tabindex="-1">A.07 关键词固定自动答复：五步完成授权 <a class="header-anchor" href="#a-07-关键词固定自动答复-五步完成授权" aria-label="Permalink to &quot;A.07 关键词固定自动答复：五步完成授权&quot;">&ZeroWidthSpace;</a></h3>
 <p><strong>入口：</strong> 首页 → 自动答复与提醒 → 新增自动答复。适合“正在开会，稍后回复”等可以预先明确的固定答案。</p>
 <div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
 <thead>
@@ -575,7 +736,7 @@ staff_003
 <p><strong>入口：</strong> 自动答复与提醒 → 查看 / 撤销授权。</p>
 <p>每页最多 5 条，显示适用对象、有效至或已到期、完整固定正文。勾选本页规则后点「撤销所选授权」。撤销只影响所选规则的后续自动发送，不撤回已经发出的消息。</p>
 <p>需要修改授权正文、对象或期限时，先撤销旧授权，再走五步向导建立新授权。当前页面没有原地编辑授权按钮；不要为了改一句话而同时保留两条不同正文的重叠规则。</p>
-<p>“有效自动答复”数量只统计未到期规则；管理列表可能保留已到期规则。额度已满时可撤销不再需要的规则。关闭提醒不等于撤销授权，想停止所有代回复请暂停全部监听。</p>
+<p>“关键词自动授权”数量只统计未到期关键词规则；管理列表可能保留已到期规则。额度已满时可撤销不再需要的规则。关闭提醒不等于撤销授权，想停止所有代回复请暂停全部监听。</p>
 <p><a id="manual-notifications"></a></p>
 <h3 id="a-09-提醒方式、汇总、免打扰与重点联系人" tabindex="-1">A.09 提醒方式、汇总、免打扰与重点联系人 <a class="header-anchor" href="#a-09-提醒方式、汇总、免打扰与重点联系人" aria-label="Permalink to &quot;A.09 提醒方式、汇总、免打扰与重点联系人&quot;">&ZeroWidthSpace;</a></h3>
 <p><strong>入口：</strong> 自动答复与提醒 → 提醒设置。四个子页分别保存；改一项不会覆盖其他项。</p>
@@ -661,6 +822,21 @@ staff_003
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>正在识别主题</td>
+<td>正在比较适用主题</td>
+<td>等待结果；不占主会话执行通道</td>
+</tr>
+<tr>
+<td>主题待本人判断</td>
+<td>含糊、排除、冲突或判类未完成</td>
+<td>修改、重新拟稿或忽略</td>
+</tr>
+<tr>
+<td>未匹配指定主题</td>
+<td>只关注模式下明确不匹配</td>
+<td>无需处理，可在历史核对</td>
+</tr>
 <tr>
 <td>正在拟稿</td>
 <td>AI 仍在生成</td>
@@ -916,7 +1092,8 @@ staff_003
 <p>模拟消息最多 4000 字符。试拟稿不发给联系人或群，不创建审批，不测试监听是否收到真实消息，也不创建自动授权。AI 试拟稿需要宿主提供命令侧模型接口；提示不支持时可查看固定正文预览，或请管理员检查。</p>
 <p>自动答复五步授权、提醒和会话暂停使用卡片入口，当前没有同等的 <code>/dws-auto</code> 命令。若使用旧兼容流程收到 <code>/approve plugin:…</code>，只复制通知里的真实审批 ID，不要输入示例占位符。</p>
 <p><a id="manual-recipes"></a></p>
-<h3 id="a-14-三个可直接参考的工作场景" tabindex="-1">A.14 三个可直接参考的工作场景 <a class="header-anchor" href="#a-14-三个可直接参考的工作场景" aria-label="Permalink to &quot;A.14 三个可直接参考的工作场景&quot;">&ZeroWidthSpace;</a></h3>
+<h3 id="a-14-补充配置示例" tabindex="-1">A.14 补充配置示例 <a class="header-anchor" href="#a-14-补充配置示例" aria-label="Permalink to &quot;A.14 补充配置示例&quot;">&ZeroWidthSpace;</a></h3>
+<p>四个推荐场景的完整操作步骤见 <a href="#manual-scenarios">Part 3 · 实用场景</a>。本节补充常用组合，供熟悉基本流程后查阅。</p>
 <p><strong>场景一：忙时整理全部私聊和群 @，每条自己决定。</strong> 私聊选全部、群 @选所有群、额外发送者关闭；默认回复选 AI 起草；不创建自动授权；提醒选即时。来信产生草稿，看清后发送，复杂内容用重新拟稿补充资料。</p>
 <p><strong>场景二：只代处理项目群和指定同事。</strong> 私聊选指定人员并填 UserId，群 @选指定群并填完整群名；额外发送者保持关闭。给项目群设置“只确认收到，不承诺排期”的 AI 要求；给某些同事设置专属要求。不同群、私聊的草稿分别审批。</p>
 <p><strong>场景三：开会一小时，少打扰但让同事知道已收到。</strong> 先确认需要处理的私聊已在监听范围，回复方式允许处理；新增自动答复，范围选全部私聊，正文填 <code>正在开会，稍后回复你。</code>，关键词留空，有效期选 1 小时，同会话间隔选 30 分钟；核对后确认授权。提醒可改为定时汇总或仅主动查看；会后可提前撤销授权。群 @消息不因这条“私聊”授权自动发送。</p>
@@ -1035,10 +1212,66 @@ staff_003
 </tbody>
 </table></div>
 <p>提交问题时提供：发生时间、所在页面、记录编号、可复现步骤和错误提示。账号权限、模板、部署和性能问题交由管理员；不需要发送凭据或整段私人聊天。两版已完成桌面核心真机验收，手机端与 15000 Pod 容量验证范围请以开发文档记录为准。</p>
+<p><a id="manual-topics"></a></p>
+<h3 id="a-16-消息主题-识别意图与统一答复" tabindex="-1">A.16 消息主题：识别意图与统一答复 <a class="header-anchor" href="#a-16-消息主题-识别意图与统一答复" aria-label="Permalink to &quot;A.16 消息主题：识别意图与统一答复&quot;">&ZeroWidthSpace;</a></h3>
+<p><strong>入口：</strong> 首页 → 监听范围 → 消息主题。这是来源之后的内容筛选层，不会新增来源或订阅。三组来源先取并集，再按适用主题判断；同一消息只处理一次。</p>
+<div class="table-scroll" role="region" aria-label="可横向滚动的表格" tabindex="0"><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>用途与范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>主题开关</td>
+<td>默认关闭；保存第一条主题会开启主题识别，但不改变监听总开关</td>
+</tr>
+<tr>
+<td>未命中策略</td>
+<td>其他消息照常处理 / 只关注指定主题；仅对明确未命中生效</td>
+</tr>
+<tr>
+<td>适用来源</td>
+<td>全部已监听消息 / 已监听私聊 / 指定人员 / 指定群；后两种每条最多 20 个对象</td>
+</tr>
+<tr>
+<td>名称、关注的问题</td>
+<td>名称最多 60 字符；问题描述最多 600 字符，写清“一类问题”</td>
+</tr>
+<tr>
+<td>典型问法、排除情形</td>
+<td>可留空，分别最多 600、400 字符；建议同时给正例和反例</td>
+</tr>
+<tr>
+<td>明确匹配后</td>
+<td>自动发送固定说明 / 模板由我确认 / 只整理提醒</td>
+</tr>
+<tr>
+<td>固定正文</td>
+<td>自动或待确认时填写，最多 160 字符；只整理时不发送正文</td>
+</tr>
+<tr>
+<td>自动授权期限</td>
+<td>1 小时 / 8 小时 / 24 小时 / 7 天；最后确认时开始计时</td>
+</tr>
+<tr>
+<td>同一会话最小间隔</td>
+<td>5 分钟 / 30 分钟 / 1 小时 / 一天；与关键词自动答复共用每实例每小时 30 条上限</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>创建与修改。</strong> 六步分别是来源、定义、动作、试判、期限频率、完整确认。只有最后一步保存才生效；取消不保存。上一步会保留已填内容；这些内容仍只是未保存的向导草稿，取消后不生效。修改来源、定义或正文后需要重新试判；编辑自动规则并最终确认，会重新开始授权计时。每实例最多 20 条主题，停用规则也占数量。</p>
+<p><strong>模拟试判。</strong> 输入一条模拟来信，点击“试判，不发送”。试判调用真实 AI，但不会发消息，不创建草稿，也不校验真实监听来源；只比较当前规则，不测试与其他规则冲突。修改输入后必须再次点击，显示的结果对应上次提交。自动授权前至少有一次明确匹配的试判；建议再测排除情形与无关问题。已保存规则可在详情中试判，不会续期。</p>
+<p><strong>管理。</strong> “查看与管理规则”每页 3 条，可查看所选第一条、停用或删除所选。停用保留内容，重新启用走编辑确认；删除后需重新创建。停用或删除后，消息按剩余规则和未命中策略处理；“只关注”但没有启用规则时，会提示待判断，避免静默丢掉全部消息。</p>
+<p><strong>处理优先级。</strong> 监听关闭、会话暂停或回复设为“不处理”时不进入主题判类。“只整理消息”会阻止自动发送。明确命中唯一主题才执行规则动作；自动授权到期转模板待确认，冷却记为本次未发，不延迟补发；小时额度超限保留待确认；主题与关键词规则命中不同自动正文时转本人判断。</p>
+<p><strong>排除与未命中。</strong> “不适用情形”用于识别应交给本人判断的例外，不是静默忽略名单。希望减少无关提醒时，选择“只关注指定主题”，明确未命中的消息才不进入待办。</p>
+<p><strong>需要人工的情况。</strong> 不确定、上下文不足、排除情形、一个消息夹带多个问题、多主题冲突、返回格式无效、调用失败、超时和队列繁忙都不会自动发送。记录显示“主题待判断”，可以修改、重新拟稿或忽略。重新拟稿生成的文字仍需本人确认，不会变成新的自动模板。</p>
+<p><strong>版本、恢复与数据。</strong> 修改主题会使旧判类和旧草稿审批失效，按当前设置重新拟稿后确认。重启中断的判类转本人处理，不自动重跑；发送结果不明不自动重发。“未匹配主题”保留本地处理记录与去重标识，按终态记录保留策略清理。它表示收到后经筛选未匹配，并不代表服务端没有投递该消息。</p>
 <hr>
 <p>基于 OpenClaw DingTalk Channel Plugin，YM Shen and contributors，<a href="https://github.com/soimy/openclaw-channel-dingtalk" target="_blank" rel="noreferrer">https://github.com/soimy/openclaw-channel-dingtalk</a> 。MIT；模板与改造代码随包保留 LICENSE。DWS 命令核对自 <a href="https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli" target="_blank" rel="noreferrer">https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli</a> 的 1.0.58 代码。OpenClaw 兼容验证使用本机两版已安装宿主。</p>
-</section></article></main></div><div class="footer">本地可离线阅读 · 不依赖 CDN · 不收集数据 · 2026-09-25</div><script>const views={"home":{"title":"代回复助手","description":"监听：已开启（就绪）\n私聊：全部；群@我：所有群；额外发送者：0人\n待处理：2条；有效自动答复：0条\n发送使用你的身份；未授权内容由你确认。","fields":[],"buttons":[{"label":"查看待回复","op":"inbox"},{"label":"监听范围","op":"listen"},{"label":"回复方式","op":"reply"},{"label":"自动答复与提醒","op":"automation"},{"label":"处理记录","op":"history"},{"label":"暂停全部","op":"toggle"}],"refs":[],"name":"home","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen":{"title":"监听范围","description":"当前：监听已开启，保存后立即生效\n\n① 私聊\n全部私聊\n\n② 群内 @本人\n所有群 @本人\n\n③ 额外发送者（高级）\n未监听\n\n任一范围命中即处理，同一条消息只处理一次。","fields":[],"buttons":[{"label":"设置私聊","op":"listen-dm"},{"label":"设置群 @本人","op":"listen-at"},{"label":"设置额外发送者","op":"listen-sender"},{"label":"校验人员或群","op":"directory"},{"label":"返回首页","op":"home"}],"refs":[],"name":"listen","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen-dm":{"title":"私聊范围","description":"选择全部私聊，或仅指定人员。\n\n指定人员填钉钉 UserId；多个用逗号或换行分隔。\n\n每组最多20项。只保存本组，其他范围保持不变。","fields":[{"name":"dm","label":"选择范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"all","options":[{"value":"off","text":"关闭"},{"value":"all","text":"全部私聊"},{"value":"users","text":"指定人员"}]},{"name":"dmIds","label":"UserId（仅选“指定人员”时填写）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验并保存本组","op":"save-listen","section":"dm"},{"label":"取消，返回范围","op":"listen"}],"refs":[],"name":"listen-dm","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen-at":{"title":"群内 @本人","description":"只处理群里 @你的消息，不处理群内其他发言。\n\n指定群填完整群名；多个用逗号或换行分隔。\n\n每组最多20项。只保存本组，其他范围保持不变。","fields":[{"name":"at","label":"选择范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"all","options":[{"value":"off","text":"关闭"},{"value":"all","text":"所有群 @本人"},{"value":"groups","text":"指定群"}]},{"name":"atIds","label":"群名称（仅选“指定群”时填写）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验并保存本组","op":"save-listen","section":"at"},{"label":"取消，返回范围","op":"listen"}],"refs":[],"name":"listen-at","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen-sender":{"title":"额外发送者 · 高级","description":"包含指定人员的私聊和群内发言，即使没有 @你。只需要私聊 + 群 @ 时，请保持关闭。\n\n指定人员填钉钉 UserId；多个用逗号或换行分隔。\n\n每组最多20项。只保存本组，其他范围保持不变。","fields":[{"name":"sender","label":"选择范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"off","options":[{"value":"off","text":"关闭"},{"value":"users","text":"指定人员"}]},{"name":"senderIds","label":"UserId（仅选“指定人员”时填写）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验并保存本组","op":"save-listen","section":"sender"},{"label":"取消，返回范围","op":"listen"}],"refs":[],"name":"listen-sender","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply":{"title":"回复方式","description":"默认：AI起草，我确认\n人员专属规则：0项\n群专属规则：0项\n\n优先级：不处理 > 人员 > 群 > 默认。\n这里只设置处理方式，自动发送需单独授权。","fields":[],"buttons":[{"label":"修改默认规则","op":"reply-edit","targetKind":"default"},{"label":"设置指定人员","op":"reply-target","targetKind":"user"},{"label":"设置指定群","op":"reply-target","targetKind":"group"},{"label":"返回首页","op":"home"}],"refs":[],"name":"reply","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply-target":{"title":"回复方式 · 指定人员","description":"填写钉钉 UserId，多个用逗号或换行分隔。\n下一步先校验对象，再编辑规则。多人/多群将应用同一规则。\n\n已配置：暂无","fields":[{"name":"targetInput","label":"人员 UserId","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验对象，下一步","op":"load-reply","targetKind":"user"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-target","args":{"id":23,"targetKind":"user","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply-edit":{"title":"编辑回复 · 默认规则","description":"对象：默认规则","fields":[{"name":"mode","label":"处理方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"ai","options":[{"value":"ai","text":"AI起草，我确认"},{"value":"fixed","text":"固定正文，我确认"},{"value":"inbox","text":"只整理消息"},{"value":"off","text":"不处理"}]},{"name":"requirements","label":"AI 写作要求 / 固定回复正文","type":"TEXT_AREA","required":false,"defaultValue":"使用简洁、礼貌的中文回复。不确定的信息说明需要本人确认，不编造事实或承诺。"}],"buttons":[{"label":"保存回复规则","op":"save-reply"},{"label":"恢复默认要求","op":"reset-reply"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-edit","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-manage":{"title":"自动答复授权","description":"共0条 · 第1页\n\n尚未授权自动答复。","fields":[],"buttons":[{"label":"返回自动答复","op":"automation"}],"refs":[],"name":"auto-manage","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-content":{"title":"自动答复 · 2/5 正文","description":"范围：全部已监听私聊\n只逐字发送以下正文，不让 AI 补充。\n关键词任一命中即回复；留空则匹配范围内全部消息。","fields":[{"name":"answer","label":"完整回复正文（最多160字符）","type":"TEXT_AREA","required":false,"defaultValue":"正在开会，稍后回复你。"},{"name":"keywords","label":"关键词（可留空，逗号或换行分隔）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"下一步：授权期限","op":"auto-next"},{"label":"上一步","op":"auto-back","destination":"auto-new"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-content","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-limits":{"title":"自动答复 · 3/5 授权期限","description":"最终确认后开始计时，到期停止自动答复。","fields":[{"name":"hours","label":"有效期","type":"CHECKBOX_GROUP","required":false,"defaultValue":"1","options":[{"value":"1","text":"1小时"},{"value":"8","text":"8小时"},{"value":"24","text":"24小时"},{"value":"168","text":"7天"}]}],"buttons":[{"label":"下一步：发送频率","op":"auto-next"},{"label":"上一步","op":"auto-back","destination":"auto-content"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-limits","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-frequency":{"title":"自动答复 · 4/5 发送频率","description":"避免连续打扰同一会话。每实例每小时最多自动发送30条。","fields":[{"name":"cooldown","label":"同一会话最小间隔","type":"CHECKBOX_GROUP","required":false,"defaultValue":"30","options":[{"value":"5","text":"5分钟"},{"value":"30","text":"30分钟"},{"value":"60","text":"1小时"},{"value":"1440","text":"一天"}]}],"buttons":[{"label":"下一步：确认授权","op":"auto-next"},{"label":"上一步","op":"auto-back","destination":"auto-limits"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-frequency","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-review":{"title":"自动答复 · 5/5 确认授权","description":"范围：全部已监听私聊\n\n完整正文：\n正在开会，稍后回复你。\n\n关键词：不限制\n\n有效期：1小时；同一会话间隔：30分钟\n\n确认后将以你的身份自动发送以上固定正文。","fields":[],"buttons":[{"label":"确认授权自动发送","op":"save-auto"},{"label":"上一步","op":"auto-back","destination":"auto-frequency"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-review","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-delivery":{"title":"提醒方式","description":"即时提醒：草稿就绪后约2秒推送；密集来信合并，两次提醒至少间隔10秒。\n定时汇总：按选定间隔提醒；仅主动查看：不主动提醒。\n自动回复成功只记入历史，可通过定时汇总查看。","fields":[{"name":"mode","label":"提醒方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"immediate","options":[{"value":"digest","text":"定时汇总"},{"value":"immediate","text":"即时提醒"},{"value":"manual","text":"仅主动查看"}]}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-delivery"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-delivery","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-frequency":{"title":"汇总间隔","description":"仅选择“定时汇总”时生效。","fields":[{"name":"minutes","label":"汇总间隔（仅定时汇总生效）","type":"CHECKBOX_GROUP","required":false,"defaultValue":"15","options":[{"value":"5","text":"5分钟"},{"value":"15","text":"15分钟"},{"value":"30","text":"30分钟"},{"value":"60","text":"1小时"}]}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-frequency"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-frequency","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-quiet":{"title":"免打扰时段","description":"免打扰期间不主动提醒，仍可主动查看。\n时间使用24小时制 HH:MM；起止相同表示关闭。","fields":[{"name":"quietStart","label":"开始时间","type":"TEXT","required":false,"defaultValue":"22:00"},{"name":"quietEnd","label":"结束时间","type":"TEXT","required":false,"defaultValue":"08:00"},{"name":"timezone","label":"时区","type":"TEXT","required":false,"defaultValue":"Asia/Shanghai"}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-quiet"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-quiet","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-priority":{"title":"重点联系人","description":"在非免打扰时段即时提醒。\n填写 UserId；多个用逗号或换行分隔。留空并保存可清空。","fields":[{"name":"priorityUsers","label":"重点联系人 UserId","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-priority"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-priority","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"automation":{"title":"自动答复与提醒","description":"有效自动答复：0条\n提醒：即时提醒\n\n自动答复只发送你授权的固定正文。\n关闭提醒不会停止自动发送。","fields":[],"buttons":[{"label":"新增自动答复","op":"auto-new"},{"label":"查看 / 撤销授权","op":"auto-manage"},{"label":"提醒设置","op":"notifications"},{"label":"暂停的会话","op":"pauses"},{"label":"返回首页","op":"home"}],"refs":[],"name":"automation","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-new":{"title":"自动答复 · 1/5 选择范围","description":"只对已经监听的消息生效。\n指定对象填 UserId / 完整群名，多个用逗号或换行分隔。","fields":[{"name":"scope","label":"适用范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"dm","options":[{"value":"dm","text":"全部私聊"},{"value":"all","text":"全部已监听消息"},{"value":"user","text":"指定人员"},{"value":"group","text":"指定群"}]},{"name":"targetInput","label":"指定对象（选择全部时留空）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验范围，下一步","op":"auto-next"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-new","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notifications":{"title":"提醒设置","description":"提醒方式：即时提醒\n汇总间隔：15分钟\n免打扰：22:00–08:00\n时区：Asia/Shanghai\n重点联系人：0人\n\n提醒设置不影响已授权的自动发送。","fields":[],"buttons":[{"label":"提醒方式","op":"notice-delivery"},{"label":"汇总间隔","op":"notice-frequency"},{"label":"免打扰时段","op":"notice-quiet"},{"label":"重点联系人","op":"notice-priority"},{"label":"返回自动答复与提醒","op":"automation"}],"refs":[],"name":"notifications","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"draft":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"待确认\n私聊回复\n原消息：周五下午能帮我看一下设计稿吗？\n\n将以你的身份回复：\n可以先把设计稿发来，我确认时间后回复你。","fields":[],"buttons":[{"label":"发送","op":"send"},{"label":"修改","op":"edit","id":23},{"label":"重新拟稿","op":"regenerate","id":23},{"label":"忽略","op":"ignore"},{"label":"我来处理","op":"pause","id":23},{"label":"返回首页","op":"home"}],"refs":[{"id":23,"version":2}],"name":"draft","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"edit":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"接收对象与原消息不变。修改后点击发送即发送输入框中的完整正文。\n原消息：周五下午能帮我看一下设计稿吗？","fields":[{"name":"body","label":"修改后直接发送的完整正文","type":"TEXT_AREA","required":false,"defaultValue":"可以先把设计稿发来，我确认时间后回复你。"}],"buttons":[{"label":"发送修改后的内容","op":"edit-send"},{"label":"返回草稿","op":"draft","id":23}],"refs":[{"id":23,"version":2}],"name":"edit","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"regenerate":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"只重新生成草稿，确认后再发送。","fields":[{"name":"style","label":"调整方向","type":"CHECKBOX_GROUP","required":false,"defaultValue":"","options":[{"value":"","text":"按原要求"},{"value":"更简短","text":"更简短"},{"value":"更正式","text":"更正式"}]},{"name":"hint","label":"补充写作要求","type":"TEXT_AREA","required":false,"defaultValue":""},{"name":"material","label":"本人补充资料（仅用于本条，不加入自动答复）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"重新拟稿","op":"generate"},{"label":"返回草稿","op":"draft","id":23}],"refs":[{"id":23,"version":2}],"name":"regenerate","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"pause":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"暂停这个会话，现有待处理草稿将忽略。到期恢复监听，不自动重发旧消息。","fields":[{"name":"hours","label":"暂停多久","type":"CHECKBOX_GROUP","required":false,"defaultValue":"8","options":[{"value":"1","text":"1小时"},{"value":"8","text":"8小时"},{"value":"24","text":"一天"},{"value":"87600","text":"直到手动恢复"}]}],"buttons":[{"label":"我来处理并暂停","op":"pause-conversation"},{"label":"返回草稿","op":"draft","id":23}],"refs":[{"id":23,"version":2}],"name":"pause","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"inbox":{"title":"待我处理","description":"共2条 · 第1页\n\n#23 陈晓 (N_USER_B) · 私聊 · 待确认\n原消息：周五下午能帮我看一下设计稿吗？\n拟回复：可以先把设计稿发来，我确认时间后回复你。\n\n#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C) · 待确认\n原消息：@我 请确认今天的接口联调安排。\n拟回复：我先核对安排，确认后在群里回复。","fields":[{"name":"selected","label":"选择本页记录","type":"MULTI_CHECKBOX_GROUP","required":false,"options":[{"value":"23","text":"#23 陈晓 (N_USER_B) · 私聊"},{"value":"24","text":"#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C)"}]}],"buttons":[{"label":"查看所选第一条","op":"open-selected"},{"label":"发送所选","op":"send-selected"},{"label":"忽略所选","op":"ignore-selected"},{"label":"返回首页","op":"home"}],"refs":[{"id":23,"version":2},{"id":24,"version":1}],"name":"inbox","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}},"notificationRefs":[{"id":23,"version":2},{"id":24,"version":1}]},"history":{"title":"处理记录","description":"共2条 · 第1页\n\n#23 陈晓 (N_USER_B) · 私聊 · 待确认\n原消息：周五下午能帮我看一下设计稿吗？\n拟回复：可以先把设计稿发来，我确认时间后回复你。\n\n#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C) · 待确认\n原消息：@我 请确认今天的接口联调安排。\n拟回复：我先核对安排，确认后在群里回复。","fields":[{"name":"selected","label":"选择本页记录","type":"MULTI_CHECKBOX_GROUP","required":false,"options":[{"value":"23","text":"#23 陈晓 (N_USER_B) · 私聊"},{"value":"24","text":"#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C)"}]}],"buttons":[{"label":"查看所选第一条","op":"open-selected"},{"label":"返回首页","op":"home"}],"refs":[{"id":23,"version":2},{"id":24,"version":1}],"name":"history","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}},"notificationRefs":[{"id":23,"version":2},{"id":24,"version":1}]},"pauses":{"title":"暂停的会话","description":"共0个 · 第1页。恢复不自动重发旧消息。","fields":[],"buttons":[{"label":"返回首页","op":"home"}],"refs":[],"name":"pauses","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"directory":{"title":"校验人员或群","description":"人员填写钉钉 UserId（不一定等于企业自定义工号），群填写完整群名。逗号或换行分隔。仅校验，不改变监听。","fields":[{"name":"kind","label":"对象类型","type":"CHECKBOX_GROUP","required":false,"defaultValue":"user","options":[{"value":"user","text":"人员 UserId"},{"value":"group","text":"群名称"}]},{"name":"query","label":"UserId 或完整群名","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验","op":"search-directory"},{"label":"监听范围","op":"listen"},{"label":"返回首页","op":"home"}],"refs":[],"name":"directory","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply-target-user":{"title":"回复方式 · 指定人员","description":"填写钉钉 UserId，多个用逗号或换行分隔。\n下一步先校验对象，再编辑规则。多人/多群将应用同一规则。\n\n已配置：暂无","fields":[{"name":"targetInput","label":"人员 UserId","type":"TEXT_AREA","required":false,"defaultValue":"10001"}],"buttons":[{"label":"校验对象，下一步","op":"load-reply","targetKind":"user"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-target","args":{"targetKind":"user","targets":[{"kind":"user","id":"OPEN_USER_B","userId":"10001","name":"陈晓","detail":"产品组"}]}},"reply-edit-user":{"title":"编辑回复 · 指定人员","description":"对象：陈晓（10001）","fields":[{"name":"mode","label":"处理方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"ai","options":[{"value":"ai","text":"AI起草，我确认"},{"value":"fixed","text":"固定正文，我确认"},{"value":"inbox","text":"只整理消息"},{"value":"off","text":"不处理"}]},{"name":"requirements","label":"AI 写作要求 / 固定回复正文","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"保存回复规则","op":"save-reply"},{"label":"删除专属规则","op":"reset-reply"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-edit","args":{"targetKind":"user","targets":[{"kind":"user","id":"OPEN_USER_B","userId":"10001","name":"陈晓","detail":"产品组"}]}},"reply-target-group":{"title":"回复方式 · 指定群","description":"填写完整群名，多个用逗号或换行分隔。\n下一步先校验对象，再编辑规则。多人/多群将应用同一规则。\n\n已配置：暂无","fields":[{"name":"targetInput","label":"群名称","type":"TEXT_AREA","required":false,"defaultValue":"项目协作群#cid_GROUP_G1"}],"buttons":[{"label":"校验对象，下一步","op":"load-reply","targetKind":"group"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-target","args":{"targetKind":"group","targets":[{"kind":"group","id":"cid_GROUP_G1","name":"项目协作群"}]}},"reply-edit-group":{"title":"编辑回复 · 指定群","description":"对象：项目协作群（GROUP_G1）","fields":[{"name":"mode","label":"处理方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"ai","options":[{"value":"ai","text":"AI起草，我确认"},{"value":"fixed","text":"固定正文，我确认"},{"value":"inbox","text":"只整理消息"},{"value":"off","text":"不处理"}]},{"name":"requirements","label":"AI 写作要求 / 固定回复正文","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"保存回复规则","op":"save-reply"},{"label":"删除专属规则","op":"reset-reply"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-edit","args":{"targetKind":"group","targets":[{"kind":"group","id":"cid_GROUP_G1","name":"项目协作群"}]}},"search-results":{"title":"校验结果","description":"陈晓 · 10001\n校验成功，未改变监听范围。","fields":[],"buttons":[{"label":"监听范围","op":"listen"},{"label":"继续校验","op":"directory"},{"label":"返回首页","op":"home"}],"refs":[],"name":"search-results","args":{"results":[{"kind":"user","id":"OPEN_USER_B","userId":"10001","name":"陈晓","detail":"产品组"}]}}};const tabs = [
-  ["home", "首页"], ["listen", "监听范围"], ["reply", "回复方式"],
+</section></article></main></div><div class="footer">本地可离线阅读 · 不依赖 CDN · 不收集数据 · 2026-09-25</div><script>const views={"home":{"title":"代回复助手","description":"监听：已开启（就绪）\n私聊：全部；群@我：所有群；额外发送者：0人\n待处理：2条；关键词自动授权：0条\n主题识别：开启；有效自动主题：1条\n发送使用你的身份；未授权内容由你确认。","fields":[],"buttons":[{"label":"查看待回复","op":"inbox"},{"label":"监听范围","op":"listen"},{"label":"回复方式","op":"reply"},{"label":"自动答复与提醒","op":"automation"},{"label":"处理记录","op":"history"},{"label":"暂停全部","op":"toggle"}],"refs":[],"name":"home","args":{}},"listen":{"title":"监听范围","description":"当前：监听已开启，保存后立即生效\n\n① 私聊\n全部私聊\n\n② 群内 @本人\n所有群 @本人\n\n③ 额外发送者（高级）\n未监听\n\n任一范围命中即处理，同一条消息只处理一次。","fields":[],"buttons":[{"label":"设置私聊","op":"listen-dm"},{"label":"设置群 @本人","op":"listen-at"},{"label":"设置额外发送者","op":"listen-sender"},{"label":"消息主题","op":"topics"},{"label":"校验人员或群","op":"directory"},{"label":"返回首页","op":"home"}],"refs":[],"name":"listen","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen-dm":{"title":"私聊范围","description":"选择全部私聊，或仅指定人员。\n\n指定人员填钉钉 UserId；多个用逗号或换行分隔。\n\n每组最多20项。只保存本组，其他范围保持不变。","fields":[{"name":"dm","label":"选择范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"all","options":[{"value":"off","text":"关闭"},{"value":"all","text":"全部私聊"},{"value":"users","text":"指定人员"}]},{"name":"dmIds","label":"UserId（仅选“指定人员”时填写）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验并保存本组","op":"save-listen","section":"dm"},{"label":"取消，返回范围","op":"listen"}],"refs":[],"name":"listen-dm","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen-at":{"title":"群内 @本人","description":"只处理群里 @你的消息，不处理群内其他发言。\n\n指定群填完整群名；多个用逗号或换行分隔。\n\n每组最多20项。只保存本组，其他范围保持不变。","fields":[{"name":"at","label":"选择范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"all","options":[{"value":"off","text":"关闭"},{"value":"all","text":"所有群 @本人"},{"value":"groups","text":"指定群"}]},{"name":"atIds","label":"群名称（仅选“指定群”时填写）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验并保存本组","op":"save-listen","section":"at"},{"label":"取消，返回范围","op":"listen"}],"refs":[],"name":"listen-at","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"listen-sender":{"title":"额外发送者 · 高级","description":"包含指定人员的私聊和群内发言，即使没有 @你。只需要私聊 + 群 @ 时，请保持关闭。\n\n指定人员填钉钉 UserId；多个用逗号或换行分隔。\n\n每组最多20项。只保存本组，其他范围保持不变。","fields":[{"name":"sender","label":"选择范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"off","options":[{"value":"off","text":"关闭"},{"value":"users","text":"指定人员"}]},{"name":"senderIds","label":"UserId（仅选“指定人员”时填写）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验并保存本组","op":"save-listen","section":"sender"},{"label":"取消，返回范围","op":"listen"}],"refs":[],"name":"listen-sender","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply":{"title":"回复方式","description":"默认：AI起草，我确认\n人员专属规则：0项\n群专属规则：0项\n\n优先级：不处理 > 人员 > 群 > 默认。\n这里只设置处理方式，自动发送需单独授权。","fields":[],"buttons":[{"label":"修改默认规则","op":"reply-edit","targetKind":"default"},{"label":"设置指定人员","op":"reply-target","targetKind":"user"},{"label":"设置指定群","op":"reply-target","targetKind":"group"},{"label":"返回首页","op":"home"}],"refs":[],"name":"reply","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply-target":{"title":"回复方式 · 指定人员","description":"填写钉钉 UserId，多个用逗号或换行分隔。\n下一步先校验对象，再编辑规则。多人/多群将应用同一规则。\n\n已配置：暂无","fields":[{"name":"targetInput","label":"人员 UserId","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验对象，下一步","op":"load-reply","targetKind":"user"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-target","args":{"id":23,"targetKind":"user","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply-edit":{"title":"编辑回复 · 默认规则","description":"对象：默认规则","fields":[{"name":"mode","label":"处理方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"ai","options":[{"value":"ai","text":"AI起草，我确认"},{"value":"fixed","text":"固定正文，我确认"},{"value":"inbox","text":"只整理消息"},{"value":"off","text":"不处理"}]},{"name":"requirements","label":"AI 写作要求 / 固定回复正文","type":"TEXT_AREA","required":false,"defaultValue":"使用简洁、礼貌的中文回复。不确定的信息说明需要本人确认，不编造事实或承诺。"}],"buttons":[{"label":"保存回复规则","op":"save-reply"},{"label":"恢复默认要求","op":"reset-reply"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-edit","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-manage":{"title":"自动答复授权","description":"共0条 · 第1页\n\n尚未授权自动答复。","fields":[],"buttons":[{"label":"返回自动答复","op":"automation"}],"refs":[],"name":"auto-manage","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-content":{"title":"自动答复 · 2/5 正文","description":"范围：全部已监听私聊\n只逐字发送以下正文，不让 AI 补充。\n关键词任一命中即回复；留空则匹配范围内全部消息。","fields":[{"name":"answer","label":"完整回复正文（最多160字符）","type":"TEXT_AREA","required":false,"defaultValue":"正在开会，稍后回复你。"},{"name":"keywords","label":"关键词（可留空，逗号或换行分隔）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"下一步：授权期限","op":"auto-next"},{"label":"上一步","op":"auto-back","destination":"auto-new"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-content","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-limits":{"title":"自动答复 · 3/5 授权期限","description":"最终确认后开始计时，到期停止自动答复。","fields":[{"name":"hours","label":"有效期","type":"CHECKBOX_GROUP","required":false,"defaultValue":"1","options":[{"value":"1","text":"1小时"},{"value":"8","text":"8小时"},{"value":"24","text":"24小时"},{"value":"168","text":"7天"}]}],"buttons":[{"label":"下一步：发送频率","op":"auto-next"},{"label":"上一步","op":"auto-back","destination":"auto-content"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-limits","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-frequency":{"title":"自动答复 · 4/5 发送频率","description":"避免连续打扰同一会话。每实例每小时最多自动发送30条。","fields":[{"name":"cooldown","label":"同一会话最小间隔","type":"CHECKBOX_GROUP","required":false,"defaultValue":"30","options":[{"value":"5","text":"5分钟"},{"value":"30","text":"30分钟"},{"value":"60","text":"1小时"},{"value":"1440","text":"一天"}]}],"buttons":[{"label":"下一步：确认授权","op":"auto-next"},{"label":"上一步","op":"auto-back","destination":"auto-limits"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-frequency","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-review":{"title":"自动答复 · 5/5 确认授权","description":"范围：全部已监听私聊\n\n完整正文：\n正在开会，稍后回复你。\n\n关键词：不限制\n\n有效期：1小时；同一会话间隔：30分钟\n\n确认后将以你的身份自动发送以上固定正文。","fields":[],"buttons":[{"label":"确认授权自动发送","op":"save-auto"},{"label":"上一步","op":"auto-back","destination":"auto-frequency"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-review","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-delivery":{"title":"提醒方式","description":"即时提醒：草稿就绪后约2秒推送；密集来信合并，两次提醒至少间隔10秒。\n定时汇总：按选定间隔提醒；仅主动查看：不主动提醒。\n自动回复成功只记入历史，可通过定时汇总查看。","fields":[{"name":"mode","label":"提醒方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"immediate","options":[{"value":"digest","text":"定时汇总"},{"value":"immediate","text":"即时提醒"},{"value":"manual","text":"仅主动查看"}]}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-delivery"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-delivery","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-frequency":{"title":"汇总间隔","description":"仅选择“定时汇总”时生效。","fields":[{"name":"minutes","label":"汇总间隔（仅定时汇总生效）","type":"CHECKBOX_GROUP","required":false,"defaultValue":"15","options":[{"value":"5","text":"5分钟"},{"value":"15","text":"15分钟"},{"value":"30","text":"30分钟"},{"value":"60","text":"1小时"}]}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-frequency"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-frequency","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-quiet":{"title":"免打扰时段","description":"免打扰期间不主动提醒，仍可主动查看。\n时间使用24小时制 HH:MM；起止相同表示关闭。","fields":[{"name":"quietStart","label":"开始时间","type":"TEXT","required":false,"defaultValue":"22:00"},{"name":"quietEnd","label":"结束时间","type":"TEXT","required":false,"defaultValue":"08:00"},{"name":"timezone","label":"时区","type":"TEXT","required":false,"defaultValue":"Asia/Shanghai"}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-quiet"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-quiet","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notice-priority":{"title":"重点联系人","description":"在非免打扰时段即时提醒。\n填写 UserId；多个用逗号或换行分隔。留空并保存可清空。","fields":[{"name":"priorityUsers","label":"重点联系人 UserId","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"保存本项","op":"save-notifications","section":"notice-priority"},{"label":"返回提醒设置","op":"notifications"}],"refs":[],"name":"notice-priority","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"automation":{"title":"自动答复与提醒","description":"有效自动答复：0条\n提醒：即时提醒\n\n自动答复只发送你授权的固定正文。\n关闭提醒不会停止自动发送。","fields":[],"buttons":[{"label":"新增自动答复","op":"auto-new"},{"label":"查看 / 撤销授权","op":"auto-manage"},{"label":"提醒设置","op":"notifications"},{"label":"暂停的会话","op":"pauses"},{"label":"返回首页","op":"home"}],"refs":[],"name":"automation","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"auto-new":{"title":"自动答复 · 1/5 选择范围","description":"只对已经监听的消息生效。\n指定对象填 UserId / 完整群名，多个用逗号或换行分隔。","fields":[{"name":"scope","label":"适用范围","type":"CHECKBOX_GROUP","required":false,"defaultValue":"dm","options":[{"value":"dm","text":"全部私聊"},{"value":"all","text":"全部已监听消息"},{"value":"user","text":"指定人员"},{"value":"group","text":"指定群"}]},{"name":"targetInput","label":"指定对象（选择全部时留空）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验范围，下一步","op":"auto-next"},{"label":"取消，不授权","op":"automation"}],"refs":[],"name":"auto-new","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"notifications":{"title":"提醒设置","description":"提醒方式：即时提醒\n汇总间隔：15分钟\n免打扰：22:00–08:00\n时区：Asia/Shanghai\n重点联系人：0人\n\n提醒设置不影响已授权的自动发送。","fields":[],"buttons":[{"label":"提醒方式","op":"notice-delivery"},{"label":"汇总间隔","op":"notice-frequency"},{"label":"免打扰时段","op":"notice-quiet"},{"label":"重点联系人","op":"notice-priority"},{"label":"返回自动答复与提醒","op":"automation"}],"refs":[],"name":"notifications","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"draft":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"待确认\n私聊回复\n原消息：周五下午能帮我看一下设计稿吗？\n\n将以你的身份回复：\n可以先把设计稿发来，我确认时间后回复你。","fields":[],"buttons":[{"label":"发送","op":"send"},{"label":"修改","op":"edit","id":23},{"label":"重新拟稿","op":"regenerate","id":23},{"label":"忽略","op":"ignore"},{"label":"我来处理","op":"pause","id":23},{"label":"返回首页","op":"home"}],"refs":[{"id":23,"version":2}],"name":"draft","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"edit":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"接收对象与原消息不变。修改后点击发送即发送输入框中的完整正文。\n原消息：周五下午能帮我看一下设计稿吗？","fields":[{"name":"body","label":"修改后直接发送的完整正文","type":"TEXT_AREA","required":false,"defaultValue":"可以先把设计稿发来，我确认时间后回复你。"}],"buttons":[{"label":"发送修改后的内容","op":"edit-send"},{"label":"返回草稿","op":"draft","id":23}],"refs":[{"id":23,"version":2}],"name":"edit","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"regenerate":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"只重新生成草稿，确认后再发送。","fields":[{"name":"style","label":"调整方向","type":"CHECKBOX_GROUP","required":false,"defaultValue":"","options":[{"value":"","text":"按原要求"},{"value":"更简短","text":"更简短"},{"value":"更正式","text":"更正式"}]},{"name":"hint","label":"补充写作要求","type":"TEXT_AREA","required":false,"defaultValue":""},{"name":"material","label":"本人补充资料（仅用于本条，不加入自动答复）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"重新拟稿","op":"generate"},{"label":"返回草稿","op":"draft","id":23}],"refs":[{"id":23,"version":2}],"name":"regenerate","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"pause":{"title":"#23-2 · 陈晓 (N_USER_B) · 私聊","description":"暂停这个会话，现有待处理草稿将忽略。到期恢复监听，不自动重发旧消息。","fields":[{"name":"hours","label":"暂停多久","type":"CHECKBOX_GROUP","required":false,"defaultValue":"8","options":[{"value":"1","text":"1小时"},{"value":"8","text":"8小时"},{"value":"24","text":"一天"},{"value":"87600","text":"直到手动恢复"}]}],"buttons":[{"label":"我来处理并暂停","op":"pause-conversation"},{"label":"返回草稿","op":"draft","id":23}],"refs":[{"id":23,"version":2}],"name":"pause","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"inbox":{"title":"待我处理","description":"共2条 · 第1页\n\n#23 陈晓 (N_USER_B) · 私聊 · 待确认\n原消息：周五下午能帮我看一下设计稿吗？\n拟回复：可以先把设计稿发来，我确认时间后回复你。\n\n#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C) · 待确认\n原消息：@我 请确认今天的接口联调安排。\n拟回复：我先核对安排，确认后在群里回复。","fields":[{"name":"selected","label":"选择本页记录","type":"MULTI_CHECKBOX_GROUP","required":false,"options":[{"value":"23","text":"#23 陈晓 (N_USER_B) · 私聊"},{"value":"24","text":"#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C)"}]}],"buttons":[{"label":"查看所选第一条","op":"open-selected"},{"label":"发送所选","op":"send-selected"},{"label":"忽略所选","op":"ignore-selected"},{"label":"返回首页","op":"home"}],"refs":[{"id":23,"version":2},{"id":24,"version":1}],"name":"inbox","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}},"notificationRefs":[{"id":23,"version":2},{"id":24,"version":1}]},"history":{"title":"处理记录","description":"共2条 · 第1页\n\n#23 陈晓 (N_USER_B) · 私聊 · 待确认\n原消息：周五下午能帮我看一下设计稿吗？\n拟回复：可以先把设计稿发来，我确认时间后回复你。\n\n#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C) · 待确认\n原消息：@我 请确认今天的接口联调安排。\n拟回复：我先核对安排，确认后在群里回复。","fields":[{"name":"selected","label":"选择本页记录","type":"MULTI_CHECKBOX_GROUP","required":false,"options":[{"value":"23","text":"#23 陈晓 (N_USER_B) · 私聊"},{"value":"24","text":"#24 项目协作群 (GROUP_G1) · 李明 (N_USER_C)"}]}],"buttons":[{"label":"查看所选第一条","op":"open-selected"},{"label":"返回首页","op":"home"}],"refs":[{"id":23,"version":2},{"id":24,"version":1}],"name":"history","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}},"notificationRefs":[{"id":23,"version":2},{"id":24,"version":1}]},"pauses":{"title":"暂停的会话","description":"共0个 · 第1页。恢复不自动重发旧消息。","fields":[],"buttons":[{"label":"返回首页","op":"home"}],"refs":[],"name":"pauses","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"directory":{"title":"校验人员或群","description":"人员填写钉钉 UserId（不一定等于企业自定义工号），群填写完整群名。逗号或换行分隔。仅校验，不改变监听。","fields":[{"name":"kind","label":"对象类型","type":"CHECKBOX_GROUP","required":false,"defaultValue":"user","options":[{"value":"user","text":"人员 UserId"},{"value":"group","text":"群名称"}]},{"name":"query","label":"UserId 或完整群名","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验","op":"search-directory"},{"label":"监听范围","op":"listen"},{"label":"返回首页","op":"home"}],"refs":[],"name":"directory","args":{"id":23,"targetKind":"default","wizard":{"scope":"dm","targets":[],"targetInput":"","answer":"正在开会，稍后回复你。","keywords":"","hours":"1","cooldown":"30"}}},"reply-target-user":{"title":"回复方式 · 指定人员","description":"填写钉钉 UserId，多个用逗号或换行分隔。\n下一步先校验对象，再编辑规则。多人/多群将应用同一规则。\n\n已配置：暂无","fields":[{"name":"targetInput","label":"人员 UserId","type":"TEXT_AREA","required":false,"defaultValue":"10001"}],"buttons":[{"label":"校验对象，下一步","op":"load-reply","targetKind":"user"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-target","args":{"targetKind":"user","targets":[{"kind":"user","id":"OPEN_USER_B","userId":"10001","name":"陈晓","detail":"产品组"}]}},"reply-edit-user":{"title":"编辑回复 · 指定人员","description":"对象：陈晓（10001）","fields":[{"name":"mode","label":"处理方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"ai","options":[{"value":"ai","text":"AI起草，我确认"},{"value":"fixed","text":"固定正文，我确认"},{"value":"inbox","text":"只整理消息"},{"value":"off","text":"不处理"}]},{"name":"requirements","label":"AI 写作要求 / 固定回复正文","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"保存回复规则","op":"save-reply"},{"label":"删除专属规则","op":"reset-reply"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-edit","args":{"targetKind":"user","targets":[{"kind":"user","id":"OPEN_USER_B","userId":"10001","name":"陈晓","detail":"产品组"}]}},"reply-target-group":{"title":"回复方式 · 指定群","description":"填写完整群名，多个用逗号或换行分隔。\n下一步先校验对象，再编辑规则。多人/多群将应用同一规则。\n\n已配置：暂无","fields":[{"name":"targetInput","label":"群名称","type":"TEXT_AREA","required":false,"defaultValue":"项目协作群#cid_GROUP_G1"}],"buttons":[{"label":"校验对象，下一步","op":"load-reply","targetKind":"group"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-target","args":{"targetKind":"group","targets":[{"kind":"group","id":"cid_GROUP_G1","name":"项目协作群"}]}},"reply-edit-group":{"title":"编辑回复 · 指定群","description":"对象：项目协作群（GROUP_G1）","fields":[{"name":"mode","label":"处理方式","type":"CHECKBOX_GROUP","required":false,"defaultValue":"ai","options":[{"value":"ai","text":"AI起草，我确认"},{"value":"fixed","text":"固定正文，我确认"},{"value":"inbox","text":"只整理消息"},{"value":"off","text":"不处理"}]},{"name":"requirements","label":"AI 写作要求 / 固定回复正文","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"保存回复规则","op":"save-reply"},{"label":"删除专属规则","op":"reset-reply"},{"label":"返回回复方式","op":"reply"}],"refs":[],"name":"reply-edit","args":{"targetKind":"group","targets":[{"kind":"group","id":"cid_GROUP_G1","name":"项目协作群"}]}},"search-results":{"title":"校验结果","description":"陈晓 · 10001\n校验成功，未改变监听范围。","fields":[],"buttons":[{"label":"监听范围","op":"listen"},{"label":"继续校验","op":"directory"},{"label":"返回首页","op":"home"}],"refs":[],"name":"search-results","args":{"results":[{"kind":"user","id":"OPEN_USER_B","userId":"10001","name":"陈晓","detail":"产品组"}]}},"topics":{"title":"消息主题","description":"主题识别：已开启\n未命中：只关注指定主题，明确未命中不处理\n主题规则：1条\n\n先检查监听来源，再判断主题。规则不扩大来源范围。\n不确定或识别失败交给本人，不自动发送。","fields":[],"buttons":[{"label":"主题开关与未命中策略","op":"topic-mode"},{"label":"新增主题规则","op":"topic-new"},{"label":"查看与管理规则","op":"topic-manage"},{"label":"返回监听范围","op":"listen"}],"refs":[],"name":"topics","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-mode":{"title":"主题开关与未命中策略","description":"关闭主题识别会恢复原有回复流程，包括已授权的关键词自动答复。\n本页不改变监听总开关。只关注主题时，识别失败仍保留待判断。","fields":[{"name":"enabled","label":"主题识别","type":"CHECKBOX_GROUP","required":false,"defaultValue":"on","options":[{"value":"on","text":"开启"},{"value":"off","text":"关闭，恢复原有流程"}]},{"name":"mode","label":"明确未命中主题时","type":"CHECKBOX_GROUP","required":false,"defaultValue":"only","options":[{"value":"fallback","text":"其他消息照常处理"},{"value":"only","text":"只关注指定主题"}]}],"buttons":[{"label":"保存主题策略","op":"topic-save-mode"},{"label":"返回消息主题","op":"topics"}],"refs":[],"name":"topic-mode","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-manage":{"title":"主题规则管理","description":"共1条 · 第1页\n\n导出PDF的操作方法 · 启用\n全部已监听消息\n自动发送固定说明\n\n停用后不会匹配本规则，原有回复流程是否继续取决于未命中策略。","fields":[{"name":"rules","label":"选择本页规则","type":"MULTI_CHECKBOX_GROUP","required":false,"defaultValue":[],"options":[{"value":"demo-topic","text":"导出PDF的操作方法"}]}],"buttons":[{"label":"查看所选第一条","op":"topic-open"},{"label":"停用所选","op":"topic-disable"},{"label":"删除所选","op":"topic-delete"},{"label":"返回消息主题","op":"topics"}],"refs":[],"name":"topic-manage","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-detail":{"title":"主题规则详情","description":"导出PDF的操作方法 · 启用\n全部已监听消息\n自动发送固定说明\n\n关注的问题：\n询问文档导出PDF的操作步骤\n\n典型问法：\n怎么导出PDF？\n在哪下载PDF版本？\n\n不适用情形：\n报错、权限不足、要求代操作或其他问题\n\n固定正文：\n请按你们产品的真实步骤填写操作说明或文档链接。\n\n授权有效至：09/25 19:10\n同一会话间隔：30分钟","fields":[],"buttons":[{"label":"编辑与重新启用","op":"topic-edit","id":"demo-topic"},{"label":"试判本规则","op":"topic-test-saved","id":"demo-topic"},{"label":"返回消息主题","op":"topics"}],"refs":[],"name":"topic-detail","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-new":{"title":"主题规则 · 1/6 来源","description":"仅在已允许的监听来源内生效。\n指定人员填 UserId，群填完整群名；多人、多群用逗号或换行分隔。","fields":[{"name":"scope","label":"适用来源","type":"CHECKBOX_GROUP","required":false,"defaultValue":"all","options":[{"value":"all","text":"全部已监听消息"},{"value":"dm","text":"已监听私聊"},{"value":"user","text":"指定人员"},{"value":"group","text":"指定群"}]},{"name":"targetInput","label":"指定对象（选择全部时留空）","type":"TEXT_AREA","required":false,"defaultValue":""}],"buttons":[{"label":"校验来源，下一步","op":"topic-next"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-new","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-definition":{"title":"主题规则 · 2/6 识别什么","description":"描述同一类问题，不必穷举关键词。\n例如关注“询问导出PDF的操作方法”，排除“导出失败、权限不足、要求代操作”。","fields":[{"name":"name","label":"主题名称（最多60字符）","type":"TEXT_AREA","required":false,"defaultValue":"导出PDF的操作方法"},{"name":"description","label":"关注的问题（最多600字符）","type":"TEXT_AREA","required":false,"defaultValue":"询问文档导出PDF的操作步骤"},{"name":"examples","label":"典型问法（可留空，最多600字符）","type":"TEXT_AREA","required":false,"defaultValue":"怎么导出PDF？\n在哪下载PDF版本？"},{"name":"exclusions","label":"不适用情形（可留空，最多400字符）","type":"TEXT_AREA","required":false,"defaultValue":"报错、权限不足、要求代操作或其他问题"}],"buttons":[{"label":"下一步：处理方式","op":"topic-next"},{"label":"上一步","op":"topic-back","destination":"topic-new"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-definition","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-action":{"title":"主题规则 · 3/6 如何处理","description":"自动发送仅逐字使用你授权的正文，不让AI改写。\n完整教程可使用简短步骤＋文档链接。只整理时不填写正文。","fields":[{"name":"action","label":"明确匹配后","type":"CHECKBOX_GROUP","required":false,"defaultValue":"auto","options":[{"value":"auto","text":"自动发送固定说明"},{"value":"confirm","text":"模板由我确认"},{"value":"inbox","text":"只整理提醒"}]},{"name":"text","label":"固定回复正文（最多160字符）","type":"TEXT_AREA","required":false,"defaultValue":"请按你们产品的真实步骤填写操作说明或文档链接。"}],"buttons":[{"label":"下一步：模拟试判","op":"topic-next"},{"label":"上一步","op":"topic-back","destination":"topic-definition"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-action","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-trial":{"title":"主题规则 · 4/6 模拟试判","description":"主题：导出PDF的操作方法\n仅试判本规则，假定来源满足范围；不验证实际订阅或其他规则冲突，不发送消息。\n\n修改输入后需再次点击试判。试判不能保证所有问法都识别准确；自动授权前至少试判一条明确匹配的消息。","fields":[{"name":"sample","label":"模拟收到的消息（最多8000字符）","type":"TEXT_AREA","required":false,"defaultValue":"怎样把文档保存为PDF格式？"}],"buttons":[{"label":"试判，不发送","op":"topic-test"},{"label":"下一步：期限与频率","op":"topic-next"},{"label":"上一步","op":"topic-back","destination":"topic-action"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-trial","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-limits":{"title":"主题规则 · 5/6 期限与频率","description":"最终确认后开始计时，最多7天。到期保留主题，但固定正文改由本人确认。\n冷却按规则和整个会话计算；全实例每小时自动发送最多30条。","fields":[{"name":"hours","label":"自动授权有效期","type":"CHECKBOX_GROUP","required":false,"defaultValue":"1","options":[{"value":"1","text":"1小时"},{"value":"8","text":"8小时"},{"value":"24","text":"24小时"},{"value":"168","text":"7天"}]},{"name":"cooldown","label":"同一会话最小间隔","type":"CHECKBOX_GROUP","required":false,"defaultValue":"30","options":[{"value":"5","text":"5分钟"},{"value":"30","text":"30分钟"},{"value":"60","text":"1小时"},{"value":"1440","text":"一天"}]}],"buttons":[{"label":"下一步：完整确认","op":"topic-next"},{"label":"上一步","op":"topic-back","destination":"topic-trial"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-limits","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-review":{"title":"主题规则 · 6/6 确认启用","description":"主题：导出PDF的操作方法\n来源：全部已监听消息\n关注：询问文档导出PDF的操作步骤\n典型问法：怎么导出PDF？\n在哪下载PDF版本？\n排除：报错、权限不足、要求代操作或其他问题\n\n处理：自动发送固定说明\n完整正文：\n请按你们产品的真实步骤填写操作说明或文档链接。\n\n授权1小时；同一会话间隔30分钟\n\n同时启用主题识别。未命中：不处理。\n监听总开关不改变；主题不能扩大来源范围。","fields":[],"buttons":[{"label":"确认授权并启用主题","op":"topic-save"},{"label":"上一步","op":"topic-back","destination":"topic-limits"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-review","args":{"id":"demo-topic","wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？"}}},"topic-trial-result":{"title":"主题规则 · 4/6 模拟试判","description":"主题：导出PDF的操作方法\n仅试判本规则，假定来源满足范围；不验证实际订阅或其他规则冲突，不发送消息。\n\n上次提交试判结果：主题明确匹配\n拟执行：自动发送固定说明\n正文：请按你们产品的真实步骤填写操作说明或文档链接。\n\n修改输入后需再次点击试判。试判不能保证所有问法都识别准确；自动授权前至少试判一条明确匹配的消息。","fields":[{"name":"sample","label":"模拟收到的消息（最多8000字符）","type":"TEXT_AREA","required":false,"defaultValue":"怎样把文档保存为PDF格式？"}],"buttons":[{"label":"试判，不发送","op":"topic-test"},{"label":"下一步：期限与频率","op":"topic-next"},{"label":"上一步","op":"topic-back","destination":"topic-action"},{"label":"取消，不保存","op":"topics"}],"refs":[],"name":"topic-trial","args":{"wizard":{"id":"demo-topic","enabled":true,"scope":"all","targets":[],"targetRows":[],"name":"导出PDF的操作方法","description":"询问文档导出PDF的操作步骤","examples":"怎么导出PDF？\n在哪下载PDF版本？","exclusions":"报错、权限不足、要求代操作或其他问题","action":"auto","text":"请按你们产品的真实步骤填写操作说明或文档链接。","expires":1790334644403,"cooldownMinutes":30,"hours":"1","cooldown":"30","sample":"怎样把文档保存为PDF格式？","trial":{"outcome":"match","reason":"matched","ruleIds":["demo-topic"],"coversWholeMessage":true}}}}};const tabs = [
+  ["home", "首页"], ["listen", "监听范围"], ["topics", "消息主题"], ["reply", "回复方式"],
   ["draft", "待确认草稿"], ["inbox", "批量处理"],
   ["auto-new", "自动答复"], ["notifications", "提醒"],
 ];
@@ -1095,7 +1328,12 @@ function render(name) {
     element.onclick = () => {
       const route = button.op === "auto-next"
         ? ({ "auto-new": "auto-content", "auto-content": "auto-limits", "auto-limits": "auto-frequency", "auto-frequency": "auto-review" })[name]
-        : button.op === "auto-back" ? button.destination
+        : button.op === "topic-next" ? ({ "topic-new": "topic-definition", "topic-definition": "topic-action", "topic-action": "topic-trial", "topic-trial": "topic-limits", "topic-trial-result": "topic-limits", "topic-limits": "topic-review" })[name]
+        : button.op === "topic-test" ? "topic-trial-result"
+        : button.op === "topic-open" ? "topic-detail"
+        : button.op === "topic-edit" ? "topic-new"
+        : button.op === "topic-test-saved" ? "topic-trial"
+        : ["auto-back", "topic-back"].includes(button.op) ? button.destination
         : button.op === "load-reply" ? `reply-edit-${button.targetKind}`
         : button.op === "reply-target" ? `reply-target-${button.targetKind}`
         : button.op === "search-directory" ? "search-results"

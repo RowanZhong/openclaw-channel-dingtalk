@@ -20,3 +20,17 @@
 @media print{.code-block,.table-scroll{overflow:visible;break-inside:auto}.code-block pre,.code-block code{white-space:pre-wrap;overflow-wrap:anywhere}.table-scroll table{table-layout:fixed}.table-scroll th,.table-scroll td,.table-scroll td:nth-child(2){min-width:0;font-size:10px;padding:6px}}
 
 .card-expiry{text-align:right;color:#84909d;font-size:12px;line-height:18px;margin-top:12px}
+
+/* Product overview and task-oriented quick start. */
+.feature-strip,.outcome-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:25px 0}.feature-strip>div,.outcome-grid>div{padding:20px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,var(--accent-soft),#fff)}.feature-strip span{display:block;font-size:11px;color:var(--accent);letter-spacing:1px;margin-bottom:10px}.feature-strip strong,.outcome-grid strong{display:block;font-size:16px;line-height:1.6}.feature-strip p,.outcome-grid p{font-size:13px;color:var(--muted);margin:10px 0 0}.quick-path{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:17px 20px;background:var(--accent-soft);border-radius:10px;color:var(--accent);margin:20px 0}.quick-path b{font-size:13px}.quick-path span{opacity:.5}@media(max-width:850px){.feature-strip,.outcome-grid{grid-template-columns:1fr}.feature-strip>div,.outcome-grid>div{padding:16px}.quick-path{gap:8px}}@media print{.feature-strip,.outcome-grid{grid-template-columns:1fr}.feature-strip>div,.outcome-grid>div{break-inside:avoid}}
+
+/* Recommended scenarios: readable star ratings and a compact comparison table. */
+.scenario-overview .table-scroll{border-top:3px solid var(--accent)}
+.scenario-overview table{min-width:690px;table-layout:fixed}
+.scenario-overview th:nth-child(1){width:16%}.scenario-overview th:nth-child(2){width:25%}.scenario-overview th:nth-child(3){width:27%}.scenario-overview th:nth-child(4){width:32%}
+.scenario-overview th,.scenario-overview td,.scenario-overview td:nth-child(2){min-width:0;padding:14px 12px;line-height:1.8}
+.scenario-overview td:nth-child(2) a{font-weight:600}.scenario-overview td:first-child{background:var(--accent-soft)}
+.scenario-rating{display:block;white-space:nowrap;font-size:16px;letter-spacing:1px;line-height:1.5;color:#937022}
+.scenario-rating .rating-muted{color:#afb5af}.rating-note{display:block;font-size:11px;color:var(--muted);margin-top:5px;white-space:nowrap}
+#sec-3 h3{margin-top:38px;padding-top:3px;padding-bottom:3px;font-size:19px}#sec-3 h4{font-size:14px;margin:24px 0 10px;color:var(--accent)}
+@media print{.scenario-overview table{min-width:0}.scenario-overview th,.scenario-overview td{padding:8px;font-size:10px}.scenario-rating{font-size:12px;letter-spacing:0}.rating-note{font-size:9px}}

@@ -1,0 +1,27 @@
+{
+  "kind": "local-microbenchmark-not-capacity-test",
+  "node": "v26.8.1",
+  "platform": "darwin",
+  "arch": "arm64",
+  "externalRequests": 0,
+  "validation": {
+    "iterations": 50000,
+    "rules": 20,
+    "elapsedMs": 8.23
+  },
+  "burst": {
+    "submitted": 2000,
+    "acceptedModelCalls": 32,
+    "busyFallback": 1968,
+    "peakActive": 1,
+    "elapsedMs": 75.28
+  },
+  "processMemory": {
+    "rssBeforeMiB": 52.8,
+    "rssAfterMiB": 61.05,
+    "heapBeforeMiB": 3.64,
+    "heapAfterGCMiB": 4.05
+  },
+  "cpuMs": 18.9,
+  "limits": "Synthetic model latency; excludes real provider/network, Gateway, DWS and DingTalk card cost; not a 15000-Pod validation."
+}
