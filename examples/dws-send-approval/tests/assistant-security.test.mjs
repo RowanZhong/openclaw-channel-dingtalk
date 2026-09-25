@@ -131,6 +131,7 @@ test("model receives only explicit data and cannot request tools or automatic de
   let request;
   const body = await draftReply(
     {
+      config: { agents: { list: [{ id: "main", default: true }] } },
       runtime: {
         llm: {
           complete: async (q) => {

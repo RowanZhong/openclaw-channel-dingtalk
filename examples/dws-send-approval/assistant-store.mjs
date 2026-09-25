@@ -9,6 +9,7 @@ export function messageKey(event, profile) {
     .digest("hex");
 }
 export const PENDING = new Set(["generating", "pending", "inbox", "stale", "draft-error"]);
+export const EDITABLE = new Set(["pending", "draft-error", "inbox"]);
 export class AssistantStore {
   constructor(config) {
     this.config = config;

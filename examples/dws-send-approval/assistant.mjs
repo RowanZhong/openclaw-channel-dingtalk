@@ -4,6 +4,11 @@ import { cardFormFields } from "./assistant-card-protocol.mjs";
 import { resolveTargets, splitTargets, resolveDisplayLabels } from "./assistant-directory.mjs";
 import { sendExact } from "./assistant-dws.mjs";
 import { draftReply, draftFailure } from "./assistant-model.mjs";
+import {
+  unnotifiedDrafts,
+  rememberNotification,
+  legacyNotificationTrack,
+} from "./assistant-notification-records.mjs";
 import { createNotificationQueue } from "./assistant-notifications.mjs";
 import {
   initialSettings,
@@ -12,7 +17,7 @@ import {
   autoAnswer,
   quietNow,
 } from "./assistant-settings.mjs";
-import { AssistantStore, PENDING, messageKey } from "./assistant-store.mjs";
+import { AssistantStore, PENDING, EDITABLE, messageKey } from "./assistant-store.mjs";
 import { buildView } from "./assistant-views.mjs";
 import { replyRule } from "./preferences.mjs";
 import { matchesRules, replySnapshot } from "./rules.mjs";
@@ -80,12 +85,17 @@ export function createAssistant(api, config, dependencies = {}) {
       track(
         (async () => {
           if (closed) return false;
-          const rows = store.list(attentionStates, 2);
+          const pending = store.list(attentionStates);
+          const rows = includeHistory ? pending : unnotifiedDrafts(store, pending, now());
           if (!rows.length && !includeHistory) return false;
           await show(
             rows.length === 1 ? "draft" : rows.length ? "inbox" : "history",
-            rows.length === 1 ? { id: rows[0].id } : {},
-            undefined,
+            rows.length === 1
+              ? { id: rows[0].id }
+              : !includeHistory && rows.length
+                ? { notificationIds: rows.map((d) => d.id) }
+                : {},
+            !includeHistory ? legacyNotificationTrack(store, rows, now()) : undefined,
             "",
             { lane: "notification" },
           );
@@ -289,6 +299,7 @@ export function createAssistant(api, config, dependencies = {}) {
       owner: config.ownerUserId,
       accountId: config.accountId,
       protocol: 2,
+      deliveryState: "pending",
       fieldPrefix: `f_${id.replaceAll("-", "")}_`,
       expires: previous?.expires ?? now() + config.assistant.cardTtlMinutes * 60000,
       preferenceRevision: listener.snapshot().revision,
@@ -350,6 +361,10 @@ export function createAssistant(api, config, dependencies = {}) {
     } else {
       await transport().sendCard(request);
     }
+    card.deliveryState = "delivered";
+    if (store.cardForTrack(outTrackId)?.id === card.id) store.card(card);
+    // Record only after successful delivery/update; failed sends remain retryable.
+    rememberNotification(store, card, view.notificationRefs ?? view.refs, now());
     if (!replace) track(maintenance());
     return card;
   }
@@ -405,7 +420,9 @@ export function createAssistant(api, config, dependencies = {}) {
     return task;
   }
   async function deliverNow(ref, edited, automaticRule) {
-    let d = currentDraft(ref);
+    let d = currentDraft(ref, edited !== undefined);
+    if (edited !== undefined && !EDITABLE.has(d.status))
+      throw new Error("本条尚不可手动发送，请查看最新状态。");
     authorizeDraft(d);
     if (edited !== undefined) {
       d = { ...d, text: safeText(edited) };
@@ -441,6 +458,7 @@ export function createAssistant(api, config, dependencies = {}) {
       version: d.version + 1,
       updated: now(),
       automatic: Boolean(automaticRule),
+      error: undefined,
     });
     try {
       await sender(d);
@@ -896,7 +914,12 @@ export function createAssistant(api, config, dependencies = {}) {
         if (!d) {
           throw new Error("记录不存在。");
         }
-        return `草稿 ${d.id}-${d.version} · ${d.status}\n接收会话：${previewLiteral(d.event.conversation_id)}\n发送者：${previewLiteral(d.event.sender_open_dingtalk_id)}\n原消息：${previewLiteral(d.event.content.slice(0, 3000))}\n完整回复：${previewLiteral(d.text)}\n发送 /ok ${d.id}-${d.version}；忽略 /no ${d.id}-${d.version}；修改 /edit ${d.id}-${d.version} 新正文`;
+        const actions = [
+          ...(d.status === "pending" ? [`发送 /ok ${d.id}-${d.version}`] : []),
+          ...(PENDING.has(d.status) ? [`忽略 /no ${d.id}-${d.version}`] : []),
+          ...(EDITABLE.has(d.status) ? [`修改 /edit ${d.id}-${d.version} 新正文`] : []),
+        ];
+        return `草稿 ${d.id}-${d.version} · ${d.status}\n接收会话：${previewLiteral(d.event.conversation_id)}\n发送者：${previewLiteral(d.event.sender_open_dingtalk_id)}\n原消息：${previewLiteral(d.event.content.slice(0, 3000))}\n完整回复：${previewLiteral(d.text)}${d.error ? `\n${d.error}` : ""}\n${actions.join("；") || "当前状态不可发送，请查看处理记录。"}`;
       }
       const rows = store.list([...PENDING, "unknown"], 10);
       return rows.length
@@ -912,7 +935,7 @@ export function createAssistant(api, config, dependencies = {}) {
       if (!ref || !Number.isSafeInteger(ref.id) || !Number.isSafeInteger(ref.version)) {
         throw new Error("请用 /dws show <编号> 查看最新草稿，复制带版本的短命令。");
       }
-      const d = currentDraft(ref, action === "no");
+      const d = currentDraft(ref, action === "no" || action === "edit");
       if (action === "ok") {
         await deliver(ref);
       } else if (action === "edit") {
