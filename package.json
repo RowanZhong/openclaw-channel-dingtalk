@@ -35,6 +35,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./card-extensions": {
+      "types": "./dist/src/card/card-extension-api.d.ts",
+      "default": "./dist/card-extensions.js"
     }
   },
   "publishConfig": {

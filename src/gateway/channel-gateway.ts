@@ -10,6 +10,9 @@ import type { SessionEntry } from "openclaw/plugin-sdk/session-store-runtime";
 import { recoverAskUserQuestionsForAccount } from "../card/ask-user-question";
 import { handleCardAction } from "../card/card-action-handler";
 import { analyzeCardCallback } from "../card/card-callback-service";
+import { dispatchCardExtensionCallback } from "../card/card-extension-callback";
+import { bindCardExtensionTransport } from "../card/card-extension-registry";
+import { createCardExtensionTransport } from "../card/card-extension-service";
 import { finalizeActiveCardsForAccount, recoverPendingCardsForAccount } from "../card/card-service";
 import {
   isLearningAutoApplyEnabled,
@@ -368,8 +371,27 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
         );
       }
 
+      // The transport exists only for this account lifecycle; connection status
+      // is read at call time so reconnects do not require consumer re-registration.
+      let cardTransportActive = true;
+      let cardTransportConnected = false;
+      const releaseCardTransport = bindCardExtensionTransport(
+        account.accountId,
+        createCardExtensionTransport({
+          config,
+          log: pluginLog,
+          isConnected: () => cardTransportActive && cardTransportConnected && !abortSignal?.aborted,
+        }),
+      );
+      const closeCardTransport = () => {
+        cardTransportActive = false;
+        releaseCardTransport();
+      };
       const useConnectionManager = config.useConnectionManager ?? true;
       const applyStatusPatch = (patch: Record<string, unknown>) => {
+        if (typeof patch.connected === "boolean") {
+          cardTransportConnected = patch.connected;
+        }
         ctx.setStatus({
           ...ctx.getStatus(),
           ...patch,
@@ -508,6 +530,16 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
 
           try {
             const payload = JSON.parse(res.data);
+            if (
+              await dispatchCardExtensionCallback({
+                accountId: account.accountId,
+                payload,
+                callbackId: messageId,
+                log: pluginLog,
+              })
+            ) {
+              return;
+            }
             const analysis = analyzeCardCallback(payload);
             pluginLog?.info?.(
               `[${account.accountId}] [DingTalk][CardCallback] action=${analysis.summary} raw=${JSON.stringify(payload)}`,
@@ -589,6 +621,7 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
           return;
         }
         stopped = true;
+        closeCardTransport();
         pluginLog?.info?.(`[${account.accountId}] Stopping DingTalk Stream client...`);
         void finalizeActiveCardsForAccount(
           config,
@@ -640,6 +673,7 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
             lastError: "Connection aborted before start",
           });
 
+          closeCardTransport();
           throw new Error("Connection aborted before start");
         }
 
@@ -685,6 +719,7 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
             lastEventAt: getCurrentTimestamp(),
             lastError: err.message || "Connection failed",
           });
+          closeCardTransport();
           throw err;
         }
 
@@ -786,6 +821,7 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
           lastEventAt: getCurrentTimestamp(),
           lastError: err.message || "Connection failed",
         });
+        closeCardTransport();
         throw err;
       }
 

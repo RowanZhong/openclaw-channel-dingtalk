@@ -5,6 +5,7 @@ import {
 } from "openclaw/plugin-sdk/core";
 import { readStringParam } from "openclaw/plugin-sdk/param-readers";
 import { registerDingTalkAskUserQuestionTool } from "./src/card/ask-user-question";
+import { configureCardExtensions } from "./src/card/card-extension-service";
 import { accumulateUsage } from "./src/card/run-usage-store";
 import { dingtalkPlugin } from "./src/channel";
 import {
@@ -415,6 +416,7 @@ const dingtalkEntry = defineChannelPluginEntry({
   plugin: dingtalkPlugin,
   setRuntime: setDingTalkRuntime,
   registerFull(api) {
+    configureCardExtensions(api.config);
     registerDingTalkDocsGatewayMethods(api);
     registerDingTalkConnectorCompatibilityGatewayMethods(api);
     registerDingTalkAskUserQuestionTool(api);

@@ -275,6 +275,8 @@ export { secret };
         writeJson(join(tempDir, "openclaw.plugin.json"), {});
         writeFile(join(tempDir, "dist/index.js"), runtimeCode);
         writeFile(join(tempDir, "dist/index.d.ts"), "export {};\n");
+        writeFile(join(tempDir, "dist/card-extensions.js"), "export {};\n");
+        writeFile(join(tempDir, "dist/src/card/card-extension-api.d.ts"), "export {};\n");
 
         return tempDir;
     }

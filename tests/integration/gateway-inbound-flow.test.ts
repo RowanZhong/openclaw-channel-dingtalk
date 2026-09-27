@@ -1,3 +1,4 @@
+import { registerDingTalkCardExtension } from "../../src/card/card-extension-api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const shared = vi.hoisted(() => ({
@@ -460,4 +461,24 @@ describe("gateway inbound callback pipeline", () => {
   it("channel inflight namespace is memory-only", () => {
     expect(CHANNEL_INFLIGHT_NAMESPACE_POLICY).toBe("memory-only");
   });
+  it.each(["save", "feedback_up", "btn_stop"])("ACKs extension %s without builtin or Agent fallthrough", async (actionId) => {
+    const ctx = createStartContext();
+    const handler = vi.fn().mockRejectedValue(new Error("private-form-text"));
+    const extension = registerDingTalkCardExtension({ accountId: "main", namespace: "test", onAction: handler });
+    try {
+      await startGatewayAccount(ctx);
+      await shared.listeners.TOPIC_CARD({ headers: { messageId: "extension-event" }, data: JSON.stringify({
+        outTrackId: "ocx1.main.test.card1", userId: "owner", spaceType: "im",
+        content: { cardPrivateData: { actionIds: [actionId], params: { form: { note: "private-form-text" } } } },
+      }) });
+      expect(handler).toHaveBeenCalledOnce();
+      expect(shared.socketCallBackResponseMock).toHaveBeenCalledWith("extension-event", { success: true });
+      expect(shared.sendProactiveTextMock).not.toHaveBeenCalled();
+      expect(shared.handleDingTalkMessageMock).not.toHaveBeenCalled();
+      expect(JSON.stringify([ctx.log.info.mock.calls, ctx.log.error.mock.calls])).not.toContain("private-form-text");
+    } finally {
+      extension.dispose();
+    }
+  });
+
 });

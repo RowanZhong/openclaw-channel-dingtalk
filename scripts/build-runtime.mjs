@@ -5,10 +5,10 @@ await rm("dist", { recursive: true, force: true });
 
 await build({
   bundle: true,
-  entryPoints: ["index.ts"],
+  entryPoints: { index: "index.ts", "card-extensions": "src/card/card-extension-api.ts" },
   format: "esm",
   logLevel: "info",
-  outfile: "dist/index.js",
+  outdir: "dist",
   packages: "external",
   platform: "node",
   sourcemap: false,

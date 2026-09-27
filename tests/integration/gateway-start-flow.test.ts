@@ -1,3 +1,4 @@
+import { getCardExtensionRegistry } from "../../src/card/card-extension-registry";
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -405,4 +406,29 @@ describe('gateway.startAccount lifecycle', () => {
         expect(ctx.log.error).toHaveBeenCalledWith(expect.stringContaining('[DingTalk][ConnectionError][connect.websocket]'));
         expect(ctx.log.error).toHaveBeenCalledWith(expect.stringContaining('wss-open-connection.dingtalk.com'));
     });
+    it('binds extension transport to connection state and releases it on stop', async () => {
+        const { ctx } = createStartContext();
+        const result = await startGatewayAccount(ctx as any);
+        const transport = getCardExtensionRegistry().transports.get('main');
+        expect(transport?.isConnected()).toBe(true);
+        shared.connectionConfig.onStateChange('DISCONNECTED');
+        expect(transport?.isConnected()).toBe(false);
+        shared.connectionConfig.onStateChange('CONNECTED');
+        expect(transport?.isConnected()).toBe(true);
+        result.stop();
+        expect(transport?.isConnected()).toBe(false);
+        expect(getCardExtensionRegistry().transports.has('main')).toBe(false);
+    });
+
+    it('does not reuse stale host connectivity before the new client connects', async () => {
+        const { ctx } = createStartContext();
+        (ctx.getStatus() as any).connected = true;
+        shared.connectMock.mockImplementation(async () => {
+            expect(getCardExtensionRegistry().transports.get('main')?.isConnected()).toBe(false);
+            throw new Error('connection unavailable');
+        });
+        await expect(startGatewayAccount(ctx as any)).rejects.toThrow('connection unavailable');
+        expect(getCardExtensionRegistry().transports.has('main')).toBe(false);
+    });
+
 });
