@@ -436,7 +436,9 @@ export function resolveDingTalkAccount(
   const id = accountId || DEFAULT_ACCOUNT_ID;
   const dingtalk = cfg.channels?.dingtalk as DingTalkChannelConfig | undefined;
 
-  if (id === DEFAULT_ACCOUNT_ID) {
+  // Explicit accounts.default follows the same override/inheritance rules as
+  // getConfig(), which supplies the running Channel's credentials.
+  if (id === DEFAULT_ACCOUNT_ID && !dingtalk?.accounts?.[id]) {
     const rawConfig: DingTalkConfig = {
       clientId: dingtalk?.clientId ?? "",
       clientSecret: dingtalk?.clientSecret ?? "",

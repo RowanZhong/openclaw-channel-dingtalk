@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerDingTalkCardExtension as register } from '../../src/card/card-extension-api';
-import { dispatchCardExtensionCallback as dispatch } from '../../src/card/card-extension-callback';
+import { createCardExtensionCallbackDispatcher } from '../../src/card/card-extension-callback';
+
+let dispatch = createCardExtensionCallbackDispatcher();
 
 const handler = vi.fn();
 const log = { debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
 const content = { cardPrivateData: { actionIds: ['save'], params: { form: { title: { value: 'text' }, count: 2 } } } };
 const payload = () => ({ userId: 'real-user', outTrackId: 'ocx1.main.example.card-1', content: JSON.stringify(content) });
 beforeEach(() => {
+    dispatch = createCardExtensionCallbackDispatcher();
     delete (globalThis as any)[Symbol.for('openclaw.dingtalk.card-extensions')];
     register({ accountId: 'main', namespace: 'example', onAction: handler });
 });

@@ -10,7 +10,7 @@ import type { SessionEntry } from "openclaw/plugin-sdk/session-store-runtime";
 import { recoverAskUserQuestionsForAccount } from "../card/ask-user-question";
 import { handleCardAction } from "../card/card-action-handler";
 import { analyzeCardCallback } from "../card/card-callback-service";
-import { dispatchCardExtensionCallback } from "../card/card-extension-callback";
+import { createCardExtensionCallbackDispatcher } from "../card/card-extension-callback";
 import { bindCardExtensionTransport } from "../card/card-extension-registry";
 import { createCardExtensionTransport } from "../card/card-extension-service";
 import { finalizeActiveCardsForAccount, recoverPendingCardsForAccount } from "../card/card-service";
@@ -375,19 +375,25 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
       // is read at call time so reconnects do not require consumer re-registration.
       let cardTransportActive = true;
       let cardTransportConnected = false;
+      const useConnectionManager = config.useConnectionManager ?? true;
+      let nativeClient: DWClient | undefined;
+      // Shared by replacement Stream clients throughout this account lifecycle.
+      const dispatchCardExtensionCallback = createCardExtensionCallbackDispatcher();
       const releaseCardTransport = bindCardExtensionTransport(
         account.accountId,
         createCardExtensionTransport({
           config,
           log: pluginLog,
-          isConnected: () => cardTransportActive && cardTransportConnected && !abortSignal?.aborted,
+          isConnected: () =>
+            cardTransportActive &&
+            !abortSignal?.aborted &&
+            (useConnectionManager ? cardTransportConnected : nativeClient?.connected === true),
         }),
       );
       const closeCardTransport = () => {
         cardTransportActive = false;
         releaseCardTransport();
       };
-      const useConnectionManager = config.useConnectionManager ?? true;
       const applyStatusPatch = (patch: Record<string, unknown>) => {
         if (typeof patch.connected === "boolean") {
           cardTransportConnected = patch.connected;
@@ -515,12 +521,14 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
 
         client.registerCallbackListener(TOPIC_CARD, async (res: any) => {
           const messageId = res.headers?.messageId;
+          let acknowledged = false;
           const acknowledge = () => {
-            if (!messageId) {
+            if (!messageId || acknowledged) {
               return;
             }
             try {
               client.socketCallBackResponse(messageId, { success: true });
+              acknowledged = true;
             } catch (ackError: any) {
               pluginLog?.warn?.(
                 `[${account.accountId}] Failed to acknowledge card callback ${messageId}: ${ackError.message}`,
@@ -535,6 +543,7 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
                 accountId: account.accountId,
                 payload,
                 callbackId: messageId,
+                acknowledge,
                 log: pluginLog,
               })
             ) {
@@ -608,6 +617,10 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
       };
 
       const client = createStreamClient();
+      if (!useConnectionManager) {
+        // Native SDK reconnects update this property without client-level events.
+        nativeClient = client;
+      }
 
       let stopped = false;
       let nativeStopResolve: (() => void) | undefined;

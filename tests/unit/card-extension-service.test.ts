@@ -77,4 +77,14 @@ describe('card extension transport', () => {
         expect(getCardExtensionStatus('default')).toBe('not-connected');
         expect(mocks.token).not.toHaveBeenCalled();
     });
+    it('honors explicit default account overrides instead of top-level credentials/enabled', () => {
+        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { default: { ...config, enabled: false } } } } } as any);
+        expect(getCardExtensionStatus('default')).toBe('account-disabled');
+        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { default: { clientId: '', clientSecret: '' } } } } } as any);
+        expect(getCardExtensionStatus('default')).toBe('account-unconfigured');
+    });
+    it('inherits top-level defaults for an explicitly configured default account', () => {
+        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { default: { name: 'Default' } } } } } as any);
+        expect(getCardExtensionStatus('default')).toBe('not-connected');
+    });
 });
