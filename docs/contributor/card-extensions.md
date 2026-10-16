@@ -31,6 +31,8 @@ import { registerDingTalkCardExtension } from '@soimy/dingtalk/card-extensions';
 
 必须在插件 **同步 `register(api)` 阶段**调用一次注册函数，不能放进异步初始化、定时器或服务 `start()`。宿主才能把处理器登记到本轮正在构建的插件注册表，在激活、卸载、重载时正确切换。注册不需要 Channel 已连接，也不访问网络。
 
+需要在 Gateway 启动时运行后台服务或恢复历史卡片的消费者，应在自己的 `openclaw.plugin.json` 中声明 `"activation": { "onStartup": true }`。按需激活的宿主不保证仅凭插件启用配置就执行此类插件的启动服务；业务服务仍在 `registerService()` 中定义，卡片处理器仍在同步 `register()` 中注册。
+
 下面示例假设模板有 `title`、`status` 变量，`note` 文本表单项和 `save` 动作。配置读取与已鉴权业务入口由消费者提供。
 
 ```ts
