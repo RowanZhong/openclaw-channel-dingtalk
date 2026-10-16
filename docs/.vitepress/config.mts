@@ -170,6 +170,7 @@ export default defineConfig({
             { text: '仓库 TODO', link: '/contributor/todo' },
             { text: '本地开发', link: '/contributor/development' },
             { text: '测试与验证', link: '/contributor/testing' },
+            { text: '自定义卡片扩展接口', link: '/contributor/card-extensions' },
             { text: 'NPM 发布', link: '/contributor/npm-publish' },
             { text: '架构说明（中文详版）', link: '/contributor/architecture.zh-CN' },
             { text: 'Persistence API 使用指南', link: '/contributor/reference/persistence-api-usage.zh-CN' },

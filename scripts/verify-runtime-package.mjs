@@ -8,7 +8,13 @@ const output = execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scr
 });
 const [pack] = JSON.parse(output);
 const files = new Set(pack.files.map((file) => String(file.path).replace(/^package\//u, "")));
-const requiredFiles = ["dist/index.js", "dist/index.d.ts", "openclaw.plugin.json"];
+const requiredFiles = [
+  "dist/index.js",
+  "dist/index.d.ts",
+  "dist/card-extensions.js",
+  "dist/src/card/card-extension-api.d.ts",
+  "openclaw.plugin.json",
+];
 const missingFiles = requiredFiles.filter((file) => !files.has(file));
 const sourceMaps = [...files].filter((file) => file.endsWith(".map"));
 
