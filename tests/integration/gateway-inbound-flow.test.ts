@@ -1,3 +1,4 @@
+import { createCardExtensionHost } from "../unit/fixtures/card-extension-host";
 import { registerDingTalkCardExtension } from "../../src/card/card-extension-api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -73,6 +74,8 @@ vi.mock("../../src/messaging/send-service", () => ({
 
 import { CHANNEL_INFLIGHT_NAMESPACE_POLICY, dingtalkPlugin } from "../../src/channel";
 
+let cardHost: ReturnType<typeof createCardExtensionHost>;
+
 const startGatewayAccount = (ctx: any) => dingtalkPlugin.gateway!.startAccount!(ctx);
 
 function createStartContext() {
@@ -86,6 +89,7 @@ function createStartContext() {
 
   return {
     cfg: {},
+    channelRuntime: cardHost.channelRuntime,
     account: {
       accountId: "main",
       config: { clientId: "ding_id", clientSecret: "ding_secret" },
@@ -105,6 +109,7 @@ function createStartContext() {
 
 describe("gateway inbound callback pipeline", () => {
   beforeEach(() => {
+    cardHost = createCardExtensionHost();
     shared.connectMock.mockReset();
     shared.waitForStopMock.mockReset();
     shared.stopMock.mockReset();
@@ -464,21 +469,17 @@ describe("gateway inbound callback pipeline", () => {
   it.each(["save", "feedback_up", "btn_stop"])("ACKs extension %s without builtin or Agent fallthrough", async (actionId) => {
     const ctx = createStartContext();
     const handler = vi.fn().mockRejectedValue(new Error("private-form-text"));
-    const extension = registerDingTalkCardExtension({ accountId: "main", namespace: "test", onAction: handler });
-    try {
-      await startGatewayAccount(ctx);
-      await shared.listeners.TOPIC_CARD({ headers: { messageId: "extension-event" }, data: JSON.stringify({
-        outTrackId: "ocx1.main.test.card1", userId: "owner", spaceType: "im",
-        content: { cardPrivateData: { actionIds: [actionId], params: { form: { note: "private-form-text" } } } },
-      }) });
-      expect(handler).toHaveBeenCalledOnce();
-      expect(shared.socketCallBackResponseMock).toHaveBeenCalledWith("extension-event", { success: true });
-      expect(shared.sendProactiveTextMock).not.toHaveBeenCalled();
-      expect(shared.handleDingTalkMessageMock).not.toHaveBeenCalled();
-      expect(JSON.stringify([ctx.log.info.mock.calls, ctx.log.error.mock.calls])).not.toContain("private-form-text");
-    } finally {
-      extension.dispose();
-    }
+    cardHost.register(() => registerDingTalkCardExtension(cardHost.api() as any, { accountId: "main", namespace: "test", onAction: handler }));
+    await startGatewayAccount(ctx);
+    await shared.listeners.TOPIC_CARD({ headers: { messageId: "extension-event" }, data: JSON.stringify({
+      outTrackId: "ocx1.main.test.card1", userId: "owner", spaceType: "im",
+      content: { cardPrivateData: { actionIds: [actionId], params: { form: { note: "private-form-text" } } } },
+    }) });
+    expect(handler).toHaveBeenCalledOnce();
+    expect(shared.socketCallBackResponseMock).toHaveBeenCalledWith("extension-event", { success: true });
+    expect(shared.sendProactiveTextMock).not.toHaveBeenCalled();
+    expect(shared.handleDingTalkMessageMock).not.toHaveBeenCalled();
+    expect(JSON.stringify([ctx.log.info.mock.calls, ctx.log.error.mock.calls])).not.toContain("private-form-text");
   });
 
 });

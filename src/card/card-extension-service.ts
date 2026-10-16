@@ -1,33 +1,10 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { getAccessToken } from "../platform/auth";
-import {
-  listDingTalkAccountIds,
-  resolveDingTalkAccount,
-  resolveRobotCode,
-} from "../platform/config";
+import { resolveRobotCode } from "../platform/config";
 import type { DingTalkConfig, Logger } from "../platform/types";
 import httpClient from "../shared/http-client";
 import { getProxyBypassOption } from "../shared/utils";
-import { getCardExtensionRegistry } from "./card-extension-registry";
-import type { CardExtensionTransport } from "./card-extension-registry";
+import type { CardExtensionTransport } from "./card-extension-runtime";
 import { DingTalkCardExtensionError } from "./card-extension-types";
-
-/** Registration is local-only. Disabled/unknown accounts must not inherit default credentials. */
-export function configureCardExtensions(cfg: OpenClawConfig): void {
-  getCardExtensionRegistry().accountStatus = (accountId) => {
-    if (!listDingTalkAccountIds(cfg).includes(accountId)) {
-      return "account-unconfigured";
-    }
-    const account = resolveDingTalkAccount(cfg, accountId);
-    if (
-      (cfg.channels?.dingtalk as { enabled?: boolean } | undefined)?.enabled === false ||
-      account.enabled === false
-    ) {
-      return "account-disabled";
-    }
-    return account.configured ? "configured" : "account-unconfigured";
-  };
-}
 
 export function createCardExtensionTransport(params: {
   config: DingTalkConfig;

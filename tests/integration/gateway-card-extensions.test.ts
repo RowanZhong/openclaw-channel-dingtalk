@@ -43,7 +43,7 @@ vi.mock('../../src/shared/utils', async (importOriginal) => ({
 
 import { createDingTalkGateway } from '../../src/gateway/channel-gateway';
 import { registerDingTalkCardExtension } from '../../src/card/card-extension-api';
-import { configureCardExtensions } from '../../src/card/card-extension-service';
+import { createCardExtensionHost } from '../unit/fixtures/card-extension-host';
 import { getConfig, resolveDingTalkAccount } from '../../src/platform/config';
 import { ConnectionState } from '../../src/platform/types';
 
@@ -55,8 +55,9 @@ const event = (messageId = 'event1') => ({
         content: { cardPrivateData: { actionIds: ['save'], params: { form: { note: 'private-text' } } } } }),
 });
 let stops: Array<() => Promise<unknown>>;
+let host: ReturnType<typeof createCardExtensionHost>;
 beforeEach(() => {
-    delete (globalThis as any)[Symbol.for('openclaw.dingtalk.card-extensions')];
+    host = createCardExtensionHost();
     shared.clients = [];
     shared.managers = [];
     stops = [];
@@ -69,16 +70,15 @@ afterEach(async () => { for (const stop of stops) await stop(); });
 async function start(onAction = vi.fn(), useConnectionManager = false, nested = false) {
     const config = { ...credentials, useConnectionManager };
     const cfg: any = { channels: { dingtalk: nested ? { accounts: { default: config } } : config } };
-    configureCardExtensions(cfg);
-    const extension = registerDingTalkCardExtension({ accountId: 'default', namespace: 'test', onAction });
+    const extension = host.register(() => registerDingTalkCardExtension(host.api() as any, { accountId: 'default', namespace: 'test', onAction }));
     const controller = new AbortController();
     let status: any = {};
     const run = createDingTalkGateway().startAccount!({
-        cfg, account: { accountId: 'default', config: getConfig(cfg, 'default') },
+        cfg, channelRuntime: host.channelRuntime, account: { accountId: 'default', config: getConfig(cfg, 'default') },
         abortSignal: controller.signal, getStatus: () => status, setStatus: (next: any) => { status = next; },
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     } as any);
-    stops.push(async () => { controller.abort(); await run; extension.dispose(); });
+    stops.push(async () => { controller.abort(); await run; });
     await vi.waitFor(() => expect(status.connected).toBe(true));
     return { extension, controller, client: shared.clients.at(-1), cfg };
 }
@@ -87,7 +87,7 @@ describe('card extension gateway regressions', () => {
     it('sends and updates with credentials only in accounts.default', async () => {
         const { extension, cfg } = await start(vi.fn(), false, true);
         expect(resolveDingTalkAccount(cfg)).toMatchObject({ ...credentials, configured: true });
-        expect(extension.getStatus()).toBe('ready');
+        expect(extension.isReady()).toBe(true);
         await extension.sendCard(sendInput);
         await extension.updateCard({ cardId: 'card1', variables: { title: 'Updated' } });
         expect(shared.token).toHaveBeenCalledWith(expect.objectContaining(credentials), expect.anything());
@@ -118,41 +118,41 @@ describe('card extension gateway regressions', () => {
         expect(shared.inbound).not.toHaveBeenCalled();
     });
 
-    it('ACKs a throwing handler once and does not repeat uncertain effects on redelivery', async () => {
+    it('ACKs each delivery and releases a throwing handler for retry', async () => {
         const handler = vi.fn(() => { throw new Error('private-text'); });
         const { client } = await start(handler);
         await client.listeners.card(event());
         await client.listeners.card(event());
-        expect(handler).toHaveBeenCalledOnce();
+        expect(handler).toHaveBeenCalledTimes(2);
         expect(client.socketCallBackResponse).toHaveBeenCalledTimes(2);
         expect(shared.builtin).not.toHaveBeenCalled();
     });
 
     it('tracks native disconnect/reconnect directly from SDK state and rejects sends while down', async () => {
         const { extension, client, controller } = await start();
-        expect(extension.getStatus()).toBe('ready');
+        expect(extension.isReady()).toBe(true);
         client.connected = false; // Native SDK does not emit a client-level close event.
-        expect(extension.getStatus()).toBe('not-connected');
+        expect(extension.isReady()).toBe(false);
         await expect(extension.sendCard(sendInput)).rejects.toMatchObject({ code: 'not-connected' });
         await expect(extension.updateCard({ cardId: 'card1', variables: { title: 'Test' } })).rejects.toMatchObject({ code: 'not-connected' });
         expect(shared.token).not.toHaveBeenCalled();
         expect(shared.post).not.toHaveBeenCalled();
         expect(shared.put).not.toHaveBeenCalled();
         client.connected = true;
-        expect(extension.getStatus()).toBe('ready');
+        expect(extension.isReady()).toBe(true);
         await extension.sendCard(sendInput);
         controller.abort();
         client.connected = true; // A late SDK notification must not revive a stopped transport.
-        expect(extension.getStatus()).toBe('not-connected');
+        expect(extension.isReady()).toBe(false);
     });
 
     it('keeps managed reconnect readiness tied to the connection manager', async () => {
         const { extension } = await start(vi.fn(), true);
         const manager = shared.managers[0];
-        expect(extension.getStatus()).toBe('ready');
+        expect(extension.isReady()).toBe(true);
         manager.config.onStateChange(ConnectionState.DISCONNECTED);
-        expect(extension.getStatus()).toBe('not-connected');
+        expect(extension.isReady()).toBe(false);
         manager.config.onStateChange(ConnectionState.CONNECTED);
-        expect(extension.getStatus()).toBe('ready');
+        expect(extension.isReady()).toBe(true);
     });
 });

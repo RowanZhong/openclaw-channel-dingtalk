@@ -1,4 +1,4 @@
-import { getCardExtensionRegistry } from "../../src/card/card-extension-registry";
+import { createCardExtensionHost } from "../unit/fixtures/card-extension-host";
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -92,6 +92,8 @@ import {
     upsertObservedUserTarget,
 } from '../../src/targeting/target-directory-store';
 
+let cardHost: ReturnType<typeof createCardExtensionHost>;
+
 const startGatewayAccount = (ctx: any): Promise<any> => dingtalkPlugin.gateway!.startAccount!(ctx as any);
 
 function createStartContext(abortSignal?: AbortSignal) {
@@ -108,6 +110,7 @@ function createStartContext(abortSignal?: AbortSignal) {
     return {
         ctx: {
             cfg: {},
+            channelRuntime: cardHost.channelRuntime,
             account: {
                 accountId: 'main',
                 config: { clientId: 'ding_id', clientSecret: 'ding_secret' },
@@ -131,6 +134,7 @@ function createStartContext(abortSignal?: AbortSignal) {
 
 describe('gateway.startAccount lifecycle', () => {
     beforeEach(() => {
+        cardHost = createCardExtensionHost();
         shared.connectMock.mockReset();
         shared.waitForStopMock.mockReset();
         shared.stopMock.mockReset();
@@ -409,7 +413,7 @@ describe('gateway.startAccount lifecycle', () => {
     it('binds extension transport to connection state and releases it on stop', async () => {
         const { ctx } = createStartContext();
         const result = await startGatewayAccount(ctx as any);
-        const transport = getCardExtensionRegistry().transports.get('main');
+        const transport = cardHost.getTransport('main');
         expect(transport?.isConnected()).toBe(true);
         shared.connectionConfig.onStateChange('DISCONNECTED');
         expect(transport?.isConnected()).toBe(false);
@@ -417,18 +421,18 @@ describe('gateway.startAccount lifecycle', () => {
         expect(transport?.isConnected()).toBe(true);
         result.stop();
         expect(transport?.isConnected()).toBe(false);
-        expect(getCardExtensionRegistry().transports.has('main')).toBe(false);
+        expect(cardHost.getTransport('main')).toBeUndefined();
     });
 
     it('does not reuse stale host connectivity before the new client connects', async () => {
         const { ctx } = createStartContext();
         (ctx.getStatus() as any).connected = true;
         shared.connectMock.mockImplementation(async () => {
-            expect(getCardExtensionRegistry().transports.get('main')?.isConnected()).toBe(false);
+            expect(cardHost.getTransport('main')?.isConnected()).toBe(false);
             throw new Error('connection unavailable');
         });
         await expect(startGatewayAccount(ctx as any)).rejects.toThrow('connection unavailable');
-        expect(getCardExtensionRegistry().transports.has('main')).toBe(false);
+        expect(cardHost.getTransport('main')).toBeUndefined();
     });
 
 });

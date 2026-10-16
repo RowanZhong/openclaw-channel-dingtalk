@@ -1,110 +1,128 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerDingTalkCardExtension as register } from '../../src/card/card-extension-api';
-import { bindCardExtensionTransport, getCardExtensionRegistry } from '../../src/card/card-extension-registry';
+import { createCardExtensionHost } from './fixtures/card-extension-host';
 
-const registryKey = Symbol.for('openclaw.dingtalk.card-extensions');
 const options = { accountId: 'main', namespace: 'example', onAction: vi.fn() };
 const input = { cardId: 'card-1', userId: 'user-1', templateId: 'example.schema', variables: { title: 'Hello' } };
 const transport = () => ({ isConnected: () => true, send: vi.fn().mockResolvedValue(undefined), update: vi.fn().mockResolvedValue(undefined) });
+let host: ReturnType<typeof createCardExtensionHost>;
+const extension = (opts = options) => host.register(() => register(host.api() as any, opts));
+beforeEach(() => { host = createCardExtensionHost(); });
 
-beforeEach(() => { delete (globalThis as any)[registryKey]; });
-
-describe('card extension public API', () => {
-    it('registers before the Channel loads without starting services', async () => {
-        const extension = register(options);
-        expect(extension.getStatus()).toBe('unavailable');
-        await expect(extension.sendCard(input)).rejects.toMatchObject({ code: 'unavailable' });
+describe('card extension public API with the installed host SDK', () => {
+    it('registers synchronously before a transport exists and exposes only the small business API', async () => {
+        const client = extension();
+        expect(client.isReady()).toBe(false);
+        expect(Object.keys(client).sort()).toEqual(['isReady', 'sendCard', 'updateCard']);
+        await expect(client.sendCard(input)).rejects.toMatchObject({ code: 'unavailable' });
+        expect(host.registrations()).toEqual([expect.objectContaining({
+            channel: 'dingtalk', namespace: 'ocx1.main.example', pluginId: 'consumer',
+            pluginName: 'Plugin consumer', pluginRoot: '/plugins/consumer',
+        })]);
     });
-    it('reports disabled, unconfigured and disconnected states without HTTP', async () => {
-        const extension = register(options);
-        const registry = getCardExtensionRegistry();
-        for (const state of ['account-disabled', 'account-unconfigured', 'configured'] as const) {
-            registry.accountStatus = () => state;
-            const expected = state === 'configured' ? 'not-connected' : state;
-            expect(extension.getStatus()).toBe(expected);
-            await expect(extension.updateCard(input)).rejects.toMatchObject({ code: expected });
+    it('rejects an absent runtime before registering a handler', () => {
+        for (const api of [{ id: 'consumer' }, { id: 'consumer', runtime: { channel: {} } }]) {
+            expect(() => register(api as any, options)).toThrow(expect.objectContaining({ code: 'unavailable' }));
         }
+        expect(host.registrations()).toHaveLength(0);
     });
-    it('follows account connectivity and uses stable account-scoped IDs', async () => {
-        getCardExtensionRegistry().accountStatus = () => 'configured';
+    it('loses readiness when the host aborts the account transport lease', async () => {
+        const client = extension();
+        const controller = new AbortController();
+        host.bind('main', transport(), controller.signal);
+        expect(client.isReady()).toBe(true);
+        controller.abort();
+        expect(client.isReady()).toBe(false);
+        await expect(client.updateCard(input)).rejects.toMatchObject({ code: 'unavailable' });
+    });
+    it('follows scoped transport readiness and returns no wire identifiers', async () => {
         let connected = true;
         const first = transport();
         first.isConnected = () => connected;
-        bindCardExtensionTransport('main', first);
-        const extension = register(options);
-        expect(await extension.sendCard(input)).toEqual({ outTrackId: 'ocx1.main.example.card-1' });
-        await extension.updateCard(input);
+        host.bind('main', first);
+        const client = extension();
+        expect(client.isReady()).toBe(true);
+        expect(await client.sendCard(input)).toBeUndefined();
+        expect(await client.updateCard(input)).toBeUndefined();
+        expect(first.send).toHaveBeenCalledWith(expect.objectContaining({ outTrackId: 'ocx1.main.example.card-1' }));
         expect(first.update).toHaveBeenCalledWith(expect.objectContaining({ outTrackId: 'ocx1.main.example.card-1' }));
         const second = transport();
-        bindCardExtensionTransport('other', second);
-        await register({ ...options, accountId: 'other' }).sendCard(input);
+        host.bind('other', second);
+        await extension({ ...options, accountId: 'other' }).sendCard(input);
         expect(second.send).toHaveBeenCalledWith(expect.objectContaining({ outTrackId: 'ocx1.other.example.card-1' }));
         connected = false;
-        await expect(extension.sendCard(input)).rejects.toMatchObject({ code: 'not-connected' });
+        expect(client.isReady()).toBe(false);
+        await expect(client.sendCard(input)).rejects.toMatchObject({ code: 'not-connected' });
         expect(first.send).toHaveBeenCalledTimes(1);
         connected = true;
-        expect(extension.getStatus()).toBe('ready');
+        expect(client.isReady()).toBe(true);
     });
-    it('rejects duplicate exact namespaces and allows distinct namespaces', () => {
-        register(options);
-        expect(() => register(options)).toThrow(expect.objectContaining({ code: 'namespace-conflict' }));
-        expect(() => register({ ...options, namespace: 'example-more' })).not.toThrow();
-        expect(() => register({ ...options, accountId: 'other' })).not.toThrow();
+    it('uses host-owned exact namespace conflicts and allows account/namespace separation', () => {
+        extension();
+        expect(() => extension()).toThrow(expect.objectContaining({ code: 'namespace-conflict' }));
+        expect(() => extension({ ...options, namespace: 'example-more' })).not.toThrow();
+        expect(() => extension({ ...options, accountId: 'other' })).not.toThrow();
     });
-    it('disposes idempotently without deleting a replacement registration', async () => {
-        const old = register(options);
-        old.dispose();
-        const replacement = register(options);
-        old.dispose();
-        expect(getCardExtensionRegistry().registrations.size).toBe(1);
-        expect(replacement.getStatus()).toBe('unavailable');
-        expect(old.getStatus()).toBe('disposed');
-        await expect(old.sendCard(input)).rejects.toMatchObject({ code: 'disposed' });
+    it('registers anew after the host replaces its plugin registry', () => {
+        extension();
+        host.reload();
+        expect(host.registrations()).toHaveLength(0);
+        expect(() => extension()).not.toThrow();
+        expect(host.registrations()).toHaveLength(1);
     });
-    it('does not let a stale lifecycle release a newer account transport', () => {
-        const releaseOld = bindCardExtensionTransport('main', transport());
+    it('does not let a stale lease release a replacement transport', () => {
+        const first = host.bind('main', transport());
         const next = transport();
-        const releaseNew = bindCardExtensionTransport('main', next);
-        releaseOld();
-        expect(getCardExtensionRegistry().transports.get('main')).toBe(next);
-        releaseNew();
-        expect(getCardExtensionRegistry().transports.size).toBe(0);
+        const second = host.bind('main', next);
+        first.dispose();
+        expect(host.getTransport('main')).toBe(next);
+        second.dispose();
+        expect(host.getTransport('main')).toBeUndefined();
+    });
+    it('isolates runtime-context instances and requires the exact capability', () => {
+        const first = extension();
+        const otherHost = createCardExtensionHost();
+        otherHost.bind('main', transport());
+        expect(first.isReady()).toBe(false);
+        host.channelRuntime.runtimeContexts.register({ channelId: 'dingtalk', accountId: 'main', capability: 'other', context: transport() });
+        expect(first.isReady()).toBe(false);
+        host.bind('main', transport());
+        expect(first.isReady()).toBe(true);
+    });
+    it.each([null, {}, { isConnected: true }, { isConnected: () => true, send: () => {} }])('rejects malformed host capability %j', async (context) => {
+        const client = extension();
+        host.bind('main', context);
+        expect(client.isReady()).toBe(false);
+        await expect(client.sendCard(input)).rejects.toMatchObject({ code: 'unavailable' });
     });
     it.each([
         { accountId: '../other' }, { namespace: '*' }, { namespace: 'a.b' },
         { namespace: 'A' }, { namespace: 'x'.repeat(33) }, { onAction: null },
     ])('rejects invalid registration %j', (change) => {
-        expect(() => register({ ...options, ...change } as any)).toThrow(expect.objectContaining({ code: 'invalid-argument' }));
+        expect(() => extension({ ...options, ...change } as any)).toThrow(expect.objectContaining({ code: 'invalid-argument' }));
     });
     it('rejects card route escapes and malformed variables before transport', async () => {
-        const extension = register(options);
+        const client = extension();
         for (const change of [
             { cardId: 'other.card' }, { cardId: '' }, { templateId: 'https://other' },
             { userId: 'x/y' }, { variables: { x: 1 } }, { variables: {} },
             { variables: { x: 'x'.repeat(256 * 1024) } },
-        ]) {
-            await expect(extension.sendCard({ ...input, ...change } as any)).rejects.toMatchObject({ code: 'invalid-argument' });
-        }
+        ]) await expect(client.sendCard({ ...input, ...change } as any)).rejects.toMatchObject({ code: 'invalid-argument' });
     });
     it('rejects overlong composed IDs', async () => {
-        const extension = register({ ...options, accountId: 'x'.repeat(64) });
-        await expect(extension.updateCard({ ...input, cardId: 'y'.repeat(64) })).rejects.toMatchObject({ code: 'invalid-argument' });
+        const client = extension({ ...options, accountId: 'x'.repeat(64) });
+        await expect(client.updateCard({ ...input, cardId: 'y'.repeat(64) })).rejects.toMatchObject({ code: 'invalid-argument' });
     });
     it('snapshots the registration and variables against caller mutation', async () => {
-        getCardExtensionRegistry().accountStatus = () => 'configured';
         const t = transport();
-        bindCardExtensionTransport('main', t);
+        host.bind('main', t);
         const config = { ...options };
-        const extension = register(config);
+        const client = extension(config);
         config.accountId = 'other';
         const variables = { title: 'original' };
-        const pending = extension.sendCard({ ...input, variables });
+        const pending = client.sendCard({ ...input, variables });
         variables.title = 'mutated';
         await pending;
         expect(t.send).toHaveBeenCalledWith(expect.objectContaining({ variables: { title: 'original' } }));
-    });
-    it('fails explicitly on registry protocol mismatch', () => {
-        (globalThis as any)[registryKey] = { version: 2 };
-        expect(() => register(options)).toThrow(expect.objectContaining({ code: 'version-mismatch' }));
     });
 });

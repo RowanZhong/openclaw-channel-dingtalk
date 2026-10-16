@@ -1,11 +1,10 @@
-import {
-  cardExtensionKey,
-  getCardExtensionRegistry,
-  getCardExtensionStatus,
-} from "./card-extension-registry.js";
+import { registerPluginInteractiveHandler } from "openclaw/plugin-sdk/plugin-runtime";
+import { cardExtensionNamespace, getCardExtensionTransport } from "./card-extension-runtime.js";
 import { DingTalkCardExtensionError } from "./card-extension-types.js";
 import type {
   DingTalkCardExtension,
+  DingTalkCardExtensionApi,
+  DingTalkCardAction,
   DingTalkCardExtensionOptions,
   DingTalkCardVariables,
 } from "./card-extension-types.js";
@@ -42,8 +41,9 @@ function copyVariables(value: DingTalkCardVariables): Record<string, string> {
   return copy;
 }
 
-/** No network, Channel import, timers or service startup occurs during registration. */
+/** Call synchronously from plugin register(): the host owns registration and reload cleanup. */
 export function registerDingTalkCardExtension(
+  api: DingTalkCardExtensionApi,
   options: DingTalkCardExtensionOptions,
 ): DingTalkCardExtension {
   validateString(options?.accountId, /^[a-zA-Z0-9_-]{1,64}$/, "accountId");
@@ -51,25 +51,51 @@ export function registerDingTalkCardExtension(
   if (typeof options.onAction !== "function") {
     throw new DingTalkCardExtensionError("invalid-argument", "onAction must be a function");
   }
-  const registration = { ...options };
-  const { accountId, namespace } = registration;
-  const registry = getCardExtensionRegistry();
-  const key = cardExtensionKey(accountId, namespace);
-  if (registry.registrations.has(key)) {
+  if (!api?.id || !api.runtime?.channel?.runtimeContexts) {
+    throw new DingTalkCardExtensionError("unavailable", "OpenClaw channel runtime is required");
+  }
+  const { accountId, namespace, onAction } = options;
+  const channelRuntime = api.runtime.channel;
+  const registration = registerPluginInteractiveHandler(
+    api.id,
+    {
+      channel: "dingtalk",
+      namespace: cardExtensionNamespace(accountId, namespace),
+      async handler(value: unknown) {
+        if (!value || typeof value !== "object") {
+          return;
+        }
+        const action = value as DingTalkCardAction & { accountId?: string; namespace?: string };
+        if (action.accountId !== accountId || action.namespace !== namespace) {
+          return;
+        }
+        // Only the Channel constructs this envelope. Do not expose its routing fields.
+        await onAction({
+          cardId: action.cardId,
+          userId: action.userId,
+          actionIds: action.actionIds,
+          form: action.form,
+          ...(action.callbackId ? { callbackId: action.callbackId } : {}),
+        });
+      },
+    },
+    { pluginName: api.name, pluginRoot: api.rootDir },
+  );
+  if (!registration.ok) {
     throw new DingTalkCardExtensionError(
       "namespace-conflict",
       "Card extension namespace already registered for this account",
     );
   }
-  registry.registrations.set(key, registration);
-  let disposed = false;
-  const getStatus = () => (disposed ? ("disposed" as const) : getCardExtensionStatus(accountId));
   const getTransport = () => {
-    const status = getStatus();
-    if (status !== "ready") {
-      throw new DingTalkCardExtensionError(status, `DingTalk card extension is ${status}`);
+    const transport = getCardExtensionTransport(channelRuntime, accountId);
+    if (!transport) {
+      throw new DingTalkCardExtensionError("unavailable", "DingTalk card transport is unavailable");
     }
-    return registry.transports.get(accountId)!;
+    if (!transport.isConnected()) {
+      throw new DingTalkCardExtensionError("not-connected", "DingTalk account disconnected");
+    }
+    return transport;
   };
   const trackId = (cardId: string) => {
     validateString(cardId, /^[a-zA-Z0-9_-]{1,64}$/, "cardId");
@@ -83,7 +109,7 @@ export function registerDingTalkCardExtension(
     return value;
   };
   return {
-    getStatus,
+    isReady: () => getCardExtensionTransport(channelRuntime, accountId)?.isConnected() === true,
     async sendCard(input) {
       const outTrackId = trackId(input?.cardId);
       validateString(input.templateId, /^[a-zA-Z0-9._-]{1,128}$/, "templateId");
@@ -96,19 +122,11 @@ export function registerDingTalkCardExtension(
         variables,
         outTrackId,
       });
-      return { outTrackId };
     },
     async updateCard(input) {
       const outTrackId = trackId(input?.cardId);
       const variables = copyVariables(input.variables);
       await getTransport().update({ cardId: input.cardId, variables, outTrackId });
-      return { outTrackId };
-    },
-    dispose() {
-      disposed = true;
-      if (registry.registrations.get(key) === registration) {
-        registry.registrations.delete(key);
-      }
     },
   };
 }

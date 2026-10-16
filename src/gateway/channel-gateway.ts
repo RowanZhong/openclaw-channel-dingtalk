@@ -1,5 +1,6 @@
 import { DWClient, TOPIC_CARD, TOPIC_ROBOT } from "dingtalk-stream";
 import { listAgentIds } from "openclaw/plugin-sdk/agent-runtime";
+import { registerChannelRuntimeContext } from "openclaw/plugin-sdk/channel-runtime-context";
 import {
   deliveryContextFromSession,
   sessionDeliveryChannel,
@@ -10,8 +11,8 @@ import type { SessionEntry } from "openclaw/plugin-sdk/session-store-runtime";
 import { recoverAskUserQuestionsForAccount } from "../card/ask-user-question";
 import { handleCardAction } from "../card/card-action-handler";
 import { analyzeCardCallback } from "../card/card-callback-service";
-import { createCardExtensionCallbackDispatcher } from "../card/card-extension-callback";
-import { bindCardExtensionTransport } from "../card/card-extension-registry";
+import { dispatchCardExtensionCallback } from "../card/card-extension-callback";
+import { CARD_EXTENSION_CAPABILITY } from "../card/card-extension-runtime";
 import { createCardExtensionTransport } from "../card/card-extension-service";
 import { finalizeActiveCardsForAccount, recoverPendingCardsForAccount } from "../card/card-service";
 import {
@@ -377,11 +378,13 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
       let cardTransportConnected = false;
       const useConnectionManager = config.useConnectionManager ?? true;
       let nativeClient: DWClient | undefined;
-      // Shared by replacement Stream clients throughout this account lifecycle.
-      const dispatchCardExtensionCallback = createCardExtensionCallbackDispatcher();
-      const releaseCardTransport = bindCardExtensionTransport(
-        account.accountId,
-        createCardExtensionTransport({
+      const cardTransportLease = registerChannelRuntimeContext({
+        channelRuntime: ctx.channelRuntime,
+        channelId: "dingtalk",
+        accountId: account.accountId,
+        capability: CARD_EXTENSION_CAPABILITY,
+        abortSignal,
+        context: createCardExtensionTransport({
           config,
           log: pluginLog,
           isConnected: () =>
@@ -389,10 +392,10 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
             !abortSignal?.aborted &&
             (useConnectionManager ? cardTransportConnected : nativeClient?.connected === true),
         }),
-      );
+      });
       const closeCardTransport = () => {
         cardTransportActive = false;
-        releaseCardTransport();
+        cardTransportLease?.dispose();
       };
       const applyStatusPatch = (patch: Record<string, unknown>) => {
         if (typeof patch.connected === "boolean") {

@@ -1,17 +1,11 @@
+import type { CardExtensionChannelRuntime } from "./card-extension-runtime.js";
+
 /** Variables must already be encoded as DingTalk cardParamMap strings. */
 export type DingTalkCardVariables = Readonly<Record<string, string>>;
 
-export type DingTalkCardExtensionStatus =
-  | "ready"
-  | "unavailable"
-  | "account-unconfigured"
-  | "account-disabled"
-  | "not-connected"
-  | "disposed";
-
 export type DingTalkCardExtensionErrorCode =
-  | Exclude<DingTalkCardExtensionStatus, "ready">
-  | "version-mismatch"
+  | "unavailable"
+  | "not-connected"
   | "invalid-argument"
   | "namespace-conflict"
   | "request-failed";
@@ -28,11 +22,7 @@ export class DingTalkCardExtensionError extends Error {
 }
 
 export interface DingTalkCardAction {
-  /** Supplied by the receiving Channel connection, never by form input. */
-  accountId: string;
-  namespace: string;
   cardId: string;
-  outTrackId: string;
   /** DingTalk Stream's outer userId (enterprise staffId). Authorization remains the consumer's job. */
   userId: string;
   /** Stream envelope ID, when available; not an exactly-once guarantee. */
@@ -40,6 +30,14 @@ export interface DingTalkCardAction {
   /** Untrusted template/form data. */
   actionIds: readonly string[];
   form: Readonly<Record<string, unknown>>;
+}
+
+/** Pass the real API from synchronous plugin register(), never construct a second runtime. */
+export interface DingTalkCardExtensionApi {
+  id: string;
+  name?: string;
+  rootDir?: string;
+  runtime: { channel: CardExtensionChannelRuntime };
 }
 
 export interface DingTalkCardExtensionOptions {
@@ -62,9 +60,8 @@ export interface DingTalkCardUpdateOptions {
 }
 
 export interface DingTalkCardExtension {
-  getStatus(): DingTalkCardExtensionStatus;
-  sendCard(options: DingTalkCardSendOptions): Promise<{ outTrackId: string }>;
-  updateCard(options: DingTalkCardUpdateOptions): Promise<{ outTrackId: string }>;
-  /** Stops future dispatch. Does not cancel an already executing callback or HTTP request. */
-  dispose(): void;
+  /** Advisory only: every send/update rechecks the current transport. */
+  isReady(): boolean;
+  sendCard(options: DingTalkCardSendOptions): Promise<void>;
+  updateCard(options: DingTalkCardUpdateOptions): Promise<void>;
 }

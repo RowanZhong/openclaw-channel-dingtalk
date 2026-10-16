@@ -1,24 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerDingTalkCardExtension as register } from '../../src/card/card-extension-api';
-import { createCardExtensionCallbackDispatcher } from '../../src/card/card-extension-callback';
+import { dispatchCardExtensionCallback as dispatch } from '../../src/card/card-extension-callback';
+import { createCardExtensionHost } from './fixtures/card-extension-host';
 
-let dispatch = createCardExtensionCallbackDispatcher();
+let host: ReturnType<typeof createCardExtensionHost>;
 
 const handler = vi.fn();
 const log = { debug: vi.fn(), error: vi.fn(), warn: vi.fn() };
 const content = { cardPrivateData: { actionIds: ['save'], params: { form: { title: { value: 'text' }, count: 2 } } } };
 const payload = () => ({ userId: 'real-user', outTrackId: 'ocx1.main.example.card-1', content: JSON.stringify(content) });
 beforeEach(() => {
-    dispatch = createCardExtensionCallbackDispatcher();
-    delete (globalThis as any)[Symbol.for('openclaw.dingtalk.card-extensions')];
-    register({ accountId: 'main', namespace: 'example', onAction: handler });
+    host = createCardExtensionHost();
+    host.register(() => register(host.api() as any, { accountId: 'main', namespace: 'example', onAction: handler }));
 });
 
 describe('card extension callback routing', () => {
     it('normalizes real outer identity and wrapped form values', async () => {
         expect(await dispatch({ accountId: 'main', payload: payload(), callbackId: 'event-1', log })).toBe(true);
         expect(handler).toHaveBeenCalledWith({
-            accountId: 'main', namespace: 'example', cardId: 'card-1', outTrackId: 'ocx1.main.example.card-1',
+            cardId: 'card-1',
             userId: 'real-user', callbackId: 'event-1', actionIds: ['save'], form: { title: 'text', count: 2 },
         });
     });
@@ -33,7 +33,7 @@ describe('card extension callback routing', () => {
         await dispatch({ accountId: 'main', payload: { ...payload(), content: {
             ...content, userId: 'forged', accountId: 'other', outTrackId: 'ocx1.other.other.other',
         } } });
-        expect(handler).toHaveBeenCalledWith(expect.objectContaining({ accountId: 'main', userId: 'real-user', cardId: 'card-1' }));
+        expect(handler).toHaveBeenCalledWith(expect.objectContaining({ userId: 'real-user', cardId: 'card-1' }));
     });
     it.each([undefined, '', {}, 'bad/user'])('consumes but rejects invalid outer userId %j', async (userId) => {
         expect(await dispatch({ accountId: 'main', payload: { ...payload(), userId, content: { ...content, userId: 'forged' } } })).toBe(true);
@@ -45,7 +45,7 @@ describe('card extension callback routing', () => {
     });
     it('does not route to another account or namespace', async () => {
         const other = vi.fn();
-        register({ accountId: 'other', namespace: 'example', onAction: other });
+        host.register(() => register(host.api() as any, { accountId: 'other', namespace: 'example', onAction: other }));
         expect(await dispatch({ accountId: 'other', payload: payload() })).toBe(true);
         expect(await dispatch({ accountId: 'main', payload: { ...payload(), outTrackId: 'ocx1.main.example-more.card-1' } })).toBe(true);
         expect(handler).not.toHaveBeenCalled();
@@ -78,9 +78,21 @@ describe('card extension callback routing', () => {
         }
         expect(handler).not.toHaveBeenCalled();
     });
-    it('does not dispatch after disposal', async () => {
-        const extension = register({ accountId: 'main', namespace: 'temporary', onAction: handler });
-        extension.dispose();
+    it('keeps candidate registrations isolated until the host activates that registry', async () => {
+        host.stage();
+        const replacement = vi.fn();
+        host.register(() => register(host.api() as any, { accountId: 'main', namespace: 'example', onAction: replacement }));
+        await dispatch({ accountId: 'main', payload: payload() });
+        expect(handler).toHaveBeenCalledOnce();
+        expect(replacement).not.toHaveBeenCalled();
+        host.activate();
+        await dispatch({ accountId: 'main', payload: payload() });
+        expect(handler).toHaveBeenCalledOnce();
+        expect(replacement).toHaveBeenCalledOnce();
+    });
+    it('does not dispatch a removed consumer after host registry replacement', async () => {
+        host.register(() => register(host.api() as any, { accountId: 'main', namespace: 'temporary', onAction: handler }));
+        host.reload();
         expect(await dispatch({ accountId: 'main', payload: { ...payload(), outTrackId: 'ocx1.main.temporary.card' } })).toBe(true);
         expect(handler).not.toHaveBeenCalled();
     });

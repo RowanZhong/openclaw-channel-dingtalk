@@ -2,14 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ post: vi.fn(), put: vi.fn(), token: vi.fn() }));
 vi.mock('../../src/platform/auth', () => ({ getAccessToken: mocks.token }));
 vi.mock('../../src/shared/http-client', () => ({ default: { post: mocks.post, put: mocks.put, isAxiosError: (err: any) => err?.isAxiosError === true } }));
-import { configureCardExtensions, createCardExtensionTransport } from '../../src/card/card-extension-service';
-import { getCardExtensionStatus } from '../../src/card/card-extension-registry';
+import { createCardExtensionTransport } from '../../src/card/card-extension-service';
 
 const input = { cardId: 'c1', outTrackId: 'ocx1.main.example.c1', templateId: 'example.schema', userId: 'user1', variables: { title: 'Private text' } };
 const config = { clientId: 'app-key', clientSecret: 'secret', bypassProxyForSend: true };
 const transport = () => createCardExtensionTransport({ config, isConnected: () => true });
 beforeEach(() => {
-    delete (globalThis as any)[Symbol.for('openclaw.dingtalk.card-extensions')];
     mocks.token.mockResolvedValue('test-token');
     mocks.post.mockResolvedValue({ status: 200, data: { result: { deliverResults: [{ success: true }] } } });
     mocks.put.mockResolvedValue({ status: 200, data: {} });
@@ -60,31 +58,5 @@ describe('card extension transport', () => {
     it('does not expose token resolution errors', async () => {
         mocks.token.mockRejectedValue(new Error('secret from token response'));
         await expect(transport().send(input)).rejects.toMatchObject({ code: 'request-failed', message: 'DingTalk card request failed' });
-    });
-    it('distinguishes disabled and unknown accounts without inheriting defaults', () => {
-        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { disabled: { ...config, enabled: false }, named: config } } } } as any);
-        expect(getCardExtensionStatus('unknown')).toBe('account-unconfigured');
-        expect(getCardExtensionStatus('disabled')).toBe('account-disabled');
-        expect(getCardExtensionStatus('named')).toBe('not-connected');
-        expect(mocks.token).not.toHaveBeenCalled();
-    });
-    it('honors channel-level disable even for an explicitly enabled account', () => {
-        configureCardExtensions({ channels: { dingtalk: { enabled: false, accounts: { named: { ...config, enabled: true } } } } } as any);
-        expect(getCardExtensionStatus('named')).toBe('account-disabled');
-    });
-    it('does not resolve SecretInput during configuration', () => {
-        configureCardExtensions({ channels: { dingtalk: { clientId: 'app', clientSecret: { source: 'env', provider: 'default', id: 'TEST_SECRET' } } } } as any);
-        expect(getCardExtensionStatus('default')).toBe('not-connected');
-        expect(mocks.token).not.toHaveBeenCalled();
-    });
-    it('honors explicit default account overrides instead of top-level credentials/enabled', () => {
-        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { default: { ...config, enabled: false } } } } } as any);
-        expect(getCardExtensionStatus('default')).toBe('account-disabled');
-        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { default: { clientId: '', clientSecret: '' } } } } } as any);
-        expect(getCardExtensionStatus('default')).toBe('account-unconfigured');
-    });
-    it('inherits top-level defaults for an explicitly configured default account', () => {
-        configureCardExtensions({ channels: { dingtalk: { ...config, accounts: { default: { name: 'Default' } } } } } as any);
-        expect(getCardExtensionStatus('default')).toBe('not-connected');
     });
 });

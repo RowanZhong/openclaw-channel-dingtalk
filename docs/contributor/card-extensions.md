@@ -1,147 +1,145 @@
 # 自定义卡片扩展接口
 
-独立 OpenClaw 插件可以通过 `@soimy/dingtalk/card-extensions`，向指定用户投递机器人私聊卡片、更新卡片变量并接收按钮或表单回调。接口复用 Channel 的账号、SecretInput 解析、token 缓存和 Stream 连接，不创建额外连接、HTTP 服务或模型工具。
+独立 OpenClaw 插件可以通过 `@soimy/dingtalk/card-extensions`，向指定用户投递机器人私聊卡片、更新模板变量并接收按钮或表单回调。接口复用 Channel 已有账号、Token、HTTP 和 Stream；消费者不需要取得钉钉凭据或建立第二套连接。
 
-首版仅支持机器人私聊卡片。群卡片、模板设计、业务存储与业务审批不属于本接口。
+## 能力边界
 
-## 安装与导入
+OpenClaw 管理插件注册、运行时能力发现及交互去重；Channel 负责钉钉协议和传输；消费者负责业务权限、输入校验、持久化、幂等及失败恢复。
 
-运行环境需要 OpenClaw ≥ 2026.8.1，并启用包含本接口的 DingTalk Channel 版本。请在[开发者后台的卡片平台](https://open-dev.dingtalk.com/fe/card)选择当前企业及机器人所属应用，使用该应用可访问的已发布互动卡片模板；机器人需具备原有卡片 API 权限。平台的个人卡片入口与企业开发者入口不同，不能仅凭“已发布”判断模板可由当前机器人投递。
+普通按钮、选择器和状态展示应优先采用宿主 `MessagePresentation`，并确认目标 Channel 已实现对应呈现能力。宿主存在该类型不代表所有 Channel 都能渲染；当前 DingTalk Channel 尚未实现完整的通用交互呈现。本接口仅补充钉钉原生 `cardTemplateId`、复杂表单、模板变量、原卡更新等能力，不承担通用 UI 框架、模型工具或业务审批框架的职责。
 
-`variables` 的键名必须与所选模板一致，对象或表单配置须先 `JSON.stringify`。本接口不会替消费者选择模板、补充模板默认值或修改模板。API 成功仅表示请求成功，还应在钉钉客户端确认内容渲染、表单提交和更新结果。
+首版仅支持机器人私聊卡片。群卡片、模板设计及通用钉钉 HTTP API 不属于接口范围。
+
+## 安装与构建
+
+需要 OpenClaw ≥ 2026.8.1，并启用包含本接口的 DingTalk Channel 版本。在[企业开发者后台的卡片平台](https://open-dev.dingtalk.com/fe/card)选择当前企业及机器人所属应用，使用该应用可访问的已发布互动模板。个人卡片入口发布的模板不一定可由企业机器人投递。沿用原有卡片 API 权限，无需额外 Stream 连接。
 
 ```ts
-import {
-  registerDingTalkCardExtension,
-  type DingTalkCardExtension,
-} from '@soimy/dingtalk/card-extensions';
+import { registerDingTalkCardExtension } from '@soimy/dingtalk/card-extensions';
 ```
 
-OpenClaw 独立安装的插件通常不共享 `node_modules`。不要假设启用 Channel 后，这个包就能从消费者目录解析：
+消费者与 Channel 通常不共享 `node_modules`，请采用以下一种方式：
 
-- 将提供本接口的 `@soimy/dingtalk` 版本声明为消费者的开发依赖，在构建时把 **`/card-extensions` 子入口**打入消费者 bundle；不要把该子入口列为 external。这是推荐方式。
-- 或者在消费者自己的依赖目录安装该包，在运行时导入子入口。不要再次把这份依赖注册成一个 Channel。
+- 构建时将 `/card-extensions` 子入口打入消费者 bundle，将 `openclaw` 和所有 `openclaw/plugin-sdk/*` 保持为 **external**，由正在运行的宿主提供。
+- 在消费者依赖中安装包含本接口的 `@soimy/dingtalk`，运行时导入子入口。不要再次把这份依赖注册为 Channel。
 
-子入口不导入 Channel、OpenClaw SDK、HTTP 客户端或 Stream SDK。不同安装副本和独立 bundle 通过有版本校验的进程内注册表通信；不兼容版本报 `version-mismatch`。这是同一 Gateway 进程内的接口，跨进程使用不受支持。
+子入口只引用狭窄的宿主公共 SDK，不导入 Channel 主入口、HTTP 客户端或 Stream SDK。不要打包另一份宿主实现，也不要自行创建 runtime；必须传入当前插件收到的 `api`。跨进程使用不受支持。
 
-## 生命周期与最小示例
+`variables` 的键必须与所选模板一致，对象和数组先 `JSON.stringify`。接口不替消费者选择模板或补充模板字段；API 成功后仍应在客户端确认实际渲染与交互。
 
-在消费者插件的 manifest 中声明 `"activation": { "onStartup": true }`（支持按需激活的宿主需要此声明，才能启动该后台服务）。在服务 `start` 中注册，在 `stop` 中注销。注册本身不访问网络，可早于 Channel 连接完成；发送前检查 `getStatus()`，未就绪时由消费者提示用户稍后重试，不需要轮询或启动时自动发送。
+## 同步注册与业务生命周期
 
-下面演示“本人修改一条设置并保存”。`ownerUserId`、`templateId` 和 `accountId` 来自消费者自己的配置。模板应有 `title`、`status` 字符串变量、名为 `note` 的文本表单项，以及动作 ID 为 `save` 的提交按钮。
+必须在插件 **同步 `register(api)` 阶段**调用一次注册函数，不能放进异步初始化、定时器或服务 `start()`。宿主才能把处理器登记到本轮正在构建的插件注册表，在激活、卸载、重载时正确切换。注册不需要 Channel 已连接，也不访问网络。
+
+下面示例假设模板有 `title`、`status` 变量，`note` 文本表单项和 `save` 动作。配置读取与已鉴权业务入口由消费者提供。
 
 ```ts
-let cards: DingTalkCardExtension | undefined;
-const pending = new Map<string, { owner: string; expiresAt: number; saving: boolean }>();
+register(api) {
+  const config = readConsumerConfig(api.pluginConfig);
+  const pending = new Map<string, { owner: string; expiresAt: number; saving: boolean }>();
+  let active = false;
 
-api.registerService({
-  id: 'settings-card-example',
-  start() {
-    cards = registerDingTalkCardExtension({
-      accountId: config.accountId,
-      namespace: 'settings-example',
-      async onAction(action) {
-        const state = pending.get(action.cardId);
-        if (!state || state.saving || Date.now() > state.expiresAt) return;
-        if (action.userId !== state.owner || !action.actionIds.includes('save')) return;
-        const note = action.form.note;
-        if (typeof note !== 'string' || note.length > 200) return;
+  const cards = registerDingTalkCardExtension(api, {
+    accountId: config.accountId,
+    namespace: 'settings-example',
+    async onAction(action) {
+      if (!active) return;
+      const state = pending.get(action.cardId);
+      if (!state || state.saving || Date.now() > state.expiresAt) return;
+      if (action.userId !== state.owner || !action.actionIds.includes('save')) return;
+      const note = action.form.note;
+      if (typeof note !== 'string' || note.length > 200) return;
 
-        state.saving = true; // 在异步操作前占位，避免并发提交。
-        try {
-          // 示例只更新显示，不写业务数据。实际业务应以 cardId 做持久化幂等。
-          await cards!.updateCard({
-            cardId: action.cardId,
-            variables: { title: '设置已保存', status: 'saved' },
-          });
-          pending.delete(action.cardId);
-        } catch (error) {
-          state.saving = false;
-          throw error;
-        }
-      },
-    });
-  },
-  stop() {
-    cards?.dispose();
-    cards = undefined;
-    pending.clear();
-  },
-});
-
-// 在消费者自己的已鉴权命令或业务入口中调用；先验证发起人权限。
-async function showSettings(cardId: string) {
-  if (cards?.getStatus() !== 'ready') throw new Error('钉钉连接尚未就绪，请稍后重试');
-  pending.set(cardId, { owner: config.ownerUserId, expiresAt: Date.now() + 600_000, saving: false });
-  return cards.sendCard({
-    cardId,
-    userId: config.ownerUserId,
-    templateId: config.templateId,
-    variables: { title: '编辑设置', status: 'pending' },
+      state.saving = true;
+      try {
+        // 示例只更新显示。写业务数据时另以稳定业务 ID 实现持久化幂等。
+        await cards.updateCard({
+          cardId: action.cardId,
+          variables: { title: '设置已保存', status: 'saved' },
+        });
+        pending.delete(action.cardId);
+      } catch (error) {
+        state.saving = false;
+        throw error;
+      }
+    },
   });
+
+  api.registerService({
+    id: 'settings-card-example',
+    start() { active = true; },
+    stop() { active = false; pending.clear(); },
+  });
+
+  // 从消费者自己的已鉴权命令或业务入口调用。
+  async function showSettings(cardId: string) {
+    if (!active || !cards.isReady()) throw new Error('服务尚未就绪，请稍后重试');
+    pending.set(cardId, { owner: config.ownerUserId, expiresAt: Date.now() + 600_000, saving: false });
+    await cards.sendCard({
+      cardId, userId: config.ownerUserId, templateId: config.templateId,
+      variables: { title: '编辑设置', status: 'pending' },
+    });
+  }
 }
 ```
 
-此示例只使用内存状态，重启后旧卡片不再执行操作。需要重启后继续处理的业务，应自行持久化、恢复卡片 ID、所有者、到期时间和处理状态。
+插件注册生命周期和业务服务生命周期不同：服务停止时，消费者仍需拒绝旧回调、停止后台工作，并避免继续使用已停用业务的句柄。宿主清理处理器不会取消已经执行中的业务或 HTTP 请求。
 
-## 接口约定
+示例仅使用内存业务状态，重启后旧卡片不再执行操作。需要恢复的业务应持久化卡片 ID、所有者、到期时间和处理状态。
+
+## 公开契约
 
 | 方法或字段 | 说明 |
 | --- | --- |
-| `registerDingTalkCardExtension({ accountId, namespace, onAction })` | 显式绑定账号与命名空间。同账号同命名空间重复注册报错；不同账号互不影响。 |
-| `getStatus()` | 本地同步检查，返回 `ready`、`unavailable`、`account-unconfigured`、`account-disabled`、`not-connected` 或 `disposed`。无 HTTP 请求。 |
-| `sendCard({ cardId, templateId, userId, variables })` | 创建并投递给企业内 `userId`（staffId），不是 unionId/openDingTalkId。固定使用 STREAM 回调，禁止转发。返回 `{ outTrackId }`。 |
-| `updateCard({ cardId, variables })` | 按相同账号、命名空间及业务 ID 更新变量。只更新提供的键；失败不创建替代卡片。返回 `{ outTrackId }`。 |
-| `dispose()` | 幂等注销，停止后续回调；不会撤销已发出的卡片、取消正在执行的回调或 HTTP 请求。旧句柄不能注销新注册。 |
-| `variables` | `Record<string, string>`；对象、数组由消费者先 `JSON.stringify`。1–256 个键，键长 ≤128，序列化后 ≤262144 字符。钉钉自身还有模板/API 限制。 |
+| `registerDingTalkCardExtension(api, { accountId, namespace, onAction })` | 显式绑定账号与命名空间。同账号同命名空间重复注册立即报错；不同账号独立。 |
+| `isReady(): boolean` | 本地同步查询当前账号能力和连接，无 HTTP 请求。只供提示；发送前仍会重新检查。 |
+| `sendCard({ cardId, templateId, userId, variables }): Promise<void>` | 创建并投递机器人私聊卡片。`userId` 为企业 staffId，不是 unionId/openDingTalkId。固定 STREAM 回调、禁止转发。 |
+| `updateCard({ cardId, variables }): Promise<void>` | 更新同一卡片提供的变量键。失败不会创建新卡片。 |
+| `onAction({ cardId, userId, actionIds, form, callbackId? })` | 只提供业务卡片 ID、外层可信用户 ID、动作、表单及可选事件 ID。 |
+| `variables` | 字符串映射；1–256 个键，键长 ≤128，序列化后 ≤262144 字符。平台自身还可能施加限制。 |
 
-账号 ID 允许字母、数字、下划线、短横线，长度 1–64；命名空间为小写字母开头、后续小写字母/数字/短横线，长度 1–32；`cardId` 允许字母、数字、下划线、短横线，长度 1–64。最终 `outTrackId` 为 `ocx1.<accountId>.<namespace>.<cardId>`，总长不超过 128。把该格式视为路由协议，不要手工构造其他扩展的 ID。
+不提供 `getStatus()` 或 `dispose()`，也不返回或接收作为公共契约的 `outTrackId`。消费者仅持有稳定 `cardId`，不要构造、持久化或依赖 Channel 的内部路由编码。
 
-`templateId` 和用户 ID 必须是平台提供的真实标识。不会默认回退到其他账号，也不接受自定义 API URL 或 token。
+账号 ID 允许字母、数字、下划线和短横线，长度 1–64；namespace 以小写字母开头，后续为小写字母、数字或短横线，长度 1–32；cardId 允许字母、数字、下划线、短横线，长度 1–64。组合路由有平台长度约束，过长时返回 `invalid-argument`，建议使用简短 namespace 与 UUID 卡片 ID。
 
-`accountId: 'default'` 同时支持顶层单账号配置与 `channels.dingtalk.accounts.default`；显式账号项优先，继承未覆盖的顶层默认项，与 Channel 实际连接使用的配置一致。`getStatus()` 在原生 SDK 重连和连接管理器模式下均检查当前连接状态；断开期间创建/更新返回 `not-connected`，停止的账号不会被迟到的重连事件重新激活。
+## 宿主集成与回调边界
 
-## 回调与信任边界
+- 账号 Gateway 使用宿主提供的 `ctx.channelRuntime` 注册版本化卡片传输 capability，通过 `abortSignal` 和 lease 撤销绑定。
+- 消费者使用 `api.runtime.channel` 每次查找当前 transport，不缓存旧连接，不注册 watcher，也不维护第二张 transport Map。
+- 使用宿主公开 `registerPluginInteractiveHandler()` 注册处理器。它与 `api.registerInteractiveHandler()` 使用同一套宿主注册机制，但返回 `{ ok, error }`，因此可以在冲突时立即失败，避免返回无有效处理器的发送句柄。
+- 宿主交互 namespace 只有 Channel 维度，适配层内部加入账号维度。入站仍核验实际 Stream 账号与卡片路由一致，消费者不会收到其他账号的回调。
+- 通过宿主 `dispatchPluginInteractiveHandler()` 查找并调用处理器，复用宿主进行中占位和近期完成去重。
 
-`onAction` 收到：
+账号来自接收事件的 Stream 连接，用户 ID 仅来自外层 `userId`。`actionIds` 和 `form` 是不可信输入；`form` 中 `{ value: ... }` 包装会解包，其他值保持原样。嵌套字段不能覆盖账号、身份或路由。
 
-- `accountId`：接收该事件的 Channel 连接账号。
-- `namespace`、`cardId`、`outTrackId`：从 Stream 外层卡片 ID 解析，并与接收账号核对。
-- `userId`：仅取 Stream 外层用户 ID；缺少或格式错误时不执行回调。
-- `callbackId`：可选的 Stream 消息 ID，便于诊断或去重，不承诺 exactly-once。
-- `actionIds`、`form`：不可信的模板与用户输入；对表单项的 `{ value: ... }` 包装解包，其他值保持原样。
+模板回调应在 `content` 或 `value` 的 `cardPrivateData.actionIds`、`cardPrivateData.params.form` 中提供动作及表单；`content/value` 可为对象或 JSON 字符串。消费者必须验证操作人、卡片归属、动作、输入、到期时间和业务状态。可信用户 ID 本身不授予业务权限。
 
-模板回调应把动作和表单放在 `content`（或 `value`）的 `cardPrivateData.actionIds`、`cardPrivateData.params.form` 中。`content`/`value` 可以是 JSON 字符串或对象。表单和嵌套字段中的身份声明不能改变路由、账号或操作人。
+Channel 在调用业务处理器前发送 ACK，确认“事件已收到”，而不是“业务已成功”。重复、未匹配或格式错误的保留前缀事件也被消费；不会转入内置停止、反馈、问卷或 Agent。原有内置卡片继续使用原流程。
 
-消费者必须自己核验 **操作人、卡片所有者、动作、输入、到期时间、当前业务状态和幂等性**。可信用户 ID 不等于该用户获得所有业务操作权限。禁止把表单原文直接作为可执行指令。
+## 去重、错误与恢复
 
-只接管外层 ID 使用保留前缀 `ocx1.` 的卡片。即使动作名与内置 `btn_stop`、反馈或问卷动作相同，也不会进入内置处理器；扩展已注销、路由错误或回调失败时仍消费该扩展事件，不交给 Agent。内置卡片继续使用原流程。
+遵循宿主通用交互语义：
 
-Channel 在调用扩展处理器之前发送 Stream ACK，确认的是“收到事件”，并非业务操作成功。消费者抛错不会引起跨处理器回退，业务结果应通过卡片更新等方式呈现。回调应尽快完成，耗时业务可先持久化入队后返回；不要同步阻塞 Gateway 的事件循环。
+- 进行中的事件占位不按 TTL 释放，重投不会并行重复执行。
+- 正常完成后进入宿主完成记录；OpenClaw 2026.8.1 当前为 5 分钟、进程共享最多 4096 条。具体容量和淘汰策略由宿主管理，不是本接口的永久保证。
+- **处理器抛错时释放占位**。以后同一事件再次到达可能重新执行，但 Channel 不主动重试业务或 HTTP，也不会因此转交 Agent。
+- 未提供有效事件 ID 时不做推测去重；用户再次点击也可能产生新事件 ID。
+- 去重不是持久化业务锁，不保证 exactly-once。若业务已产生副作用后抛错，必须以业务 ID、事务或状态记录避免二次执行。
 
-同一账号生命周期内（包括 Stream 重连和客户端替换），按账号和 Stream 消息 ID 去重：正在执行的事件不因超时被释放；完成或失败后保留 5 分钟，避免异常发生在外部副作用之后时被重投再次执行。每个账号最多保留 1024 条记录，容量不足时先移除过期或最早完成的记录，不驱逐正在执行的事件。如果全部记录均在执行，新动作会被确认收到但忽略，并记录容量告警；应排查卡住的消费者，再请用户重新操作。
+创建或更新不新增自动重试；Token 获取沿用 Channel 缓存及有限重试。创建超时可能已经投递，不应换 ID 盲目重发，也不能改走另一后端再次发送。错误只暴露稳定 `code` 和脱敏描述，不附带凭据、卡片正文或原始 HTTP 异常。
 
-去重记录只在内存中，不跨账号停止/重启；容量淘汰、窗口外重投、缺失消息 ID 或用户再次点击均不能视为同一次业务操作。接口不提供持久化队列或事务，不保证 exactly-once；消费者仍须实现业务幂等与失败恢复。
-
-这是受信任插件之间的进程内扩展点，不是针对恶意已安装插件的沙箱。
-
-## 失败处理与运行成本
-
-异常的 `code` 是稳定契约。独立打包时可能有多个错误类副本，推荐检查 `error.code`，不要依赖 `instanceof`。
-
-| 错误 | 处理建议 |
+| 错误 code | 处理建议 |
 | --- | --- |
-| `unavailable` | 确认 Channel 已启用并支持接口。 |
-| `account-unconfigured` / `account-disabled` | 核对显式账号 ID、凭据配置和启用状态。 |
-| `not-connected` | 等待现有 Channel 建连/重连后重试。 |
-| `namespace-conflict` | 一个账号内同一扩展只注册一次；停止时注销。 |
-| `disposed` | 创建新的注册句柄。 |
-| `version-mismatch` | 升级 Channel 与消费者使用的接口版本，使协议一致。 |
-| `invalid-argument` | 修正 ID、模板 ID、用户 ID或变量格式。 |
-| `request-failed` | 核对卡片 API 权限、模板发布和网络；异常仅含有限状态信息，不附带凭据或卡片正文。 |
+| `unavailable` | 核对宿主版本、Channel 能力、账号配置与启用状态。账号未启动或 transport 已撤销时也会返回此错误。 |
+| `not-connected` | 当前 transport 存在但 Stream 不可用，等待 Channel 恢复后再操作。 |
+| `namespace-conflict` | 保证同账号同 namespace 只在同步 register 阶段注册一次。 |
+| `invalid-argument` | 修正 ID、模板 ID、用户 ID、变量格式或长度。 |
+| `request-failed` | 检查平台权限、模板和网络；先核对实际结果，避免重复投递。 |
 
-创建和更新不增加自动重试；token 获取仍沿用现有缓存与有限重试。发送超时可能是结果不确定，不应换一个 ID 盲目重发。消费者应保存稳定业务 ID，按业务规则核对结果和幂等处理；更新不暗中降级为创建。
+`isReady()` 为 false 不能用于判定“应该切换另一发送后端”。即使为 true，异步获取 Token 期间也可能断线；最终以发送/更新结果为准。
 
-每次回调只做前缀判断、账号/命名空间查表、事件去重和字段归一化，没有模型调用、子进程或额外 Stream。未使用接口时不增加驻留进程。注册表仅保存扩展句柄与活动账号传输；去重表只保存有容量上限的事件 ID 和到期时间，按访问清理，不增加定时器，也不保存表单或业务卡片内容。创建/更新才发生原有钉钉 API 请求，耗时取决于网络和平台。
+## 运行成本与验证
 
-新增日志仅记录路由、处理状态等元数据，不打印表单、卡片变量或异常原文。详见 [架构说明](./architecture.zh-CN.md) 与 [测试规范](./testing.md)。
+新增路径是宿主本地能力查询、路由解析和交互分派；不增加模型调用、子进程、HTTP 服务、轮询或 Stream 连接。传输调用才访问原有钉钉 API。同步阻塞的消费者仍会阻塞 Gateway 事件循环，耗时业务应持久化入队后尽快返回。
+
+验证重点包括：独立消费者打包与 SDK external、候选注册与激活、插件重载、账号隔离、重复注册、启动顺序、断线与停止后的发送检查、提前 ACK、并发重投、失败释放，以及真实客户端渲染、表单提交和原卡更新。接口属于受信任插件间扩展点，不是恶意插件的沙箱。
