@@ -8,7 +8,7 @@
 
 | 配置项 | 默认值 | 风险面 | 启用 / 收窄方式 |
 | --- | --- | --- | --- |
-| `gatewayCapabilities.tools.docs` | 关闭 | 开启后文档 RPC 可读写钉钉文档空间 | 需要时设 `true`，并配置 `gatewayCapabilities.docs.allowedSpaceIds` |
+| `gatewayCapabilities.tools.docs` | 关闭 | 开启后文档 RPC 可读写钉钉文档空间 | 需要时设 `true`，并按 RPC 组合白名单：`create` / `list` / `search` 用 `docs.allowedSpaceIds`，`append` 用 `docs.allowedDocIds`（只配前者时 append 一律拒绝） |
 | `gatewayCapabilities.tools.proactiveSend` | 关闭 | 开启后主动发送 RPC 可向任意 `user:*` / `group:*` 发消息 | 需要时设 `true`，并配置 `gatewayCapabilities.send.allowedTargets` |
 | `dmPolicy` | `open` | 任意用户可私聊机器人 | 改 `pairing` / `allowlist` |
 | `groupPolicy` | `open` | 任意群可 @机器人 | 改 `allowlist`，或用 `groups` 按群收窄 |
@@ -33,7 +33,8 @@
       "gatewayCapabilities": {
         // 需要哪一项就开哪一项，并同时限定范围
         "tools": { "docs": true, "proactiveSend": false },
-        "docs": { "allowedSpaceIds": ["<spaceId>"] },
+        // allowedSpaceIds 限定 create/list/search 的空间；append 用 allowedDocIds 显式列文档
+        "docs": { "allowedSpaceIds": ["<spaceId>"], "allowedDocIds": ["<docId>"] },
         "send": { "allowedTargets": ["user:<staffId>", "group:<conversationId>"] }
       }
     }
@@ -148,7 +149,8 @@
 
 - `gatewayCapabilities.tools.docs = false`：关闭全部 docs RPC
 - `gatewayCapabilities.tools.proactiveSend = false`：关闭全部主动发送 RPC
-- `gatewayCapabilities.docs.allowedSpaceIds`：文档空间白名单（配置后至少一项；不携带 `spaceId` 的请求会被拒绝）
+- `gatewayCapabilities.docs.allowedSpaceIds`：文档空间白名单，作用于 `create` / `list` / `search`（配置后至少一项；不携带 `spaceId` 的请求会被拒绝）
+- `gatewayCapabilities.docs.allowedDocIds`：写入文档白名单，作用于 `append`（配置后至少一项）。只配 `allowedSpaceIds` 时 append 一律拒绝，因为调用方提供的 `spaceId` 无法证明目标文档所在空间
 - `gatewayCapabilities.send.allowedTargets`：主动发送目标白名单（`user:*` / `group:*`；配置后至少一项）
 
 能力开关与白名单默认不启用（保持向后兼容），但一旦配置即 fail-closed：空数组会被配置校验拒绝，运行时遇到"已配置但为空"的白名单按全部拒绝处理；多账号下账号级 `gatewayCapabilities` 与渠道级按子键合并，渠道级的限制不会被账号级局部配置静默移除。

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
+import { appendToDoc } from "../../src/gateway/docs-service";
 
 const INDEX_IMPORT_TIMEOUT_MS = 15_000;
 
@@ -228,7 +229,7 @@ describe("gateway RPC capability gates (Issue #608 问题 3)", () => {
 });
 
 describe("gateway capability gates review follow-ups", () => {
-  it("docs.append denied with explicit no-spaceId reason when allowlist configured", async () => {
+  it("docs.append denied when only a space allowlist is configured", async () => {
     const entry = await loadEntry();
     const { mockApi, methods } = makeApi(
       dingtalkCfg({ tools: { docs: true }, docs: { allowedSpaceIds: ["spaceOk"] } }),
@@ -239,7 +240,74 @@ describe("gateway capability gates review follow-ups", () => {
       content: "hello",
     });
     expect(res.ok).toBe(false);
-    expect((res.payload as { error: string }).error).toContain("carries no spaceId");
+    // The reason now points at the enforceable scope instead of "no spaceId".
+    expect((res.payload as { error: string }).error).toContain("allowedDocIds");
+    expect(vi.mocked(appendToDoc)).not.toHaveBeenCalled();
+  }, INDEX_IMPORT_TIMEOUT_MS);
+
+  it("docs.append allows a listed document even when a space allowlist is configured", async () => {
+    const entry = await loadEntry();
+    const { mockApi, methods } = makeApi(
+      dingtalkCfg({
+        tools: { docs: true },
+        docs: { allowedSpaceIds: ["spaceOk"], allowedDocIds: ["docOk"] },
+      }),
+    );
+    entry.register(mockApi);
+    const allowed = await callHandler(methods.get("dingtalk-connector.docs.append")!, {
+      docId: "docOk",
+      content: "hello",
+    });
+    expect(allowed.ok).toBe(true);
+    // The write must target exactly the allowlisted document.
+    expect(vi.mocked(appendToDoc).mock.calls[0]?.[1]).toBe("docOk");
+
+    vi.mocked(appendToDoc).mockClear();
+    const denied = await callHandler(methods.get("dingtalk.docs.append")!, {
+      docId: "docOther",
+      content: "hello",
+    });
+    expect(denied.ok).toBe(false);
+    expect((denied.payload as { error: string }).error).toContain("allowedDocIds");
+    expect(vi.mocked(appendToDoc)).not.toHaveBeenCalled();
+  }, INDEX_IMPORT_TIMEOUT_MS);
+
+  it("docs.append ignores a caller-supplied spaceId when a doc allowlist is configured", async () => {
+    // A spaceId is caller-controlled and unrelated to the document being written,
+    // so it must not widen the document allowlist.
+    const entry = await loadEntry();
+    const { mockApi, methods } = makeApi(
+      dingtalkCfg({ tools: { docs: true }, docs: { allowedDocIds: ["docOk"] } }),
+    );
+    entry.register(mockApi);
+    const res = await callHandler(methods.get("dingtalk.docs.append")!, {
+      spaceId: "spaceOk",
+      docId: "docOther",
+      content: "hello",
+    });
+    expect(res.ok).toBe(false);
+    expect((res.payload as { error: string }).error).toContain("allowedDocIds");
+    expect(vi.mocked(appendToDoc)).not.toHaveBeenCalled();
+  }, INDEX_IMPORT_TIMEOUT_MS);
+
+  it("docs.append cannot borrow an allowed spaceId to reach another document", async () => {
+    // ClawScan finding on 3.9.0: the space allowlist is checked against a
+    // caller-supplied `spaceId`, but append writes to an opaque `docId`. A caller
+    // could therefore name an allowed space and still append anywhere.
+    const entry = await loadEntry();
+    const { mockApi, methods } = makeApi(
+      dingtalkCfg({ tools: { docs: true }, docs: { allowedSpaceIds: ["spaceOk"] } }),
+    );
+    entry.register(mockApi);
+    const res = await callHandler(methods.get("dingtalk.docs.append")!, {
+      spaceId: "spaceOk",
+      docId: "docInAnotherSpace",
+      content: "hello",
+    });
+    expect(res.ok).toBe(false);
+    // A denial must not have written first: asserting only `ok` would keep
+    // passing if the handler appended and then answered "denied".
+    expect(vi.mocked(appendToDoc)).not.toHaveBeenCalled();
   }, INDEX_IMPORT_TIMEOUT_MS);
 
   it("docs.append works when no allowlist configured (regression)", async () => {
@@ -251,6 +319,7 @@ describe("gateway capability gates review follow-ups", () => {
       content: "hello",
     });
     expect(res.ok).toBe(true);
+    expect(vi.mocked(appendToDoc).mock.calls[0]?.[1]).toBe("doc1");
   }, INDEX_IMPORT_TIMEOUT_MS);
 
   it("status and probe RPCs remain available when all tools disabled", async () => {
