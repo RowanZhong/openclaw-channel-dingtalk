@@ -14,6 +14,8 @@
 
 针对 OpenClaw 的钉钉企业内部机器人 Channel 渠道插件，使用 Stream 模式，无需公网 IP。
 
+> **旧版兼容分支**：本分支维护 OpenClaw `2026.7.1-2` 对应的 Channel。代回复助手已迁至 [dws-send-approval 独立项目](https://github.com/RowanZhong/dws-send-approval)，本仓库仅保留旧版卡片桥接。旧宿主请固定本分支源码或构建包，不要直接替换为上游最新 npm 包；迁移与维护边界见[独立助手接入说明](docs/user/features/dws-send-approval.md)。
+
 ## 功能特性
 
 - Stream 模式，无需 Webhook 和公网入口
