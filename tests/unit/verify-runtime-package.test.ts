@@ -5,6 +5,8 @@ import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const scriptPath = resolve("scripts/verify-runtime-package.mjs");
+const feedbackAssets = ["docs/assets/card-template-v2.json", "docs/user/features/card-feedback.md",
+    "docs/user/getting-started/card-feedback-deployment.md", "scripts/feedback-export.mjs"];
 
 describe("runtime package verification", () => {
     let tempDir: string | undefined;
@@ -81,9 +83,10 @@ exec("open https://example.com");
             name: "dingtalk-runtime-package-fixture",
             version: "0.0.0",
             type: "module",
-            files: ["dist/**/*.js", "dist/**/*.d.ts", "openclaw.plugin.json"],
+            files: ["dist/**/*.js", "dist/**/*.d.ts", "openclaw.plugin.json", ...feedbackAssets],
         });
         writeJson(join(tempDir, "openclaw.plugin.json"), {});
+        for (const asset of feedbackAssets) { writeFile(join(tempDir, asset), "fixture\n"); }
         writeFile(join(tempDir, "dist/index.js"), runtimeCode);
         writeFile(join(tempDir, "dist/index.d.ts"), "export {};\n");
 

@@ -4,14 +4,10 @@ import { analyzeCardCallback } from "../card-callback-service";
 import { finalizeActiveCardsForAccount, recoverPendingCardsForAccount } from "../card-service";
 import { recoverAskUserQuestionsForAccount } from "../card/ask-user-question";
 import { handleCardAction } from "../card/card-action-handler";
+import { handleFeedbackCallback, parseFeedbackCallback } from "../card/feedback-callback";
 import { resolveRobotCode, resolveRuntimeConfig } from "../config";
 import { ConnectionManager } from "../connection-manager";
 import { isMessageProcessed, markMessageProcessed } from "../dedup";
-import {
-  isLearningAutoApplyEnabled,
-  isLearningEnabled,
-  recordExplicitFeedbackLearning,
-} from "../feedback-learning-service";
 import { handleDingTalkMessage } from "../inbound-handler";
 import { setCurrentLogger } from "../logger-context";
 import { registerPeerId } from "../peer-id-registry";
@@ -125,6 +121,7 @@ function instrumentConnectionStages(client: DWClient): void {
 // user-visible symptom is "this message isn't being processed" and recovery
 // is a process restart, not silent duplicate execution).
 const processingDedupKeys = new Map<string, number>();
+const feedbackNoticeTimes = new Map<string, number>();
 export const CHANNEL_INFLIGHT_NAMESPACE_POLICY = "memory-only" as const;
 const inboundCountersByAccount = new Map<
   string,
@@ -415,12 +412,14 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
 
         client.registerCallbackListener(TOPIC_CARD, async (res: any) => {
           const messageId = res.headers?.messageId;
+          let callbackResponse: unknown = { success: true };
+          let shouldAcknowledge = true;
           const acknowledge = () => {
-            if (!messageId) {
+            if (!messageId || !shouldAcknowledge) {
               return;
             }
             try {
-              client.socketCallBackResponse(messageId, { success: true });
+              client.socketCallBackResponse(messageId, callbackResponse);
             } catch (ackError: any) {
               pluginLog?.warn?.(
                 `[${account.accountId}] Failed to acknowledge card callback ${messageId}: ${ackError.message}`,
@@ -430,42 +429,57 @@ export function createDingTalkGateway(): NonNullable<DingTalkChannelPlugin["gate
 
           try {
             const payload = JSON.parse(res.data);
+            if (parseFeedbackCallback(payload)) {
+              try {
+                const feedback = await handleFeedbackCallback({
+                  payload,
+                  eventId: messageId,
+                  eventAt: res.headers?.time,
+                  scope: accountStorePath
+                    ? { storePath: accountStorePath, accountId: account.accountId }
+                    : undefined,
+                  config,
+                  log: pluginLog,
+                });
+                if (feedback) {
+                  callbackResponse = feedback.response;
+                  if (feedback.notice && feedback.userId) {
+                    const noticeKey = `${account.accountId}:${feedback.userId}:${feedback.notice}`;
+                    if (Date.now() - (feedbackNoticeTimes.get(noticeKey) ?? 0) > 30_000) {
+                      feedbackNoticeTimes.set(noticeKey, Date.now());
+                      if (feedbackNoticeTimes.size > 512) {
+                        feedbackNoticeTimes.delete(feedbackNoticeTimes.keys().next().value!);
+                      }
+                      void sendProactiveTextOrMarkdown(
+                        { ...config, messageType: "markdown" },
+                        feedback.userId,
+                        feedback.notice,
+                        {
+                          accountId: account.accountId,
+                          log: pluginLog,
+                        },
+                      ).catch(() =>
+                        pluginLog?.warn?.(
+                          "[DingTalk][Feedback] Failed to deliver rejection notice",
+                        ),
+                      );
+                    }
+                  }
+                }
+              } catch {
+                // Withhold transport ACK on storage failure so DingTalk can retry the same id.
+                shouldAcknowledge = false;
+                pluginLog?.error?.(
+                  "[DingTalk][Feedback] Persistence failed; callback not acknowledged",
+                );
+              }
+              return;
+            }
             const analysis = analyzeCardCallback(payload);
             pluginLog?.info?.(
               `[${account.accountId}] [DingTalk][CardCallback] action=${analysis.summary} raw=${JSON.stringify(payload)}`,
             );
 
-            if (analysis.feedbackTarget && analysis.feedbackAckText) {
-              recordExplicitFeedbackLearning({
-                enabled: isLearningEnabled(config),
-                autoApply: isLearningAutoApplyEnabled(config),
-                storePath: accountStorePath,
-                accountId: account.accountId,
-                targetId: analysis.feedbackTarget,
-                feedbackType: analysis.actionId === "feedback_up" ? "feedback_up" : "feedback_down",
-                userId: analysis.userId,
-                processQueryKey: analysis.processQueryKey,
-                noteTtlMs: config.learningNoteTtlMs,
-              });
-              try {
-                await sendProactiveTextOrMarkdown(
-                  config,
-                  analysis.feedbackTarget,
-                  analysis.feedbackAckText,
-                  {
-                    accountId: account.accountId,
-                    log: pluginLog,
-                  },
-                );
-                pluginLog?.info?.(
-                  `[${account.accountId}] [DingTalk][CardCallback] feedback ack sent to ${analysis.feedbackTarget}`,
-                );
-              } catch (sendErr: any) {
-                pluginLog?.warn?.(
-                  `[${account.accountId}] [DingTalk][CardCallback] Failed to send feedback ack: ${sendErr?.message || String(sendErr)}`,
-                );
-              }
-            }
             const actionResult = await handleCardAction({
               payload,
               analysis,

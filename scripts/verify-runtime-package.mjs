@@ -9,7 +9,8 @@ const [pack] = JSON.parse(output);
 const files = new Set(
     pack.files.map((file) => String(file.path).replace(/^package\//u, "")),
 );
-const requiredFiles = ["dist/index.js", "dist/index.d.ts", "openclaw.plugin.json"];
+const requiredFiles = ["dist/index.js", "dist/index.d.ts", "openclaw.plugin.json",
+    "docs/assets/card-template-v2.json", "docs/user/features/card-feedback.md", "docs/user/getting-started/card-feedback-deployment.md", "scripts/feedback-export.mjs"];
 const missingFiles = requiredFiles.filter((file) => !files.has(file));
 const sourceMaps = [...files].filter((file) => file.endsWith(".map"));
 

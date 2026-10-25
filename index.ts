@@ -6,6 +6,7 @@ import {
 import { readStringParam } from "openclaw/plugin-sdk/param-readers";
 import { getAccessToken } from "./src/auth";
 import { registerDingTalkAskUserQuestionTool } from "./src/card/ask-user-question";
+import { noteFeedbackRunSession } from "./src/card/feedback-transcript";
 import { registerReplyAssistantBridge } from "./src/card/reply-assistant-bridge";
 import { dingtalkPlugin } from "./src/channel";
 import { getConfig, listDingTalkAccountIds, resolveDingTalkAccount } from "./src/config";
@@ -299,16 +300,21 @@ const dingtalkEntry = defineChannelPluginEntry({
 
     api.on(
       "llm_output",
-      (event: {
-        runId: string;
-        usage?: {
-          input?: number;
-          output?: number;
-          cacheRead?: number;
-          cacheWrite?: number;
-          total?: number;
-        };
-      }) => {
+      (
+        event: {
+          runId: string;
+          sessionId?: string;
+          usage?: {
+            input?: number;
+            output?: number;
+            cacheRead?: number;
+            cacheWrite?: number;
+            total?: number;
+          };
+        },
+        context,
+      ) => {
+        noteFeedbackRunSession(event.runId, event.sessionId ?? context?.sessionId, context);
         if (event.usage) {
           accumulateUsage(event.runId, event.usage);
         }

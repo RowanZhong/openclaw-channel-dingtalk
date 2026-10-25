@@ -86,6 +86,8 @@ export interface DingTalkConfig extends OpenClawConfig {
   /** AICard degrade duration in milliseconds after trigger errors (default 30m) */
   aicardDegradeMs?: number;
   /** Enable local learning loop (events/reflections/session notes/global rules) */
+  feedbackEnabled?: boolean;
+  feedbackRetentionDays?: number;
   learningEnabled?: boolean;
   /** Auto-apply generated reflections into session notes/global rules (default false) */
   learningAutoApply?: boolean;
@@ -166,6 +168,8 @@ export interface DingTalkChannelConfig {
   /** AICard degrade duration in milliseconds after trigger errors (default 30m) */
   aicardDegradeMs?: number;
   /** Enable local learning loop (events/reflections/session notes/global rules) */
+  feedbackEnabled?: boolean;
+  feedbackRetentionDays?: number;
   learningEnabled?: boolean;
   /** Auto-apply generated reflections into session notes/global rules (default false) */
   learningAutoApply?: boolean;

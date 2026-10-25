@@ -142,6 +142,8 @@ const DingTalkAccountConfigShape = {
   aicardDegradeMs: z.number().int().min(60_000).optional().default(30 * 60 * 1000),
 
   /** Enable the local feedback-learning loop for notes, reflections, and command-assisted learning. */
+  feedbackEnabled: z.boolean().optional(),
+  feedbackRetentionDays: z.number().int().min(1).max(365).optional(),
   learningEnabled: z.boolean().optional(),
 
   /** Automatically apply generated learning output into session notes or global rules when available. */

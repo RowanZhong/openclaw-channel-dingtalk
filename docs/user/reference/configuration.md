@@ -17,6 +17,8 @@
 | `displayNameResolution` | string | `disabled` | 是否允许基于本地目录做显示名解析 |
 | `contextVisibility` | string | 宿主默认值 | 是否限制宿主补充上下文、引用上下文与历史上下文的可见性 |
 | `bypassProxyForSend` | boolean | `false` | 发送链路是否绕过全局代理 |
+| `feedbackEnabled` | boolean | `false` | 启用仅提问者评价、本人统计及可用时的问答反查；不触发学习 |
+| `feedbackRetentionDays` | number | `90` | 新建卡片评价记录保留天数，范围 1～365；不控制宿主转录保留期 |
 | `learningEnabled` | boolean | `false` | 是否开启学习信号采集 |
 | `learningAutoApply` | boolean | `false` | 是否自动注入学习结果 |
 | `learningNoteTtlMs` | number | `21600000` | 会话级学习笔记 TTL |
@@ -37,6 +39,12 @@
 | `initialReconnectDelay` | number | `1000` | 初始重连延迟 |
 | `maxReconnectDelay` | number | `60000` | 最大重连延迟 |
 | `reconnectJitter` | number | `0.3` | 重连抖动因子 |
+
+## 关于卡片评价与问答反查
+
+上述评价字段属于包含本改造的旧版兼容构建，已在 OpenClaw `2026.7.1-2` 验收；普通上游构建未必包含。启用需同时使用 `messageType: "card"` 和具有 `feedback_vote` 回调的模板，详见[部署与升级指引](../getting-started/card-feedback-deployment.md)。精确关联与 `/feedback detail` 共用 `feedbackEnabled`，不另加配置项。
+
+`feedbackRetentionDays` 只影响随后新建记录的到期时间，不修改已有记录，也不改变 OpenClaw 的转录清理策略。反查还要求对应 Agent 的原转录可读；旧记录不会补写 ID。统计和详情只在原提问者私聊中返回，且不需要开启 `learningEnabled`。关闭 `feedbackEnabled` 后，这两个命令也不可用，已有文件不会因此删除。
 
 ## 关于 `clientId` 与钉钉 `robotCode`
 

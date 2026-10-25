@@ -1,3 +1,4 @@
+import type { FeedbackTranscriptTracker } from "./card/feedback-transcript";
 /**
  * Shared type definitions for reply strategy implementations.
  *
@@ -94,4 +95,5 @@ export interface ReplyStrategyContext {
   isStopRequested?: () => boolean;
   inboundText?: string;
   taskMeta?: TaskMeta;
+  feedbackTranscript?: FeedbackTranscriptTracker;
 }

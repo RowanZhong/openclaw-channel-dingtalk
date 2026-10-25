@@ -24,6 +24,10 @@
     "index.ts",
     "src/**/*.ts",
     "docs/assets/dingtalk-ask-user-card-template.json",
+    "docs/assets/card-template-v2.json",
+    "docs/user/features/card-feedback.md",
+    "docs/user/getting-started/card-feedback-deployment.md",
+    "scripts/feedback-export.mjs",
     "openclaw.plugin.json",
     "README.md",
     "LICENSE"

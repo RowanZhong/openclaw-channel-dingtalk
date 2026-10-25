@@ -37,6 +37,8 @@ import {
 } from "../session-command-service";
 import type { SessionPeerSourceKind } from "../session-peer-store";
 import type { DingTalkConfig, HandleDingTalkMessageParams, MessageContent } from "../types";
+import { runFeedbackCommand } from "./feedback-command";
+import { readFeedbackTranscriptEvents } from "./feedback-detail";
 
 type InboundCommandDispatchParams = {
   cfg: HandleDingTalkMessageParams["cfg"];
@@ -77,6 +79,23 @@ type InboundCommandDispatchParams = {
 export async function handleInboundCommandDispatch(
   params: InboundCommandDispatchParams,
 ): Promise<boolean> {
+  if (/^\/feedback(?:\s|$)/i.test(params.extractedText.trim())) {
+    try {
+      const reply = await runFeedbackCommand(params.extractedText, {
+        scope: { storePath: params.accountStorePath, accountId: params.accountId },
+        userId: params.data.senderStaffId?.trim() || "",
+        isDirect: params.isDirect,
+        enabled: Boolean(params.dingtalkConfig.feedbackEnabled),
+        readTranscript: (target) => readFeedbackTranscriptEvents(target, params.cfg.session?.store),
+      });
+      if (reply) {
+        await params.sendReply(reply);
+      }
+    } catch {
+      await params.sendReply("评价记录读取失败，请稍后重试或联系管理员；未返回不完整结果。");
+    }
+    return true;
+  }
   const parsedLearnCommand = parseLearnCommand(params.extractedText);
   const parsedSessionCommand = parseSessionCommand(params.extractedText);
   const isOwner = isLearningOwner({
@@ -405,7 +424,9 @@ export async function handleInboundCommandDispatch(
         accountId: params.accountId,
       })
         .slice(0, 10)
-        .map((targetSet) => `- [target-set] ${targetSet.name} => ${targetSet.targetIds.join(", ")}`);
+        .map(
+          (targetSet) => `- [target-set] ${targetSet.name} => ${targetSet.targetIds.join(", ")}`,
+        );
       await params.sendReply(formatLearnListReply([...rules, ...targetSets]));
       return true;
     }

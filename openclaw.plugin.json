@@ -257,6 +257,16 @@
             "default": 1800000,
             "description": "Cooldown window in milliseconds after AI card trigger errors. During this window replies fall back to non-card delivery."
           },
+          "feedbackEnabled": {
+            "type": "boolean",
+            "description": "Enable owner-only AI card feedback recording, without automatic learning."
+          },
+          "feedbackRetentionDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Feedback retention in days; defaults to 90."
+          },
           "learningEnabled": {
             "type": "boolean",
             "description": "Enable the local feedback-learning loop for notes, reflections, and command-assisted learning."
@@ -563,6 +573,16 @@
                   "default": 1800000,
                   "description": "Cooldown window in milliseconds after AI card trigger errors. During this window replies fall back to non-card delivery."
                 },
+                "feedbackEnabled": {
+                  "type": "boolean",
+                  "description": "Enable owner-only AI card feedback recording, without automatic learning."
+                },
+                "feedbackRetentionDays": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 365,
+                  "description": "Feedback retention in days; defaults to 90."
+                },
                 "learningEnabled": {
                   "type": "boolean",
                   "description": "Enable the local feedback-learning loop for notes, reflections, and command-assisted learning."
@@ -781,6 +801,16 @@
         "aicardDegradeMs": {
           "label": "AI Card Degrade Window (ms)",
           "help": "Cooldown window after AI card trigger errors. Replies fall back to non-card delivery during this period."
+        },
+        "feedbackEnabled": {
+          "type": "boolean",
+          "description": "Enable owner-only AI card feedback recording, without automatic learning."
+        },
+        "feedbackRetentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Feedback retention in days; defaults to 90."
         },
         "learningEnabled": {
           "label": "Learning Enabled",

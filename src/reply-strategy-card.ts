@@ -1,3 +1,4 @@
+import { completeFeedbackCard } from "./command/feedback-store";
 /**
  * AI Card reply strategy.
  *
@@ -137,6 +138,7 @@ export function createCardReplyStrategy(
   }
   let finalTextForFallback: string | undefined;
   let sawFinalDelivery = false;
+  let feedbackDeliveryFailed = false;
   /** Tracks the latest reasoning snapshot text for non-streaming boundary flush. */
   let latestReasoningSnapshot = "";
   /** Non-image media attachments deferred for out-of-card delivery. */
@@ -425,6 +427,7 @@ export function createCardReplyStrategy(
           if (isLifecycleSealed()) {
             return;
           }
+          ctx.feedbackTranscript?.bindRun(runId);
           recordRunStart(runId);
           if (ctx.taskMeta) {
             if (!ctx.taskMeta.runIds) { ctx.taskMeta.runIds = new Set(); }
@@ -494,6 +497,7 @@ export function createCardReplyStrategy(
           log?.debug?.("[DingTalk][Finalize] Ignoring late error final after answer delivery");
           return;
         }
+        feedbackDeliveryFailed = payload.isError === true;
         const isFirstFinalDelivery = !sawFinalDelivery;
         lifecycleState = "final_seen";
         await flushPendingReasoning();
@@ -754,6 +758,16 @@ export function createCardReplyStrategy(
           statusLine,
           quotedRef: ctx.replyQuotedRef,
         }, log);
+
+        if (config.feedbackEnabled && !feedbackDeliveryFailed) {
+          try {
+            await completeFeedbackCard({ storePath: ctx.storePath, accountId: ctx.accountId },
+              card.outTrackId || card.cardInstanceId, content, undefined,
+              ctx.feedbackTranscript?.resolve(content));
+          } catch {
+            log?.error?.("[DingTalk][Feedback] Failed to persist completed answer; feedback will fail closed");
+          }
+        }
 
         // Send deferred non-image attachments after card finalize
         // Use sessionWebhook for reply-session semantics; fallback to proactive if unavailable.

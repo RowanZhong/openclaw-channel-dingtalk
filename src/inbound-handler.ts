@@ -1,3 +1,5 @@
+import { createFeedbackTranscriptTracker, type FeedbackTranscriptTracker } from "./card/feedback-transcript";
+import { registerFeedbackCard } from "./command/feedback-store";
 import fs from "node:fs";
 import * as path from "node:path";
 import { formatInboundEnvelope } from "openclaw/plugin-sdk/channel-inbound";
@@ -1178,6 +1180,17 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       if (aiCard) {
         currentAICard = aiCard;
         if (aiCard.outTrackId) {
+          if (dingtalkConfig.feedbackEnabled && senderStaffId) {
+            try {
+              await registerFeedbackCard({ storePath: accountStorePath, accountId }, {
+                outTrackId: aiCard.outTrackId, ownerUserId: senderStaffId,
+                conversationId: data.conversationId, sessionKey: route.sessionKey,
+                agentId: route.agentId, sourceMsgId: data.msgId,
+              }, dingtalkConfig.feedbackRetentionDays);
+            } catch {
+              log?.error?.("[DingTalk][Feedback] Failed to persist card ownership; feedback will fail closed");
+            }
+          }
           registerCardRun(aiCard.outTrackId, {
             accountId,
             sessionKey: route.sessionKey,
@@ -2262,10 +2275,12 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       rt as typeof rt & {
         events?: {
           onAgentEvent?: (listener: (event: unknown) => void) => () => void;
+          onSessionTranscriptUpdate?: (listener: (event: unknown) => void) => () => void;
         };
       }
     ).events;
     const releaseSessionLock = await acquireSessionLock(route.sessionKey);
+    let feedbackTranscript: FeedbackTranscriptTracker | undefined;
     const dynamicAckReactionController = createDynamicAckReactionController({
       enabled: shouldTrackDynamicAckReaction,
       initialReaction: resolvedAckReaction || "",
@@ -2326,6 +2341,34 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         agent: agentDisplayName,
       };
 
+      if (replyMode === "card" && dingtalkConfig.feedbackEnabled) {
+        // The host can publish a DM user message under its policy key while
+        // publishing the assistant under the collapsed main transcript key.
+        let feedbackQuestionKey: string | undefined;
+        try {
+          if (isDirect) {
+            feedbackQuestionKey = buildAgentSessionKey({
+              rt,
+              cfg: { ...cfg, session: { ...cfg.session, dmScope: "per-account-channel-peer" } },
+              accountId,
+              agentId: route.agentId,
+              peerKind: "direct",
+              peerId: senderId,
+            });
+          }
+        } catch {
+          /* Optional metadata capture must not block a valid answer. */
+        }
+        feedbackTranscript = createFeedbackTranscriptTracker({
+          agentId: route.agentId,
+          sessionKey: route.sessionKey,
+          senderId,
+          questionTexts: [rawInboundText, inboundText, body],
+          questionSessionKeys: feedbackQuestionKey ? [feedbackQuestionKey] : [],
+          subscribe: runtimeEvents?.onSessionTranscriptUpdate?.bind(runtimeEvents),
+        });
+      }
+
       const strategy = createReplyStrategy({
         config: strategyConfig,
         card: currentAICard,
@@ -2351,6 +2394,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
         isStopRequested: isCurrentCardStopRequested,
         inboundText: rawInboundText,
         taskMeta,
+        feedbackTranscript,
       });
 
       let deliveredFinalCount = 0;
@@ -2538,6 +2582,7 @@ async function handleDingTalkMessageInner(params: HandleDingTalkMessageParams): 
       }
       await strategy.finalize();
     } finally {
+      feedbackTranscript?.dispose();
       // Only remove the registry entry if no stop was requested. When a stop is
       // in progress, card-stop-handler may still be running async operations
       // (finalize card, hide button, gateway abort) that read the record.

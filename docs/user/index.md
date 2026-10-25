@@ -24,12 +24,14 @@
 - [更新](getting-started/update.md)
 - [配置](getting-started/configure.md)
 - [钉钉权限与凭证](getting-started/permissions.md)
+- [AI 卡片评价：部署与升级](getting-started/card-feedback-deployment.md)
 
 ## 功能说明
 
 - [消息类型支持](features/message-types.md)
 - [回复模式](features/reply-modes.md)
 - [AI 卡片](features/ai-card.md)
+- [AI 卡片评价与问答反查](features/card-feedback.md)
 - [表单互动卡片](features/form-interactive-card.md)
 - [代回复助手（独立插件）](features/dws-send-approval.md)
 - [钉钉文档 API](features/dingtalk-docs-api.md)
