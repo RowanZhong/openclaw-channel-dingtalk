@@ -7,11 +7,12 @@
  * (channel + accountId + peer), not content-based dynamic routing.
  */
 
-import { maybeResolveTextAlias } from "openclaw/plugin-sdk/command-auth";
+import { maybeResolveTextAlias } from "openclaw/plugin-sdk/command-auth-native";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { parseLearnCommand } from "../command/learning-command-service";
 import { sendBySession } from "../messaging/send-service";
 import { resolveRobotCode } from "../platform/config";
+import { listConfiguredAgents } from "../platform/configured-agents";
 import { getDingTalkRuntime } from "../platform/runtime";
 import type {
   AgentNameMatch,
@@ -111,7 +112,7 @@ export function resolveMessageTarget(params: {
   const { extractedContent, cfg, isGroup } = params;
   const atMentions = extractedContent.atMentions || [];
   // No @mentions or no configured agents → nothing to route dynamically.
-  if (atMentions.length === 0 || !cfg.agents?.list || cfg.agents.list.length === 0) {
+  if (atMentions.length === 0 || listConfiguredAgents(cfg).length === 0) {
     return { kind: "default" };
   }
 
