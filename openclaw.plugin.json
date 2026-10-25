@@ -1,9 +1,13 @@
 {
   "id": "dingtalk",
   "name": "DingTalk",
-  "channels": ["dingtalk"],
+  "channels": [
+    "dingtalk"
+  ],
   "contracts": {
-    "tools": ["dingtalk_ask_user_question"]
+    "tools": [
+      "dingtalk_ask_user_question"
+    ]
   },
   "configSchema": {
     "type": "object",
@@ -41,13 +45,25 @@
           },
           "clientSecret": {
             "anyOf": [
-              { "type": "string" },
+              {
+                "type": "string"
+              },
               {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["source", "provider", "id"],
+                "required": [
+                  "source",
+                  "provider",
+                  "id"
+                ],
                 "properties": {
-                  "source": { "type": "string", "enum": ["env", "file"] },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "env",
+                      "file"
+                    ]
+                  },
                   "provider": {
                     "type": "string",
                     "minLength": 1,
@@ -67,47 +83,81 @@
           },
           "dmPolicy": {
             "type": "string",
-            "enum": ["open", "pairing", "allowlist"],
+            "enum": [
+              "open",
+              "pairing",
+              "allowlist"
+            ],
             "default": "open",
             "description": "Direct-message access policy. open allows any DM, pairing requires host pairing, and allowlist only permits IDs listed in allowFrom."
           },
           "groupPolicy": {
             "type": "string",
-            "enum": ["open", "allowlist", "disabled"],
+            "enum": [
+              "open",
+              "allowlist",
+              "disabled"
+            ],
             "default": "open",
             "description": "Group-message access policy. open allows all groups, allowlist restricts by groupAllowFrom, and disabled blocks group handling."
           },
           "allowFrom": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "User IDs allowed when dmPolicy is allowlist. Accepts DingTalk IDs or host-normalized IDs."
           },
           "groupAllowFrom": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Sender IDs allowed when groupPolicy is allowlist. Leave empty unless you want per-sender restrictions in groups."
           },
           "displayNameResolution": {
             "type": "string",
-            "enum": ["disabled", "all"],
+            "enum": [
+              "disabled",
+              "all"
+            ],
             "default": "disabled",
             "description": "Whether learned display names can be used to resolve DingTalk users or groups. Keep disabled unless you explicitly accept stale or ambiguous-name routing risk."
           },
           "contextVisibility": {
             "type": "string",
-            "enum": ["all", "allowlist", "allowlist_quote"],
+            "enum": [
+              "all",
+              "allowlist",
+              "allowlist_quote"
+            ],
             "description": "Host-level context filtering before prompts are sent to the runtime. allowlist_quote is the safest advanced mode when only explicit quote or reply context should remain visible."
           },
           "mediaUrlAllowlist": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "description": "Allowed download hosts, IPs, or CIDRs for remote media fetches. Use this for internal file servers or custom CDN domains."
           },
           "ackReaction": {
             "anyOf": [
-              { "type": "string", "const": "" },
-              { "type": "string", "enum": ["off", "emoji", "kaomoji"] },
-              { "type": "string", "minLength": 1 }
+              {
+                "type": "string",
+                "const": ""
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "emoji",
+                  "kaomoji"
+                ]
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
             ],
             "description": "Acknowledgement reaction mode. Supports off, emoji, kaomoji, or a custom compatibility string."
           },
@@ -124,7 +174,10 @@
           },
           "messageType": {
             "type": "string",
-            "enum": ["markdown", "card"],
+            "enum": [
+              "markdown",
+              "card"
+            ],
             "default": "markdown",
             "description": "Default reply delivery mode. markdown uses standard messages; card uses DingTalk AI cards when available."
           },
@@ -154,7 +207,9 @@
                 },
                 "groupAllowFrom": {
                   "type": "array",
-                  "items": { "type": "string" },
+                  "items": {
+                    "type": "string"
+                  },
                   "description": "Per-group sender allowlist used when you want tighter access control than the channel default."
                 }
               }
@@ -242,7 +297,11 @@
           },
           "cardStreamingMode": {
             "type": "string",
-            "enum": ["off", "answer", "all"],
+            "enum": [
+              "off",
+              "answer",
+              "all"
+            ],
             "description": "AI card incremental streaming mode. off disables streaming, answer streams answer text only, and all streams answer plus reasoning or thinking text."
           },
           "cardStreamInterval": {
@@ -293,7 +352,14 @@
             "type": "object",
             "description": "Status line visibility toggles for the AI card footer.",
             "additionalProperties": false,
-            "default": { "model": true, "effort": true, "agent": true, "taskTime": false, "tokens": false, "dapiUsage": false },
+            "default": {
+              "model": true,
+              "effort": true,
+              "agent": true,
+              "taskTime": false,
+              "tokens": false,
+              "dapiUsage": false
+            },
             "properties": {
               "model": {
                 "type": "boolean",
@@ -357,13 +423,25 @@
                 },
                 "clientSecret": {
                   "anyOf": [
-                    { "type": "string" },
+                    {
+                      "type": "string"
+                    },
                     {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["source", "provider", "id"],
+                      "required": [
+                        "source",
+                        "provider",
+                        "id"
+                      ],
                       "properties": {
-                        "source": { "type": "string", "enum": ["env", "file"] },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "env",
+                            "file"
+                          ]
+                        },
                         "provider": {
                           "type": "string",
                           "minLength": 1,
@@ -383,47 +461,81 @@
                 },
                 "dmPolicy": {
                   "type": "string",
-                  "enum": ["open", "pairing", "allowlist"],
+                  "enum": [
+                    "open",
+                    "pairing",
+                    "allowlist"
+                  ],
                   "default": "open",
                   "description": "Direct-message access policy. open allows any DM, pairing requires host pairing, and allowlist only permits IDs listed in allowFrom."
                 },
                 "groupPolicy": {
                   "type": "string",
-                  "enum": ["open", "allowlist", "disabled"],
+                  "enum": [
+                    "open",
+                    "allowlist",
+                    "disabled"
+                  ],
                   "default": "open",
                   "description": "Group-message access policy. open allows all groups, allowlist restricts by groupAllowFrom, and disabled blocks group handling."
                 },
                 "allowFrom": {
                   "type": "array",
-                  "items": { "type": "string" },
+                  "items": {
+                    "type": "string"
+                  },
                   "description": "User IDs allowed when dmPolicy is allowlist. Accepts DingTalk IDs or host-normalized IDs."
                 },
                 "groupAllowFrom": {
                   "type": "array",
-                  "items": { "type": "string" },
+                  "items": {
+                    "type": "string"
+                  },
                   "description": "Sender IDs allowed when groupPolicy is allowlist. Leave empty unless you want per-sender restrictions in groups."
                 },
                 "displayNameResolution": {
                   "type": "string",
-                  "enum": ["disabled", "all"],
+                  "enum": [
+                    "disabled",
+                    "all"
+                  ],
                   "default": "disabled",
                   "description": "Whether learned display names can be used to resolve DingTalk users or groups. Keep disabled unless you explicitly accept stale or ambiguous-name routing risk."
                 },
                 "contextVisibility": {
                   "type": "string",
-                  "enum": ["all", "allowlist", "allowlist_quote"],
+                  "enum": [
+                    "all",
+                    "allowlist",
+                    "allowlist_quote"
+                  ],
                   "description": "Host-level context filtering before prompts are sent to the runtime. allowlist_quote is the safest advanced mode when only explicit quote or reply context should remain visible."
                 },
                 "mediaUrlAllowlist": {
                   "type": "array",
-                  "items": { "type": "string" },
+                  "items": {
+                    "type": "string"
+                  },
                   "description": "Allowed download hosts, IPs, or CIDRs for remote media fetches. Use this for internal file servers or custom CDN domains."
                 },
                 "ackReaction": {
                   "anyOf": [
-                    { "type": "string", "const": "" },
-                    { "type": "string", "enum": ["off", "emoji", "kaomoji"] },
-                    { "type": "string", "minLength": 1 }
+                    {
+                      "type": "string",
+                      "const": ""
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "off",
+                        "emoji",
+                        "kaomoji"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    }
                   ],
                   "description": "Acknowledgement reaction mode. Supports off, emoji, kaomoji, or a custom compatibility string."
                 },
@@ -440,7 +552,10 @@
                 },
                 "messageType": {
                   "type": "string",
-                  "enum": ["markdown", "card"],
+                  "enum": [
+                    "markdown",
+                    "card"
+                  ],
                   "default": "markdown",
                   "description": "Default reply delivery mode. markdown uses standard messages; card uses DingTalk AI cards when available."
                 },
@@ -470,7 +585,9 @@
                       },
                       "groupAllowFrom": {
                         "type": "array",
-                        "items": { "type": "string" },
+                        "items": {
+                          "type": "string"
+                        },
                         "description": "Per-group sender allowlist used when you want tighter access control than the channel default."
                       }
                     }
@@ -558,7 +675,11 @@
                 },
                 "cardStreamingMode": {
                   "type": "string",
-                  "enum": ["off", "answer", "all"],
+                  "enum": [
+                    "off",
+                    "answer",
+                    "all"
+                  ],
                   "description": "AI card incremental streaming mode. off disables streaming, answer streams answer text only, and all streams answer plus reasoning or thinking text."
                 },
                 "cardStreamInterval": {
@@ -609,7 +730,14 @@
                   "type": "object",
                   "description": "Status line visibility toggles for the AI card footer.",
                   "additionalProperties": false,
-                  "default": { "model": true, "effort": true, "agent": true, "taskTime": false, "tokens": false, "dapiUsage": false },
+                  "default": {
+                    "model": true,
+                    "effort": true,
+                    "agent": true,
+                    "taskTime": false,
+                    "tokens": false,
+                    "dapiUsage": false
+                  },
                   "properties": {
                     "model": {
                       "type": "boolean",
@@ -642,7 +770,173 @@
                       "description": "Show DingTalk API call count in AI card status line footer."
                     }
                   }
+                },
+                "feedbackReporting": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "endpoint": {
+                      "type": "string",
+                      "maxLength": 2048
+                    },
+                    "tenantId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "instanceId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "token": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "source",
+                            "provider",
+                            "id"
+                          ],
+                          "properties": {
+                            "source": {
+                              "type": "string",
+                              "enum": [
+                                "env",
+                                "file"
+                              ]
+                            },
+                            "provider": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "allowInsecureHttp": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "idleMs": {
+                      "type": "integer",
+                      "minimum": 1000,
+                      "maximum": 60000
+                    },
+                    "requestTimeoutMs": {
+                      "type": "integer",
+                      "minimum": 500,
+                      "maximum": 10000
+                    },
+                    "maxTranscriptBytes": {
+                      "type": "integer",
+                      "minimum": 65536,
+                      "maximum": 33554432
+                    },
+                    "maxContentBytes": {
+                      "type": "integer",
+                      "minimum": 1024,
+                      "maximum": 262144
+                    },
+                    "workerMemoryMb": {
+                      "type": "integer",
+                      "minimum": 64,
+                      "maximum": 256
+                    }
+                  }
                 }
+              }
+            }
+          },
+          "feedbackReporting": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false
+              },
+              "endpoint": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "tenantId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "instanceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "token": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "source",
+                      "provider",
+                      "id"
+                    ],
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "env",
+                          "file"
+                        ]
+                      },
+                      "provider": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ]
+              },
+              "allowInsecureHttp": {
+                "type": "boolean",
+                "default": false
+              },
+              "idleMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 60000
+              },
+              "requestTimeoutMs": {
+                "type": "integer",
+                "minimum": 500,
+                "maximum": 10000
+              },
+              "maxTranscriptBytes": {
+                "type": "integer",
+                "minimum": 65536,
+                "maximum": 33554432
+              },
+              "maxContentBytes": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 262144
+              },
+              "workerMemoryMb": {
+                "type": "integer",
+                "minimum": 64,
+                "maximum": 256
               }
             }
           }
@@ -879,6 +1173,89 @@
         "proactivePermissionHint.cooldownHours": {
           "label": "Proactive Hint Cooldown (hours)",
           "help": "Minimum cooldown before the same proactive permission hint can be shown again."
+        },
+        "feedbackReporting": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "endpoint": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "tenantId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "instanceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "token": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "source",
+                    "provider",
+                    "id"
+                  ],
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "enum": [
+                        "env",
+                        "file"
+                      ]
+                    },
+                    "provider": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            },
+            "allowInsecureHttp": {
+              "type": "boolean",
+              "default": false
+            },
+            "idleMs": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 60000
+            },
+            "requestTimeoutMs": {
+              "type": "integer",
+              "minimum": 500,
+              "maximum": 10000
+            },
+            "maxTranscriptBytes": {
+              "type": "integer",
+              "minimum": 65536,
+              "maximum": 33554432
+            },
+            "maxContentBytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 262144
+            },
+            "workerMemoryMb": {
+              "type": "integer",
+              "minimum": 64,
+              "maximum": 256
+            }
+          }
         }
       }
     }

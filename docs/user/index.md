@@ -32,6 +32,7 @@
 - [回复模式](features/reply-modes.md)
 - [AI 卡片](features/ai-card.md)
 - [AI 卡片评价与问答反查](features/card-feedback.md)
+- [评价 HTTP 上报配置](features/feedback-http-reporting.md)
 - [表单互动卡片](features/form-interactive-card.md)
 - [代回复助手（独立插件）](features/dws-send-approval.md)
 - [钉钉文档 API](features/dingtalk-docs-api.md)
@@ -43,6 +44,7 @@
 ## 参考
 
 - [配置项](reference/configuration.md)
+- [评价上报接口对接手册](reference/feedback-reporting-api.md)
 - [安全策略](reference/security-policies.md)
 - [API 消耗说明](reference/api-usage-and-cost.md)
 

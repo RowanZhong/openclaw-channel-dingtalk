@@ -9,6 +9,7 @@ import { registerDingTalkAskUserQuestionTool } from "./src/card/ask-user-questio
 import { noteFeedbackRunSession } from "./src/card/feedback-transcript";
 import { registerReplyAssistantBridge } from "./src/card/reply-assistant-bridge";
 import { dingtalkPlugin } from "./src/channel";
+import { registerFeedbackReporting } from "./src/command/feedback-reporting-service";
 import { getConfig, listDingTalkAccountIds, resolveDingTalkAccount } from "./src/config";
 import {
   appendToDoc,
@@ -294,6 +295,7 @@ const dingtalkEntry = defineChannelPluginEntry({
   setRuntime: setDingTalkRuntime,
   registerFull(api) {
     registerReplyAssistantBridge(api);
+    registerFeedbackReporting(api);
     registerDingTalkDocsGatewayMethods(api);
     registerDingTalkConnectorCompatibilityGatewayMethods(api);
     registerDingTalkAskUserQuestionTool(api);

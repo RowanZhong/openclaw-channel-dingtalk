@@ -30,7 +30,13 @@
     "scripts/feedback-export.mjs",
     "openclaw.plugin.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/user/features/feedback-http-reporting.md",
+    "docs/user/reference/feedback-reporting.openapi.json",
+    "docs/user/reference/feedback-reporting-oceanbase.sql",
+    "scripts/feedback-reporting-receiver.mjs",
+    "docs/user/reference/feedback-reporting-api.md",
+    "docs/user/reference/feedback-reporting-examples.json"
   ],
   "type": "module",
   "engines": {

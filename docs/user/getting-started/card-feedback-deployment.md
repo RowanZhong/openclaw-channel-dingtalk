@@ -2,7 +2,7 @@
 
 适用对象：维护 OpenClaw `2026.7.1-2` 与社区钉钉插件旧版兼容分支的开发、平台和运维人员。本文针对 **AI 流式回答卡片的评价功能**，与独立的代回复助手无关。
 
-核对日期：2026-10-25。源码交付分支为个人仓库的 [`codex/card-feedback-recording`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/card-feedback-recording)，开发基线为 `9db293b`（基线本身不含本功能）。本改造尚未发布到上游 npm，`package.json` 仍标记 `3.6.11`；**普通更新上游同名插件不能保证拿到本功能，不能只用版本号识别构建产物。** 分发前应固定已审阅源码、内部构建号及产物 SHA-256。
+核对日期：2026-10-25。本次 HTTP 上报增量的交付分支为个人仓库的 [`codex/feedback-http-reporting`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/feedback-http-reporting)，以 `6da056b` 为基线；部署时使用经审阅并固定 SHA 的实际交付构建。基础评价源码分支为个人仓库的 [`codex/card-feedback-recording`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/card-feedback-recording)，开发基线为 `9db293b`（基线本身不含本功能）。本改造尚未发布到上游 npm，`package.json` 仍标记 `3.6.11`；**普通更新上游同名插件不能保证拿到本功能，不能只用版本号识别构建产物。** 分发前应固定已审阅源码、内部构建号及产物 SHA-256。
 
 ## 1. 是否只更新插件就够了
 
@@ -21,9 +21,10 @@
 | --- | --- |
 | 尚未部署本分支评价功能 | 按全文部署：指定构建、开关、模板及持久化路径都要核对 |
 | 已部署本分支赞踩统计，尚未包含精确问答关联 | 更新到包含 `feedback-transcript` / `feedback-detail` 的构建并重启；沿用符合 `feedback_vote` 协议的模板和现有配置，无须再改模板 |
-| 已部署最终构建 | 按第 9 节复验，并核对评价记录与实际 Agent 转录的保留策略 |
+| 已部署精确关联，需集中入库 | 更新包含 `feedbackReporting` 的构建及独立 Worker 资产，按第 10 节配置公司接收服务；沿用原评价模板 |
+| 不需集中入库 | 保持 `feedbackReporting.enabled: false`（默认）；按第 9 节复验 |
 
-旧记录和已有投放卡片不会在升级后自动补写转录 ID；精确反查应使用升级后新建并正常完成的回答卡片。当前旧版最终全量回归为 **1420 项通过**，真实同文回答隔离、点踩反查、重启及撤销均已验收；新版仓库尚未实施迁移，不能据此宣称新版宿主已通过。
+旧记录和已有投放卡片不会在升级后自动补写转录 ID；精确反查应使用升级后新建并正常完成的回答卡片。基础评价与精确关联的回归为 1420 项；加入 HTTP 上报后的最终全量回归为 **1458 项通过**，真实同文回答隔离、点踩反查、重启及撤销均已验收；新版仓库尚未实施迁移，不能据此宣称新版宿主已通过。
 
 ### 已有模板如何处理
 
@@ -68,6 +69,13 @@ package.json
 openclaw.plugin.json
 dist/index.js
 dist/index.d.ts
+dist/feedback-reporting-worker.js
+docs/user/features/feedback-http-reporting.md
+docs/user/reference/feedback-reporting-api.md
+docs/user/reference/feedback-reporting-examples.json
+docs/user/reference/feedback-reporting.openapi.json
+docs/user/reference/feedback-reporting-oceanbase.sql
+scripts/feedback-reporting-receiver.mjs
 docs/assets/card-template-v2.json
 docs/user/features/card-feedback.md
 docs/user/getting-started/card-feedback-deployment.md
@@ -240,7 +248,7 @@ volumes:
 - 若一员工对应一个 Deployment，可采用 `replicas: 1`、`strategy.type: Recreate`，或无 surge 的滚动策略；如果使用自研控制器，应在控制器实现同等的单写入者约束。
 - 先在少量员工实例验证，再按公司发布节奏扩展；不要一次重启全部实例制造连接与元数据 I/O 峰值。
 
-本功能不新增常驻进程，不需要为每个员工部署一个数据库进程。没有修改自研 Web Channel 或 Agent Gateway 的要求。
+基础评价不新增常驻进程。可选 HTTP 上报最多启动一个按需 Worker 线程，空闲回收，前台活动时退让；它不是另一个常驻进程，也不需要每员工部署数据库进程。没有修改自研 Web Channel 或 Agent Gateway 的要求。
 
 ## 8. 数据在哪里、占多少空间
 
@@ -293,7 +301,7 @@ dirname(钉钉账号对应的 session storePath)/dingtalk-state/feedback.ratings
 
 因此单个 Pod 通常较轻，但 15000 实例不能只看 JSON 字节数。应测量实际卡片产生率、PVC 可用量/inode、目录扫描及备份耗时。当前统计需要扫描该账号保留记录，是随记录数增长的工作量；本机 300 条记录约 17 ms 的查询结果，不能直接推算大规模共享存储的延迟。
 
-若没有 90 天本地查询要求，可从 30 天保留期开展容量评估。需要长期集团分析时，可先将导出结果入中心数据库；若主要问题是小文件数量，再评估存储实现替换，见第 10 节。
+若没有 90 天本地查询要求，可从 30 天保留期开展容量评估。上述表格仅估算基础评价记录；HTTP 上报另外产生 outbox/receipt 和未确认正文，失败期间会增长，不能把该表当作开启上报后的全部容量。需要长期集团分析时可使用第 10 节的 HTTP 同步；小文件数量优化仍需另行更换存储实现。
 
 ### 8.4 只读测量当前目录
 
@@ -330,9 +338,9 @@ JS
 - 需要反查的期限内，应同时保留评价记录和对应 Agent 的转录。`feedbackRetentionDays` 不控制宿主转录清理策略。
 - 旧记录不批量回填；新记录关联失败不会影响正常回答和赞踩。
 - 原提问者私聊 `/feedback detail <outTrackId>`，只读取对应会话；找不到指定消息或指纹不符时不会回退到最近回答。
-- 本次典型三 UUID 关联信息增加约 224 字节 JSON；不增加文件数、原有完成写入次数或常驻进程。字段增加后实际分配块可能因跨过块边界而增多，应按第 8.4 节测量。
+- 基础精确关联的典型三个 UUID 增加约 224 字节 JSON；开启 HTTP 上报后还可能增加一个本地转录路径提示及评价版本元数据，大小随实际路径变化。路径不上传，完成与评价写入仍合并在原记录中；outbox/receipt 由后台另行写入。字段增加后实际分配块可能因跨过块边界而增多，应按第 8.4 节测量。
 - 本机 10000 次、8400 字符回答基准中，新增 tracker 捕获处理 P95 为约 0.0011 ms；这是新增逻辑的局部测量，不是完整回复延迟，也不等同公司 Pod 压测。新增 CPU / 临时内存并非绝对零；正常回复没有因此增加网络或模型调用。
-- 只有主动查询 `detail` 时才读取相应转录，耗时与转录大小有关。
+- 关闭 HTTP 上报时，仅主动查询 `detail` 读取相应转录；开启上报后，空闲 Worker 也按精确引用有界读取被评价问答。手动查询与后台上报的成本需分别评估。
 - 不依赖在每次点赞时搜索日志或读取全部会话。管理员 JSON/CSV 导出同时提供关联状态与三个 ID，字段说明见第 10 节。
 
 ## 9. 上线验收、观测与回滚
@@ -357,11 +365,25 @@ JS
 
 不要删除整个 `dingtalk-state` 目录：其中还有其他渠道状态。应用离线、待评价记录保留及数据删除应按企业自己的变更流程处理。
 
-## 10. 后续存数据库：当前能力与扩展方式
+## 10. 集中入库：HTTP 同步与离线导出
 
-**当前没有数据库驱动配置、写库 HTTP/RPC 接口或可注册的存储插件接口。** `src/command/feedback-store.ts` 的导出函数是源码内部调用入口，不是对外发布的稳定 SDK。
+### 10.1 推荐：通用 HTTP 上报
 
-当前已经可用的是：
+已实现可选 `feedbackReporting`。插件发送最新有效评价和被评价的一问一答，公司接收服务认证实例后按版本幂等写入 OceanBase 4.2.5.7 MySQL 模式。插件不直连数据库；现有 `feedback_vote` 模板无需修改。
+
+1. 先阅读[接口对接手册](../reference/feedback-reporting-api.md)及[完整示例](../reference/feedback-reporting-examples.json)，再按 [OpenAPI 协议](../reference/feedback-reporting.openapi.json)实现公司接收服务，参考随包文件 `docs/user/reference/feedback-reporting-oceanbase.sql` 的 DDL 与事务步骤。确认事务提交后才返回 `applied/duplicate/stale` ACK。
+2. 为员工配发稳定的 `tenantId`、`instanceId` 和受保护凭据；Pod 重建后身份不变。接收端必须将凭据与企业/实例绑定。
+3. 更新运行包、执行 `pnpm run build`，核对 `dist/feedback-reporting-worker.js` 随包存在。
+4. 按[完整配置及资源说明](../features/feedback-http-reporting.md)设置 `feedbackReporting`；默认关闭，不自动补传此前所有卡片。
+5. 在灰度实例重启并确认渠道 connected；真实点赞、点踩、撤销，核对中心最新状态、精确问答、无重复计票。
+6. 接收端 503/超时后恢复、网关重启、员工继续聊天，核对本地交互正常且后台最终补传。公司 OceanBase 及生产 PVC 必须由公司环境补验，本机已验证的是通用协议接收器和同资源规格测试 Pod。
+7. 回滚优先设 `feedbackReporting.enabled: false` 并重启，保留状态卷；不要删除待发送记录。关闭后本地赞踩继续可用。回退到不含上报的旧插件不能承诺跟踪回退期间的同步版本，恢复时需核对中心状态。
+
+前台不等待网络，后台读取/解析在 Worker；高负载可延迟上报。并非“零资源开销”或“无限离线仍保证补传”。保留期、缺失正文、SQLite 边界及故障处理均见完整说明。
+
+### 10.2 离线 JSON/CSV 导出
+
+`src/command/feedback-store.ts` 是内部实现，不是公共数据库 SDK。原有离线导出仍可使用：
 
 ```bash
 node scripts/feedback-export.mjs \
@@ -387,16 +409,18 @@ node scripts/feedback-export.mjs \
 
 也可加 `--user '<UserId>'` 或 `--format csv`。导出是仍在保留期内、已完成回答的**当前快照**，包含 `none` 状态，不包含完整操作历史、去重状态和全部生命周期字段。因此：
 
-- 只做集团报表：可另写采集任务，将快照按稳定实例标识与 cardId 做幂等覆盖写入中心库；撤销必须把原票更新为 `none`，不能不断累加。当前插件没有内置这项采集任务。
+- 离线导出可以用于一次性报表或核对；持续集中入库优先采用 HTTP 协议。两种方式都按稳定实例标识与卡片覆盖最新状态，撤销为 `none`，不能不断累加。
 - 该方式仍保留本地 JSON，不是“配置数据库后本地零存储”。导出缺失的一行不自动等于业务删除；也不能从现有导出恢复完整的可交互状态。
 - 要让数据库成为主存储：需要新增存储适配层，迁移归属、完成标记、回答指纹、可选转录引用、评价、去重及查询，保持事务与 ACK 顺序；卡片模板可以继续使用同一协议。
 - 15000 个 Pod 接中心库时，优先评估汇聚服务/连接治理，不要默认每个 Pod 配置一组数据库长连接。
 
-具体接口草案、迁移与新版仓库复用步骤见配套源码中的 `docs/spec/card-feedback-reuse-and-storage-design.md`（开发交接材料，不作为公开文档站页面或运行时 API）。该部分是后续设计，本文没有新增数据库连接或改变当前运行时行为。
+HTTP 接口字段、完整示例、ACK/异常、数据映射及联调步骤见[接口手册](../reference/feedback-reporting-api.md)。源码内部存储适配草案、迁移与新版仓库复用步骤见配套源码中的 `docs/spec/card-feedback-reuse-and-storage-design.md`（开发交接材料，不作为公开文档站页面或运行时 API）。其中通用 HTTP 同步已实现，替换本地权威存储的数据库适配器仍是后续设计。
 
 ## 相关材料
 
 - [员工使用说明](../features/card-feedback.md)
+- [HTTP 上报配置](../features/feedback-http-reporting.md)
+- [HTTP 接口对接手册](../reference/feedback-reporting-api.md)
 - 源码内验收记录：`docs/spec/2026-10-25-card-feedback-verification.md`
 - 源码内新版复用与存储扩展设计：`docs/spec/card-feedback-reuse-and-storage-design.md`
 

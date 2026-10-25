@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
-import { feedbackTranscriptText } from "../card/feedback-transcript";
+import { resolveFeedbackTranscriptMessages } from "./feedback-transcript-content";
+export { resolveFeedbackTranscriptMessages } from "./feedback-transcript-content";
 import { getDingTalkRuntime } from "../runtime";
-import { readFeedbackRecord, type FeedbackRecord, type FeedbackScope } from "./feedback-store";
+import { readFeedbackRecord, type FeedbackScope } from "./feedback-store";
 
 export type FeedbackTranscriptReader = (target: {
   agentId: string;
@@ -25,11 +25,6 @@ export async function readFeedbackTranscriptEvents(
   });
   return readSessionTranscriptEvents({ ...target, storePath });
 }
-function object(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
 function quote(text: string, max: number): string {
   const shown =
     text.length > max
@@ -39,68 +34,6 @@ function quote(text: string, max: number): string {
     .split("\n")
     .map((line) => `> ${line}`)
     .join("\n");
-}
-export function resolveFeedbackTranscriptMessages(
-  record: FeedbackRecord,
-  events: unknown[],
-):
-  | {
-      question: string;
-      answer: string;
-    }
-  | undefined {
-  const link = record.transcript;
-  if (link?.status !== "linked") {
-    return undefined;
-  }
-  let question: string | undefined;
-  let answer: string | undefined;
-  let questionIndex = -1;
-  let answerIndex = -1;
-  let duplicate = false;
-  for (const [index, value] of events.entries()) {
-    const entry = object(value);
-    if (entry?.type === "session" && entry.id !== link.sessionId) {
-      return undefined;
-    }
-    if (entry?.type !== "message") {
-      continue;
-    }
-    const message = object(entry.message);
-    if (entry.id === link.userMessageId) {
-      if (questionIndex >= 0 || message?.role !== "user") {
-        duplicate = true;
-      }
-      if (
-        typeof message?.senderId === "string" &&
-        message.senderId.replace(/^(?:dingtalk|dd|ding):/i, "") !== record.ownerUserId
-      ) {
-        return undefined;
-      }
-      if (message?.sourceChannel && message.sourceChannel !== "dingtalk") {
-        return undefined;
-      }
-      question = feedbackTranscriptText(message);
-      questionIndex = index;
-    }
-    if (entry.id === link.assistantMessageId) {
-      if (answerIndex >= 0 || message?.role !== "assistant") {
-        duplicate = true;
-      }
-      answer = feedbackTranscriptText(message);
-      answerIndex = index;
-    }
-  }
-  if (
-    duplicate ||
-    question === undefined ||
-    answer === undefined ||
-    questionIndex >= answerIndex ||
-    createHash("sha256").update(answer).digest("hex") !== record.answerHash
-  ) {
-    return undefined;
-  }
-  return { question, answer };
 }
 export async function feedbackDetail(params: {
   scope: FeedbackScope;

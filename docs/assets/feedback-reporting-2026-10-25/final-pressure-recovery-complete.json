@@ -1,0 +1,67 @@
+{
+  "enabled": true,
+  "scenario": "idle",
+  "cards": 24,
+  "durationMs": 120004.206197,
+  "startupMs": 0.18687399999998888,
+  "samples": 10798,
+  "probeLagMs": {
+    "p95": 2.7230710000003455,
+    "p99": 2.9826410000005126,
+    "max": 12.223675000001094
+  },
+  "eventLoopMs": {
+    "p99": 12.976127,
+    "max": 22.249471
+  },
+  "ratingAckMs": {
+    "p95": null,
+    "p99": null
+  },
+  "cpuMs": 2737.742,
+  "rssMiB": {
+    "initial": 124.3359375,
+    "peak": 152.7421875
+  },
+  "receiverRequests": 24,
+  "firstRequestAt": 1792919024800,
+  "checkpoints": [
+    {
+      "at": 1792919017676,
+      "receiverRequests": 0,
+      "service": {
+        "delivered": 0,
+        "superseded": 0,
+        "deferred": 0,
+        "failures": 0,
+        "workersStarted": 0,
+        "queued": 0,
+        "scanning": false,
+        "workerActive": false,
+        "workerResident": false,
+        "foregroundRuns": 0,
+        "timerScheduled": true
+      }
+    }
+  ],
+  "service": {
+    "delivered": 24,
+    "superseded": 0,
+    "deferred": 0,
+    "failures": 0,
+    "workersStarted": 1,
+    "queued": 0,
+    "scanning": false,
+    "workerActive": false,
+    "workerResident": false,
+    "foregroundRuns": 0,
+    "timerScheduled": false
+  },
+  "cgroup": {
+    "cpu.max": "400000 100000",
+    "cpu.weight": "11",
+    "cpu.stat": "usage_usec 33894629\nuser_usec 23109472\nsystem_usec 10785156\ncore_sched.force_idle_usec 0\nnr_periods 7055\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+    "memory.max": "8000000000"
+  },
+  "scope": "real reporting module with synthetic foreground probe and local receiver worker; not LLM first-token latency"
+}

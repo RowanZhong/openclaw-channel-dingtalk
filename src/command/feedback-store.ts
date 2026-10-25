@@ -3,6 +3,7 @@ import { mkdir, open, readFile, readdir, rename, unlink } from "node:fs/promises
 import path from "node:path";
 import type { FeedbackTranscriptLink } from "../card/feedback-transcript";
 import { resolveNamespacePath } from "../persistence-store";
+import { notifyFeedbackReportPending } from "./feedback-reporting-events";
 
 export type FeedbackVote = "none" | "like" | "dislike";
 export interface FeedbackRecord {
@@ -19,6 +20,7 @@ export interface FeedbackRecord {
   completedAt?: number;
   answerHash?: string;
   transcript?: FeedbackTranscriptLink;
+  reporting?: { revision: number; destinationKey: string; retainUntil: number };
   vote: FeedbackVote;
   reasons: string[];
   reasonsSubmitted?: boolean;
@@ -45,7 +47,7 @@ export type FeedbackResult =
 const NAMESPACE = "feedback.ratings";
 const queues = new Map<string, Promise<unknown>>();
 const lastCleanup = new Map<string, number>();
-function fileFor(scope: FeedbackScope, outTrackId: string): string {
+export function feedbackRecordPath(scope: FeedbackScope, outTrackId: string): string {
   // Hash the external key so a platform identifier cannot create an oversized filename.
   return resolveNamespacePath(NAMESPACE, {
     storePath: scope.storePath,
@@ -118,7 +120,7 @@ export async function registerFeedbackCard(
   if (!binding.outTrackId || !binding.ownerUserId) {
     return;
   }
-  const file = fileFor(scope, binding.outTrackId);
+  const file = feedbackRecordPath(scope, binding.outTrackId);
   await locked(file, async () => {
     const existing = await readRecord(file);
     if (existing) {
@@ -171,7 +173,11 @@ export async function cleanupFeedbackRecords(
     const file = path.join(directory, name);
     await locked(file, async () => {
       const record = await readRecord(file);
-      if (record?.accountId === scope.accountId && record.expiresAt <= now) {
+      if (
+        record?.accountId === scope.accountId &&
+        record.expiresAt <= now &&
+        (record.reporting?.retainUntil ?? 0) <= now
+      ) {
         await unlink(file);
       }
     });
@@ -196,7 +202,7 @@ export async function completeFeedbackCard(
   now = Date.now(),
   transcript?: FeedbackTranscriptLink,
 ): Promise<void> {
-  const file = fileFor(scope, outTrackId);
+  const file = feedbackRecordPath(scope, outTrackId);
   await locked(file, async () => {
     const record = await readRecord(file);
     if (!record || record.completedAt || !answer.trim()) {
@@ -214,8 +220,9 @@ export async function applyFeedback(
   scope: FeedbackScope,
   change: FeedbackChange,
   now = Date.now(),
+  reporting?: { destinationKey: string },
 ): Promise<FeedbackResult> {
-  const file = fileFor(scope, change.outTrackId);
+  const file = feedbackRecordPath(scope, change.outTrackId);
   return locked(file, async () => {
     const record = await readRecord(file);
     if (
@@ -251,6 +258,7 @@ export async function applyFeedback(
     if (change.reasons && record.vote !== "dislike") {
       return { status: "stale", record };
     }
+    const hadRating = record.vote !== "none" || record.history.some((item) => item.vote !== "none");
     if (change.vote) {
       if (change.vote !== record.vote) {
         record.reasons = [];
@@ -261,6 +269,15 @@ export async function applyFeedback(
     if (change.reasons) {
       record.reasons = [...new Set(change.reasons)];
       record.reasonsSubmitted = true;
+    }
+    // Only small metadata joins the existing atomic vote write. The reporting
+    // worker owns separate outbox files and never holds this vote lock.
+    if (record.reporting || (reporting && (record.vote !== "none" || hadRating))) {
+      record.reporting = {
+        revision: (record.reporting?.revision ?? 0) + 1,
+        destinationKey: reporting?.destinationKey ?? record.reporting!.destinationKey,
+        retainUntil: now + 7 * 86400000,
+      };
     }
     record.lastEventAt = change.eventAt;
     record.seen = [...record.seen, change.eventId].slice(-256);
@@ -281,6 +298,9 @@ export async function applyFeedback(
       ].slice(-100);
     }
     await writeRecord(file, record);
+    if (record.reporting) {
+      notifyFeedbackReportPending(scope, record.outTrackId);
+    }
     return { status: "saved", record };
   });
 }
@@ -317,7 +337,9 @@ export async function feedbackStats(
       continue;
     }
     if (record.expiresAt <= now) {
-      await unlink(file).catch(() => undefined);
+      if ((record.reporting?.retainUntil ?? 0) <= now) {
+        await unlink(file).catch(() => undefined);
+      }
       continue;
     }
     if (
@@ -346,7 +368,7 @@ export async function readFeedbackRecord(
   scope: FeedbackScope,
   outTrackId: string,
 ): Promise<FeedbackRecord | undefined> {
-  const record = await readRecord(fileFor(scope, outTrackId));
+  const record = await readRecord(feedbackRecordPath(scope, outTrackId));
   return record?.accountId === scope.accountId && record.outTrackId === outTrackId
     ? record
     : undefined;

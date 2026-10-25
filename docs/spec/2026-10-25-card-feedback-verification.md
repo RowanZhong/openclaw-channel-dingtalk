@@ -98,7 +98,7 @@
 
 ## 后续部署与复用材料
 
-完整部署及容量规划见[部署指引](../user/getting-started/card-feedback-deployment.md)；本次结论、模块迁移映射与尚未实现的数据库扩展设计见[新版复用指南](./card-feedback-reuse-and-storage-design.md)。当前存储仍为本地 JSON，不能将内部函数或导出工具理解为已提供数据库写入接口。
+完整部署及容量规划见[部署指引](../user/getting-started/card-feedback-deployment.md)；本次结论、模块迁移映射与尚未实现的数据库扩展设计见[新版复用指南](./card-feedback-reuse-and-storage-design.md)。基础验收时存储为本地 JSON。之后已新增默认关闭的[通用 HTTP 上报](./2026-10-25-feedback-http-reporting-verification.md)，由公司接收服务入库；内部函数及离线导出仍不是数据库 SDK。本文原有性能数字仅适用于基础评价与精确关联。
 
 
 ## 补充：评价与原始问答精确关联（2026-10-25）

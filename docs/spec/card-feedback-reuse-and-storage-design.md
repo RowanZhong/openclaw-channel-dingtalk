@@ -2,9 +2,9 @@
 
 更新日期：2026-10-25。本文是开发交接材料，方便将旧版已经验证的“仅原提问者、记录统计、精确反查原问答”能力迁移至新的社区钉钉插件分支，也说明后续数据库接入的边界。
 
-**验证状态：** 旧版基础评价与精确反查均已通过真机验收，最终全量回归为 137 个文件、1420 项测试。R8 / R14 在同一实际会话中输出完全相同的回答，仍能分别反查正确问题；重启、点赞点踩和撤销后引用不变。详见[最终验收记录](./2026-10-25-card-feedback-verification.md)。
+**验证状态：** 旧版基础评价与精确反查均已通过真机验收，该阶段全量回归为 137 个文件、1420 项测试。R8 / R14 在同一实际会话中输出完全相同的回答，仍能分别反查正确问题；重启、点赞点踩和撤销后引用不变。详见[最终验收记录](./2026-10-25-card-feedback-verification.md)。
 
-**状态区分：** 文中“当前实现”指旧版工作分支已有代码；“迁移步骤”尚未在新版仓库执行；“数据库设计”是后续建议，当前没有数据库适配器、连接配置、对外写库 API 或自动同步任务。
+**状态区分：** 基础评价后已在交付分支 [`codex/feedback-http-reporting`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/feedback-http-reporting)（基线 `6da056b`）增加通用 HTTP 同步，默认关闭。最终回归 1458 项，真机及同规格 Kubernetes 模块压力结果见[上报验收](./2026-10-25-feedback-http-reporting-verification.md)。“迁移步骤”尚未在新版执行；数据库成为本地主存储的适配器仍未实现。
 
 ## 1. 基线、目标与非目标
 
@@ -151,7 +151,7 @@
 | 去重及排序 | `lastEventAt`、最近 256 个 `seen` 事件 ID |
 | 有界操作记录 | 最多 100 次 `history` 状态变化 |
 
-不复制问答全文。`history` 不是完整审计流水：相同状态不重复新增，关闭面板可能只更新私有状态标志及去重信息；历史与去重均有数量上限。若企业需要完整审计，应另行设计不可变事件表。
+上述基础评价文件不复制问答全文；可选上报 outbox 可在确认前暂存被评价问答。`history` 不是完整审计流水：相同状态不重复新增，关闭面板可能只更新私有状态标志及去重信息；历史与去重均有数量上限。若企业需要完整审计，应另行设计不可变事件表。
 
 同一文件的操作用进程内 Promise 队列串行化。写入使用唯一临时文件、`0600` 权限、文件 fsync 和 rename；读取损坏数据时抛错，不能拿空对象覆盖。该实现不是跨进程事务锁，同一路径只适合单写入进程。
 
@@ -221,7 +221,7 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 从该转录中按两条外层消息 ID 查找；核对会话头、角色、顺序、可用的用户来源信息及回答 SHA-256。只呈现问题与最终可见回答，展示分别限 1000 / 2500 字符，不暴露思考或工具内容。转录不可读取、消息缺失或校验不通过时明确提示；不扫描其他会话、不回退最近答案、不补写旧记录。
 
-这一查询会读取一个指定转录文件，成本与其大小有关；正常回答和点击赞踩不会触发它。没有新增转录副本或数据库。
+这一手动查询会读取一个指定转录文件，成本与其大小有关；正常回答和点击路径不直接调用它。开启 HTTP 上报后，由独立 Worker 的有界读取路径采集被评价问答，可产生临时 outbox 正文；不借用手动全会话读取路径。
 
 #### 4.5.3 宿主能力与降级边界
 
@@ -243,7 +243,7 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 #### 4.5.4 SQLite 宿主的源码兼容性核对
 
-2026-10-25 已核对官方发布版 `2026.10.7`：默认运行会话与转录改用各 Agent 的 `openclaw-agent.sqlite`。本功能没有自行解析 JSONL，仍通过公开事件及 `readSessionTranscriptEvents()` 接入；该版本保留所需 `target.agentId/sessionId/sessionKey`、`messageId` 和消息字段，公开读取接口通过宿主存储层读取 SQLite。公开事件不再提供 `sessionFile`，本 tracker 对该字段的检查是可选的，不以文件路径为必填身份。
+2026-10-25 已核对官方发布版 `2026.10.7`：默认运行会话与转录改用各 Agent 的 `openclaw-agent.sqlite`。这里指基础精确关联与手动详情：它们通过公开事件及 `readSessionTranscriptEvents()` 接入，而非自行解析 JSONL；新增 HTTP 上报的有界读取适配是另一条路径，见第 6 节；该版本保留所需 `target.agentId/sessionId/sessionKey`、`messageId` 和消息字段，公开读取接口通过宿主存储层读取 SQLite。公开事件不再提供 `sessionFile`，本 tracker 对该字段的检查是可选的，不以文件路径为必填身份。
 
 这是**源码接口兼容性核对，不是新版整包或 SQLite 迁移的真机验收**。迁移时还需验证实际模型后端事件、完成时序、同文不同消息、原评价文件路径，以及历史 sessionId / 消息 ID 是否保留。当前已经通过真实验收的宿主仍为 `2026.7.1-2`。
 
@@ -266,6 +266,8 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 | `src/command/feedback-command.ts` | 保持 `command/` 领域，接入统计与详情两个子命令 |
 | `src/card/feedback-transcript.ts` | 保持 `card/` 领域，核对宿主转录事件与会话别名契约 |
 | `src/command/feedback-detail.ts` | 保持 `command/` 领域；runtime import 对应 `src/platform/runtime.ts`，核对公开转录读取接口 |
+| `src/command/feedback-transcript-content.ts` | 基础详情与上报共用的纯解析/身份/指纹核对逻辑；即使不迁移 HTTP 上报也要复制 |
+| `src/command/feedback-reporting-config.ts`、`feedback-reporting-events.ts` | 当前基础回调/存储已导入的配置和轻量通知支撑；即使保持上报关闭，复制当前源码时也不能漏掉 |
 | `index.ts` | 沿用既有 `llm_output` hook，按 runId 传递实际 sessionId，不重复注册 hook |
 | `src/reply-strategy-types.ts` | `src/messaging/reply-strategy-types.ts`，传递 tracker 给卡片策略 |
 | `src/inbound-handler.ts` | `src/gateway/inbound-handler.ts` |
@@ -279,8 +281,8 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 ### 5.2 推荐实施顺序
 
-1. 复制五个核心模块：`feedback-store`、`feedback-callback`、`feedback-command`、`feedback-transcript`、`feedback-detail`，以及对应测试，按上表修正 import；不要引入代回复助手依赖。
-2. 在目标配置 schema、类型、插件 manifest 与多账号继承链加入 `feedbackEnabled`、`feedbackRetentionDays`，保持默认关闭。
+1. 复制六个基础模块：`feedback-store`、`feedback-callback`、`feedback-command`、`feedback-transcript`、`feedback-detail`、`feedback-transcript-content`，以及当前导入的 `feedback-reporting-config` / `feedback-reporting-events` 支撑模块和对应测试，按上表修正 import；不要引入代回复助手依赖。
+2. 在目标配置 schema、类型、插件 manifest 与多账号继承链加入 `feedbackEnabled`、`feedbackRetentionDays`，保持默认关闭。复制当前回调/config 代码还需保留 `feedbackReporting` 类型/schema；是否启用 HTTP 服务按第 6 节处理。
 3. 找到实际的卡片创建/排队复用路径，从已授权入站身份注册归属。入口和卡片回调用相同账号存储 scope；详情读取转录时使用记录中的实际 Agent，不混用两者。
 4. 按第 4.5 节接入转录事件：在会话锁内创建 tracker，交给回复策略，在 `finally` 释放；`onAgentRunStart` 绑定 runId，既有 `llm_output` hook 补充实际 SID。保留可信别名、候选上限与不确定降级。
 5. 在成功完成实际回答的路径同次写入完成标记、回答指纹与可选转录引用；覆盖流式与非增量卡片模式，排除错误最终消息、停止、异常恢复及主动通知。不得后台补猜旧记录或重绑已完成记录。
@@ -298,16 +300,28 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 旧版仓库中的模板导出同时包含 `editorData` 与 `widgetInfo`。修改 JSON 外层并不等于修改了嵌套编辑数据；只改 editorData 也不能保证编译内容同步。应从平台保存后重新导出，运行 `card-feedback-template.test.ts`。本次真实导出保持 41 个组件和 ID；另有平台默认字段规范化及此前线上已有的复制设置差异，详见验收记录。
 
-## 6. 数据库接入设计（尚未实现）
+## 6. 数据库接入：已实现同步与后续存储适配
+
+已实现的第一版是本地评价为权威、HTTP 接收服务存最新快照，**只存被评价的一问一答**；不采集全会话，不要求中心数据库响应才能完成卡片操作。对接入口是 OpenAPI HTTP 协议，不是对外暴露内部 TS 函数。字段、事务、全部示例和错误处理见[接口手册](../user/reference/feedback-reporting-api.md)，机器可读定义及示例也须随运行包交付。配置、缺失正文、撤销与版本规则见[上报说明](../user/features/feedback-http-reporting.md)。
+
+新版复用上报时，除基础六模块，还需迁移 `feedback-reporting-{config,events,io,protocol,content,transport,worker,service}` 及测试。需同步以下接线：
+
+- `index.ts` 的服务注册/停止，`inbound-handler`、评价回调及可信 Agent 生命周期的前台活动通知。
+- `feedback-store` 的同次源版本/目的地/保留期写入；不要在点击路径直接读转录或请求 HTTP。
+- 转录 tracker 的可选可信 `localFile` 提示与回复完成时保存；仅 Worker 本地使用，协议显式排除路径。
+- 构建与归档中的独立 Worker 入口、配置 schema、SecretInput、运行时资源和文件权限。
+- SQLite 宿主先实现并验证有界读取适配，不能用全会话读取 API 冒充低开销按 ID 查询。旧版 JSONL 的真机和压力结果不能直接外推。
+
+不必改评价卡片模板。新版必须复验前台抢占、冷启动内存、压力暂停/恢复、ACK 幂等、重启补传和故障退让。以下“存储适配层”仍为设计草案。
 
 ### 6.1 先选择要解决的问题
 
 | 需求 | 建议路径 | 本地 JSON 是否保留 |
 | --- | --- | --- |
-| 集团报表、长期分析 | 现有快照导出 + 单独开发采集/入库任务 | 保留；可适当缩短本地保留期 |
+| 集团报表、长期分析 | 已实现 HTTP 快照同步，公司实现接收服务入库；也可离线导出核对 | 保留；须核对正文及待发送保留策略 |
 | 减少每 Pod 的小文件数量 | 存储模块替换为单库文件（例如 SQLite）或其他合适本地存储 | 不再每卡一个 JSON，但仍需持久卷；需要开发 |
 | 中心数据库成为唯一权威存储 | 新增可替换存储层，经直接 DB 适配或内部汇聚服务实现 | 可以不保留现有 JSON 主副本；容错方案另定 |
-| 网络中断仍可快速确认反馈，并最终集中入库 | 本地耐久状态/Outbox + 同步服务 | 保留必要本地状态和待上传事件；需要开发 |
+| 网络中断仍可快速确认反馈，并最终集中入库 | 已实现源版本 + 后台耐久 outbox + 幂等 HTTP | 保留，超过保留期仍可能被清理；不是无限离线保证 |
 
 现有导出不是增量 CDC：撤销以 `vote=none` 覆盖旧票，不能每次导入都加一。导出中消失的记录可能只是超期或不在窗口，不能自动判定中心库应删除。只有本地定期导出不能恢复完整历史；采集间隔内多次切换可能只留下最后状态。
 
@@ -332,7 +346,9 @@ interface FeedbackStore {
 
 如果只替换内部存储实现且保持事件/UI 协议不变，模板不必再次改动。新增配置名、驱动依赖及对外入口应在数据库实现时单独定义和验收，当前文档不提供虚构的可用数据库配置。
 
-### 6.3 中心库的隔离键与表职责
+### 6.3 中心库的隔离键与表职责（存储替换草案）
+
+本节多表设计针对未来替换主存储/完整审计，不是第一版 HTTP 接收的必建表。第一版使用参考 `ai_reply_feedback` 最新快照表，具体列映射见接口手册。
 
 15000 个实例很可能都使用 `accountId=default`，不能把它当作全局租户标识。
 
@@ -344,7 +360,7 @@ interface FeedbackStore {
 
 若采用内部汇聚服务，由服务认证绑定实例身份，再在事务中处理评价。避免 15000 个 Pod 各自创建默认大连接池。保留有界超时、幂等重试和清楚的失败结果。
 
-中心库保存消息 ID 不等于保存了正文。问答仍可能只存在员工实例的转录中；反查需另行设计经过身份校验的实例访问路径及转录保留策略，不能假定数据库入库后就能自动获取员工会话全文。
+只保存消息 ID 的离线导出不能还原正文。HTTP 同步会在 Worker 中按精确 ID 与指纹验证一问一答，并显式上报 available/missing/unverified/pending；可用正文只需首次确认，之后评价变化用 preserve 保留中心正文。不查询其他问题、不上传本地文件路径。
 
 ### 6.4 一致性、故障和迁移
 
@@ -392,7 +408,7 @@ interface FeedbackStore {
 
 ## 8. 性能、容量和部署限制
 
-当前 JSON 方案不新增常驻进程、数据库连接或 LLM 调用。每次有效写入涉及本地原子文件 I/O；反馈目录扫描发生在统计和低频清理中，不是每次点击都扫描全部记录。显式 `detail` 查询另外读取一个指定 Agent 的会话转录，耗时取决于转录大小。
+基础 JSON 评价不新增常驻进程、数据库连接或 LLM 调用。可选 HTTP 上报增加一个按需 Worker 线程及后台文件/网络开销；前台运行期间暂停，不能把基础功能的成本测量直接当作开启上报的成本。每次有效写入涉及本地原子文件 I/O；反馈目录扫描发生在统计和低频清理中，不是每次点击都扫描全部记录。显式 `detail` 查询另外读取一个指定 Agent 的会话转录，耗时取决于转录大小。
 
 本次 300 条合成记录的一次评价落盘中位约 5.3 ms、P95 约 6.3 ms，统计约 16.9 ms；这是本机结果，不包含钉钉网络耗时，不代表 Kubernetes 共享卷。新增转录捕获的 10000 次、8400 字符回答基准中，中位数为 0.875 μs、P95 为 1.083 μs；这是 tracker 本身的本机测量，不含宿主发出事件前的工作或模型/网络耗时。转录引用合并进原完成写入，两组各 60 次测量的文件操作次数相同；典型三个 UUID 增加约 224 字节 JSON。新增 CPU 和临时内存并非绝对零；移植后需按目标宿主及 Pod 条件复测。完整实测口径见[验收记录](./2026-10-25-card-feedback-verification.md)。
 
@@ -411,12 +427,13 @@ interface FeedbackStore {
 
 ## 10. 交接交付物
 
-- 五个核心模块，以及回调/存储/生命周期/转录捕获/详情授权/模板/打包测试。
+- 基础六个业务模块、当前直接导入的 config/events 支撑，以及第 6 节列出的可选 HTTP 上报模块、独立 Worker 资产与相应测试。
 - 平台导出的完整模板资产；复用新版时只合并相关组件设置。
 - `docs/user/features/card-feedback.md`：员工使用说明。
 - `docs/user/getting-started/card-feedback-deployment.md`：完整部署、容量与回滚。
 - `docs/spec/2026-10-25-card-feedback-verification.md`：旧版验收记录及证据边界。
-- 本文：通用实现结论、迁移顺序及尚未实现的数据库方案。
+- HTTP 上报说明、OpenAPI、OceanBase 参考 SQL、测试接收器、可复现压力工具和独立验收记录。
+- 本文：通用实现结论、迁移顺序、已实现同步和未实现的存储替换方案。
 
 正式移交时记录实际选定的源码提交 SHA、制品摘要与受测版本；分支后续会更新，部署不可只记录分支名。不得将本机的未发布模板 ID、账号凭据或测试状态目录硬编码到产品。
 

@@ -143,6 +143,7 @@ export default defineConfig({
             { text: '代回复助手（独立插件）', link: '/user/features/dws-send-approval' },
             { text: '钉钉文档 API', link: '/user/features/dingtalk-docs-api' },
             { text: 'AI 卡片评价', link: '/user/features/card-feedback' },
+            { text: '评价 HTTP 上报', link: '/user/features/feedback-http-reporting' },
             { text: '反馈学习', link: '/user/features/feedback-learning' },
             { text: '多 Agent 与多机器人绑定', link: '/user/features/multi-agent-bindings' },
             { text: '@多助手路由', link: '/user/features/at-agent-routing' },
@@ -152,6 +153,7 @@ export default defineConfig({
           text: '参考',
           items: [
             { text: '配置项', link: '/user/reference/configuration' },
+            { text: '评价上报接口', link: '/user/reference/feedback-reporting-api' },
             { text: '安全策略', link: '/user/reference/security-policies' },
             { text: 'API 消耗说明', link: '/user/reference/api-usage-and-cost' },
           ],

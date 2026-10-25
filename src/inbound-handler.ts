@@ -1,3 +1,4 @@
+import { withFeedbackForegroundActivity } from "./command/feedback-reporting-events";
 import { createFeedbackTranscriptTracker, type FeedbackTranscriptTracker } from "./card/feedback-transcript";
 import { registerFeedbackCard } from "./command/feedback-store";
 import fs from "node:fs";
@@ -592,7 +593,7 @@ export async function handleDingTalkMessage(params: HandleDingTalkMessageParams)
       log: params.log,
       dingtalkConfig: params.dingtalkConfig,
     },
-    () => handleDingTalkMessageInner(params),
+    () => withFeedbackForegroundActivity(() => handleDingTalkMessageInner(params)),
   );
 }
 

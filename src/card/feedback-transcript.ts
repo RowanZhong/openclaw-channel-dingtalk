@@ -6,6 +6,8 @@ export type FeedbackTranscriptLink =
       userMessageId: string;
       assistantMessageId: string;
       source: "runtime-events";
+      /** Local-only read hint from a trusted host event; never uploaded. */
+      localFile?: string;
     }
   | {
       status: "unavailable";
@@ -21,7 +23,7 @@ export type FeedbackTranscriptLink =
 
 export interface FeedbackTranscriptTracker {
   bindRun(runId: string): void;
-  resolve(answer: string): FeedbackTranscriptLink;
+  resolve(answer: string, options?: { includeLocalFile?: boolean }): FeedbackTranscriptLink;
   dispose(): void;
 }
 type RunOwner = { sessionId(sessionId: string, agentId?: string, sessionKey?: string): void };
@@ -202,7 +204,7 @@ export function createFeedbackTranscriptTracker(options: {
       runIds.add(runId);
       activeRuns.set(runId, runOwner);
     },
-    resolve(answer) {
+    resolve(answer, captureOptions) {
       const unavailable = (
         reason: Extract<FeedbackTranscriptLink, { status: "unavailable" }>["reason"],
       ): FeedbackTranscriptLink => ({ status: "unavailable", reason });
@@ -240,6 +242,7 @@ export function createFeedbackTranscriptTracker(options: {
         sessionId: [...ids][0],
         userMessageId: question.id,
         assistantMessageId: match.id,
+        ...(captureOptions?.includeLocalFile && question.file ? { localFile: question.file } : {}),
       };
     },
     dispose() {

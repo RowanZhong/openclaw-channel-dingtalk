@@ -1,0 +1,47 @@
+{
+  "enabled": true,
+  "scenario": "slow",
+  "cards": 24,
+  "durationMs": 10005.062190999999,
+  "startupMs": 0.11487600000000953,
+  "samples": 855,
+  "probeLagMs": {
+    "p95": 4.644014000000425,
+    "p99": 5.199392999999873,
+    "max": 5.435437000000093
+  },
+  "eventLoopMs": {
+    "p99": 15.155199,
+    "max": 15.589375
+  },
+  "ratingAckMs": {
+    "p95": null,
+    "p99": null
+  },
+  "cpuMs": 444.156,
+  "rssMiB": {
+    "initial": 123.3125,
+    "peak": 141.96484375
+  },
+  "receiverRequests": 1,
+  "service": {
+    "delivered": 0,
+    "superseded": 0,
+    "deferred": 1,
+    "failures": 0,
+    "workersStarted": 1,
+    "queued": 11,
+    "scanning": true,
+    "workerActive": false,
+    "workerResident": false,
+    "foregroundRuns": 1,
+    "timerScheduled": false
+  },
+  "cgroup": {
+    "cpu.max": "400000 100000",
+    "cpu.weight": "11",
+    "cpu.stat": "usage_usec 23244533\nuser_usec 15326685\nsystem_usec 7917848\ncore_sched.force_idle_usec 0\nnr_periods 2994\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+    "memory.max": "8000000000"
+  },
+  "scope": "real reporting module with synthetic foreground probe and local receiver worker; not LLM first-token latency"
+}

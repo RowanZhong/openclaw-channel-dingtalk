@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+// Developer-only synthetic probe. Does not read employee state or start a gateway.
+import { build } from "esbuild";
+const out = path.resolve(process.argv[2] ?? ".tmp/feedback-reporting-benchmark");
+await mkdir(out, { recursive: true });
+for (const [entry, name] of [
+  ["scripts/feedback-reporting-benchmark.ts", "feedback-reporting-benchmark.mjs"],
+  ["src/command/feedback-reporting-worker.ts", "feedback-reporting-worker.js"],
+]) {
+  await build({
+    entryPoints: [entry],
+    outfile: path.join(out, name),
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node22",
+    packages: "external",
+  });
+}
+await writeFile(path.join(out, "package.json"), JSON.stringify({ private: true, type: "module" }));
+process.stdout.write(`Synthetic benchmark bundle: ${out}\n`);

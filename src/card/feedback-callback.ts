@@ -1,3 +1,5 @@
+import { resolveFeedbackReporting } from "../command/feedback-reporting-config";
+import { withFeedbackForegroundActivity } from "../command/feedback-reporting-events";
 import { applyFeedback, type FeedbackVote, type FeedbackScope } from "../command/feedback-store";
 import type { DingTalkConfig, Logger } from "../types";
 
@@ -68,7 +70,7 @@ export function parseFeedbackCallback(payload: unknown) {
     valid: Boolean(match && (vote || reasons)),
   };
 }
-export async function handleFeedbackCallback(params: {
+async function handleFeedbackCallbackInner(params: {
   payload: unknown;
   eventId?: string;
   eventAt?: string;
@@ -82,17 +84,28 @@ export async function handleFeedbackCallback(params: {
   }
   const { component, userId } = feedback;
   const disabled = !params.config.feedbackEnabled || !params.scope;
+  let reporting: ReturnType<typeof resolveFeedbackReporting>;
+  try {
+    reporting = resolveFeedbackReporting(params.config.feedbackReporting);
+  } catch {
+    /* Invalid reporting must not reject a valid rating. */
+  }
   const result = disabled
     ? { status: "disabled" as const }
     : !feedback.valid
       ? { status: "invalid" as const }
-      : await applyFeedback(params.scope!, {
-          ...feedback,
-          eventId: params.eventId ?? "",
-          eventAt: Number(params.eventAt),
-          vote: feedback.vote,
-          reasons: feedback.reasons,
-        });
+      : await applyFeedback(
+          params.scope!,
+          {
+            ...feedback,
+            eventId: params.eventId ?? "",
+            eventAt: Number(params.eventAt),
+            vote: feedback.vote,
+            reasons: feedback.reasons,
+          },
+          Date.now(),
+          reporting,
+        );
   const accepted = "record" in result;
   params.log?.info?.(
     `[DingTalk][Feedback] card=${feedback.outTrackId} status=${result.status}${accepted ? ` vote=${result.record.vote}` : ""}`,
@@ -120,4 +133,10 @@ export async function handleFeedbackCallback(params: {
     unfinished: "回答尚未完成，请在完成后评价。",
   };
   return { response, userId, notice: accepted ? undefined : notices[result.status] };
+}
+
+export async function handleFeedbackCallback(
+  params: Parameters<typeof handleFeedbackCallbackInner>[0],
+): ReturnType<typeof handleFeedbackCallbackInner> {
+  return withFeedbackForegroundActivity(() => handleFeedbackCallbackInner(params));
 }

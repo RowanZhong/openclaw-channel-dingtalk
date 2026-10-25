@@ -15,6 +15,13 @@ function setup(overrides: Partial<Parameters<typeof createFeedbackTranscriptTrac
 }
 const linked = { status: "linked", sessionId: "session-original", userMessageId: "q1", assistantMessageId: "a1", source: "runtime-events" };
 describe("zero-I/O transcript reference capture", () => {
+  it("keeps trusted storage hints local and opt-in", () => {
+    const x = setup(); x.emit("user", "q1", "Question"); x.emit("assistant", "a1", "Answer");
+    expect(x.tracker.resolve("Answer")).not.toHaveProperty("localFile");
+    expect(x.tracker.resolve("Answer", { includeLocalFile: true })).toMatchObject({ localFile: "/state/session-original.jsonl" });
+    x.tracker.dispose();
+  });
+
   it("captures public session and persisted message ids", () => {
     const x = setup(); x.emit("user", "q1", "Question"); x.emit("assistant", "a1", "Answer");
     expect(x.tracker.resolve("Answer")).toEqual(linked); x.tracker.dispose();
