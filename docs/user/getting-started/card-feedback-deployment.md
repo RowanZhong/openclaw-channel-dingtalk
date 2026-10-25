@@ -371,7 +371,27 @@ JS
 
 已实现可选 `feedbackReporting`。插件发送最新有效评价和被评价的一问一答，公司接收服务认证实例后按版本幂等写入 OceanBase 4.2.5.7 MySQL 模式。插件不直连数据库；现有 `feedback_vote` 模板无需修改。
 
-1. 先阅读[接口对接手册](../reference/feedback-reporting-api.md)及[完整示例](../reference/feedback-reporting-examples.json)，再按 [OpenAPI 协议](../reference/feedback-reporting.openapi.json)实现公司接收服务，参考随包文件 `docs/user/reference/feedback-reporting-oceanbase.sql` 的 DDL 与事务步骤。确认事务提交后才返回 `applied/duplicate/stale` ACK。
+
+**调用方向：员工 Pod 内的钉钉插件主动 POST → 公司接收服务 → OceanBase；公司服务在 COMMIT 后返回 ACK。** 接收服务负责提供接口，管理员将其完整 URL 填入 `feedbackReporting.endpoint`。接收服务不需要调用插件接口，不需要为上报安排定时拉取任务，也不需要仅为本功能开放员工 Pod 的入站端口。
+
+#### 10.1.1 触发与重试：部署人员必须了解
+
+| 情况 | 默认行为 | 是否需要外部定时任务 |
+| --- | --- | --- |
+| 有效点赞、点踩、原因提交、撤销 | 插件先本地保存，再等待约 5 秒的前台空闲窗口后 POST；连续变化可能合并成最新状态 | 不需要，评价事件触发 |
+| 正在聊天或资源紧张 | 插件后台退让，满足空闲/资源条件再发；5 秒不是到达时间保证 | 不需要 |
+| HTTP 超时、非 200、非法 ACK | 插件自动重试；基准 5 秒逐步增至 300 秒，±20% 抖动，忙时可更晚 | 不需要，插件内部调度 |
+| gateway / Pod 重启后有待发记录 | 随机延迟约 30～90 秒开始恢复发现，再按空闲条件及原退避时间补传；前提是状态卷和实例身份保留 | 不需要，插件恢复待办 |
+| content.status=pending 已获 ACK | 默认约 5 分钟重新尝试采集正文，成功后用更高版本更新 | 不需要，插件复查 |
+| 无新评价、无待办 | 不发请求；已确认的正文终态不周期性重传 | 不需要 |
+
+开启功能不会自动上传全部历史；仅生成回答、尚未评价也不会触发上报。接收端必须允许重复和晚到，并在数据库提交成功后返回 **HTTP 200 + 协议 ACK**；202/204 或 `200 {"ok":true}` 均无效。发送超时默认 5 秒，已入库但 ACK 丢失时重发由接收端幂等处理。持续 401/403/409 要处理授权或数据冲突，不能让服务伪造成功来停止重试。
+
+这些定时行为都在插件内完成，不要额外配置 OpenClaw cron、PowerJob 或接收端轮询。它们受前台活动、资源和数据保留期约束，不承诺固定时刻送达或无限离线补传。详细时间规则与停止条件见[接口调用与触发说明](../reference/feedback-reporting-api.md#_1-调用方向、触发时机与双方职责)。
+
+#### 10.1.2 部署步骤
+
+1. 先部署公司接收服务的 POST 路由，确认各 Pod 可访问；无需建立反向拉取入口。阅读[接口对接手册](../reference/feedback-reporting-api.md)及[完整示例](../reference/feedback-reporting-examples.json)，再按 [OpenAPI 协议](../reference/feedback-reporting.openapi.json)实现公司接收服务，参考随包文件 `docs/user/reference/feedback-reporting-oceanbase.sql` 的 DDL 与事务步骤。确认事务提交后才返回 `applied/duplicate/stale` ACK。
 2. 为员工配发稳定的 `tenantId`、`instanceId` 和受保护凭据；Pod 重建后身份不变。接收端必须将凭据与企业/实例绑定。
 3. 更新运行包、执行 `pnpm run build`，核对 `dist/feedback-reporting-worker.js` 随包存在。
 4. 按[完整配置及资源说明](../features/feedback-http-reporting.md)设置 `feedbackReporting`；默认关闭，不自动补传此前所有卡片。
