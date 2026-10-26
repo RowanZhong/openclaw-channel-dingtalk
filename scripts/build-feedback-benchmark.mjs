@@ -7,6 +7,7 @@ const out = path.resolve(process.argv[2] ?? ".local/feedback-reporting-benchmark
 await mkdir(out, { recursive: true });
 for (const [entry, name] of [
   ["scripts/feedback-reporting-benchmark.ts", "feedback-reporting-benchmark.mjs"],
+  ["scripts/feedback-retry-benchmark.ts", "feedback-retry-benchmark.mjs"],
   ["src/command/feedback-reporting-worker.ts", "feedback-reporting-worker.js"],
   ["src/command/feedback-detail-worker.ts", "feedback-detail-worker.js"],
   ["scripts/feedback-host-compatibility.ts", "feedback-host-compatibility.mjs"],

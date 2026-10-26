@@ -20,6 +20,7 @@ import {
   type ReportReceipt,
   type ReportResult,
 } from "./feedback-reporting-protocol";
+import { FeedbackRetryIndex } from "./feedback-reporting-retry-index";
 import type { FeedbackRecord, FeedbackScope } from "./feedback-store";
 
 type Account = { scope: FeedbackScope; config: ResolvedFeedbackReporting };
@@ -31,6 +32,7 @@ type Pending = {
   generation: number;
   eventHint: boolean;
 };
+type Retry = Omit<Pending, "generation">;
 const MAX_QUEUE = 128;
 const pause = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve) => {
@@ -52,6 +54,7 @@ const queueKey = (scope: FeedbackScope, id: string) =>
 
 export class FeedbackReportingService {
   private readonly queue = new Map<string, Pending>();
+  private readonly retries = new FeedbackRetryIndex<Retry>();
   private readonly activeRuns = new Set<string>();
   private readonly lag = monitorEventLoopDelay({ resolution: 20 });
   private lagSampling = false;
@@ -80,7 +83,14 @@ export class FeedbackReportingService {
   private resourcePaused = false;
   private throttled = 0;
   private pressureInitialized = false;
-  private counters = { delivered: 0, superseded: 0, deferred: 0, failures: 0, workersStarted: 0 };
+  private counters = {
+    delivered: 0,
+    superseded: 0,
+    deferred: 0,
+    failures: 0,
+    workersStarted: 0,
+    scansStarted: 0,
+  };
 
   constructor(
     private readonly api: OpenClawPluginApi,
@@ -192,6 +202,8 @@ export class FeedbackReportingService {
     return {
       ...this.counters,
       queued: this.queue.size,
+      delayed: this.retries.size,
+      nextRetryAt: this.retries.nextDue(),
       recoveryScheduled: this.needsScan,
       nextRecoveryAt: this.needsScan ? this.scanAt : undefined,
       scanning: this.scanning,
@@ -222,6 +234,7 @@ export class FeedbackReportingService {
     await Promise.all([this.processingTask, this.scanTask]);
     this.tokens.clear();
     this.queue.clear();
+    this.retries.clear();
     this.activeRuns.clear();
   }
   private wake(): void {
@@ -236,7 +249,7 @@ export class FeedbackReportingService {
     if (this.stopped || this.timer || this.ticking || this.activeRuns.size) {
       return;
     }
-    if (!this.queue.size && !this.needsScan && !this.scanning) {
+    if (!this.queue.size && !this.retries.size && !this.needsScan && !this.scanning) {
       this.lag.disable();
       this.lagSampling = false;
       return;
@@ -248,6 +261,7 @@ export class FeedbackReportingService {
         ? this.now()
         : Math.min(
             this.needsScan ? this.scanAt : Infinity,
+            this.retries.nextDue() ?? Infinity,
             ...[...this.queue.values()].map((p) => p.due),
           );
       delay = Math.max(tick, Math.min(60000, Math.max(earliest, this.quietAfter) - this.now()));
@@ -305,13 +319,41 @@ export class FeedbackReportingService {
       return;
     }
     if (this.queue.size >= MAX_QUEUE) {
+      const retry = this.retries.get(key);
+      if (eventHint && retry) {
+        // A new vote must override the old receipt's backoff even if admission is full.
+        this.retries.set(key, {
+          ...retry,
+          due: Math.min(retry.due, due),
+          eventHint: true,
+          failures: 0,
+        });
+        this.wake();
+        return;
+      }
       this.requestScan(this.now());
       return;
     }
+    this.retries.delete(key);
     this.queue.set(key, { account, cardId, due, failures, generation: 0, eventHint });
     this.wake();
   }
-  /** Delayed work stays durable in the receipt, not in the bounded ready queue. */
+  private rememberRetry(retry: Retry): void {
+    if (this.stopped) {
+      return;
+    }
+    const key = queueKey(retry.account.scope, retry.cardId);
+    // A scan may finish reading an older receipt after a newer vote has arrived.
+    if (this.queue.has(key) || this.retries.get(key)?.eventHint) {
+      return;
+    }
+    const overflow = this.retries.set(key, retry);
+    if (overflow) {
+      this.requestScan(overflow.due);
+    }
+    this.wake();
+  }
+  /** Receipts persist retries; bounded hints avoid rescanning history for known deadlines. */
   private releaseForRecovery(key: string, pending: Pending, generation: number, due: number): void {
     if (this.queue.get(key) !== pending) {
       return;
@@ -322,7 +364,13 @@ export class FeedbackReportingService {
       return;
     }
     this.queue.delete(key);
-    this.requestScan(due);
+    this.rememberRetry({
+      account: pending.account,
+      cardId: pending.cardId,
+      due,
+      failures: pending.failures,
+      eventHint: false,
+    });
   }
   private async deferFailure(
     key: string,
@@ -444,6 +492,13 @@ export class FeedbackReportingService {
       this.api.logger.info("[DingTalk][FeedbackReport] resuming after resource pressure");
       this.resourcePaused = false;
     }
+    if (!this.processing && this.queue.size < MAX_QUEUE) {
+      // Admit one due retry per dispatch, leaving room for fresh evaluation hints.
+      const retry = this.retries.takeDue(this.now());
+      if (retry) {
+        this.enqueue(retry.account, retry.cardId, retry.due, retry.eventHint, retry.failures);
+      }
+    }
     if (this.needsScan && !this.scanning && this.now() >= this.scanAt) {
       this.needsScan = false;
       this.scanTask = this.scan()
@@ -481,6 +536,7 @@ export class FeedbackReportingService {
   }
   private async scan(): Promise<void> {
     this.scanning = true;
+    this.counters.scansStarted++;
     try {
       for (const account of this.accounts) {
         if (!this.accountStillEnabled(account)) {
@@ -534,7 +590,13 @@ export class FeedbackReportingService {
                       ? receipt?.nextAttemptAt || this.now()
                       : this.now();
                   if (due > this.now()) {
-                    this.requestScan(due);
+                    this.rememberRetry({
+                      account,
+                      cardId: record.outTrackId,
+                      due,
+                      failures: current ? (receipt?.workerFailures ?? 0) : 0,
+                      eventHint: false,
+                    });
                   } else {
                     this.enqueue(
                       account,

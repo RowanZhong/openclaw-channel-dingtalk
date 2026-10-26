@@ -193,8 +193,10 @@ describe("fair durable feedback scheduling", () => {
     await until(() => f.bodies.some((b) => b.cardId === "new-rating"));
     await until(() => f.bodies.length === 129 && s.status().queued === 0 && !s.status().scanning);
     expect(f.bodies.filter((b) => b.content.status === "pending")).toHaveLength(128);
+    expect(s.status().delayed).toBe(128);
     expect(s.status().timerScheduled).toBe(true);
     await s.stop();
+    expect(s.status().delayed).toBe(0);
     const resumed = f.make();
     resumed.start();
     await sleep(1500);
