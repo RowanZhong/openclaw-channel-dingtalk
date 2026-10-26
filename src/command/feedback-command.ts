@@ -1,5 +1,5 @@
 import { FEEDBACK_REASON_LABELS } from "../card/feedback-callback";
-import { feedbackDetail, type FeedbackTranscriptReader } from "./feedback-detail";
+import { feedbackDetail, type FeedbackContentReader } from "./feedback-detail";
 import { feedbackStats, type FeedbackScope } from "./feedback-store";
 
 export async function runFeedbackCommand(
@@ -9,7 +9,7 @@ export async function runFeedbackCommand(
     userId: string;
     isDirect: boolean;
     enabled: boolean;
-    readTranscript?: FeedbackTranscriptReader;
+    readContent?: FeedbackContentReader;
   },
 ): Promise<string | undefined> {
   if (!/^\/feedback(?:\s|$)/i.test(text.trim())) {
@@ -26,14 +26,14 @@ export async function runFeedbackCommand(
   }
   const detail = /^\/feedback\s+detail\s+([A-Za-z0-9_-]{1,200})$/i.exec(text.trim());
   if (detail) {
-    if (!options.readTranscript) {
+    if (!options.readContent) {
       return "当前宿主未提供转录读取能力。";
     }
     return feedbackDetail({
       scope: options.scope,
       userId: options.userId,
       outTrackId: detail[1],
-      readTranscript: options.readTranscript,
+      readContent: options.readContent,
     });
   }
   const match = /^\/feedback\s+stats(?:\s+(\d{1,3})d)?$/i.exec(text.trim());

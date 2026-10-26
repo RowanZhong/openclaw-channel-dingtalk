@@ -6,7 +6,7 @@ import type {
 } from "../platform/types";
 import type { SessionPeerSourceKind } from "../targeting/session-peer-store";
 import { runFeedbackCommand } from "./feedback-command";
-import { readFeedbackTranscriptEvents } from "./feedback-detail";
+import { readFeedbackDetailContent } from "./feedback-detail-reader";
 import {
   applyManualGlobalLearningRule,
   applyManualSessionLearningNote,
@@ -100,7 +100,7 @@ export async function handleInboundCommandDispatch(
         userId: params.data.senderStaffId?.trim() || "",
         isDirect: params.isDirect,
         enabled: Boolean(params.dingtalkConfig.feedbackEnabled),
-        readTranscript: (target) => readFeedbackTranscriptEvents(target, params.cfg.session?.store),
+        readContent: (record) => readFeedbackDetailContent(record, params.cfg.session?.store),
       });
       if (reply) {
         await params.sendReply(reply);

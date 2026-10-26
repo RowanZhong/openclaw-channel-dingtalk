@@ -1,11 +1,14 @@
 /** Developer acceptance probe. Run with an isolated OPENCLAW_STATE_DIR and host SDK. */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
 import { upsertSessionEntry } from "openclaw/plugin-sdk/session-store-runtime";
+import { readFeedbackDetailContent } from "../src/command/feedback-detail-reader";
 import { resolveFeedbackReporting } from "../src/command/feedback-reporting-config";
 import { collectReportContent } from "../src/command/feedback-reporting-content";
 import type { ReportJob, ReportResult } from "../src/command/feedback-reporting-protocol";
@@ -21,6 +24,9 @@ const { values } = parseArgs({
     root: { type: "string" },
     version: { type: "string" },
     worker: { type: "string" },
+    "detail-worker": { type: "string" },
+    "large-detail": { type: "boolean", default: false },
+    output: { type: "string" },
   },
 });
 assert(values.root && values.version && values.worker, "Provide --root, --version and --worker");
@@ -49,6 +55,16 @@ const sdkEntry = "openclaw/plugin-sdk/session-transcript-runtime";
 const sdk = await import(sdkEntry);
 const answer = "Same fixed answer";
 const checks: Record<string, boolean> = {};
+let detailProbe: unknown;
+const detailOptions = {
+  storePath: target.storePath,
+  workerUrl: pathToFileURL(
+    path.resolve(
+      values["detail-worker"] ??
+        path.join(path.dirname(values.worker!), "feedback-detail-worker.js"),
+    ),
+  ),
+};
 async function worker(job: ReportJob) {
   const process = new Worker(path.resolve(values.worker!), {
     workerData: { kind: "dingtalk-feedback-report" },
@@ -129,6 +145,10 @@ try {
   assert.equal(content.answer, answer);
   assert(!JSON.stringify(content).includes("Never report this"));
   checks.sqliteExactPairAndSameTextIsolation = true;
+  const detail = await readFeedbackDetailContent(record, undefined, detailOptions);
+  assert.equal(detail.status, "available");
+  assert.equal(detail.question, "First question");
+  checks.foregroundDetailWorker = true;
   assert.equal(record.answerHash, createHash("sha256").update(answer).digest("hex"));
   receiver.control.loseAck = true;
   const uncertain = await worker(job);
@@ -164,6 +184,11 @@ try {
   });
   assert.equal((await collectReportContent(job)).status, "available");
   checks.resetKeepsExactOldSession = true;
+  assert.equal(
+    (await readFeedbackDetailContent(record, undefined, detailOptions)).question,
+    "First question",
+  );
+  checks.foregroundDetailAfterReset = true;
   const missingJob = structuredClone(job);
   assert(missingJob.record.transcript?.status === "linked");
   missingJob.record.transcript.sessionId = "33333333-3333-4333-8333-333333333333";
@@ -173,11 +198,69 @@ try {
   mismatch.record.answerHash = "0".repeat(64);
   assert.equal((await collectReportContent(mismatch)).status, "unverified");
   checks.hashMismatch = true;
-  process.stdout.write(
+  if (values["large-detail"]) {
+    // Seed a separate large transcript through the actual host API. No employee data.
+    const largeTarget = {
+      ...target,
+      sessionKey: "agent:main:large-detail",
+      sessionId: "44444444-4444-4444-8444-444444444444",
+    };
+    await upsertSessionEntry({
+      ...largeTarget,
+      entry: { sessionId: largeTarget.sessionId, updatedAt: Date.now() },
+    });
+    for (let offset = 0; offset < 4096; offset += 256) {
+      await sdk.appendSessionTranscriptMessagesByIdentity({
+        ...largeTarget,
+        messages: Array.from({ length: 256 }, (_, index) => ({
+          eventId: `large-${offset + index}`,
+          message: { role: "assistant", content: [{ type: "text", text: "x".repeat(8192) }] },
+        })),
+      });
+    }
+    const largeRecord = structuredClone(record);
+    assert(largeRecord.transcript?.status === "linked");
+    largeRecord.sessionKey = largeTarget.sessionKey;
+    largeRecord.transcript.sessionId = largeTarget.sessionId;
+    let ticks = 0,
+      last = performance.now(),
+      maxLagMs = 0;
+    const timer = setInterval(() => {
+      const now = performance.now();
+      maxLagMs = Math.max(maxLagMs, now - last - 10);
+      last = now;
+      ticks++;
+    }, 10);
+    const started = performance.now(),
+      heap = process.memoryUsage().heapUsed;
+    let result;
+    try {
+      result = await readFeedbackDetailContent(largeRecord, undefined, detailOptions);
+    } finally {
+      clearInterval(timer);
+    }
+    detailProbe = {
+      storage: "host-sqlite",
+      rows: 4096,
+      textMiB: 32,
+      status: result.status,
+      reason: result.reason,
+      elapsedMs: performance.now() - started,
+      callerTimerTicks: ticks,
+      callerMaxLagMs: maxLagMs,
+      callerHeapDeltaMiB: (process.memoryUsage().heapUsed - heap) / 1048576,
+    };
+    assert.equal(result.status, "pending");
+    assert.equal(result.reason, "resource_budget");
+    assert(ticks > 0, "caller event loop must keep running during detail reads");
+    checks.boundedLargeDetailWorker = true;
+  }
+  const report =
     JSON.stringify(
       {
         version: values.version,
         checks,
+        detailProbe,
         receiverPort: Number(new URL(receiver.endpoint).port),
         pid: process.pid,
         runtime: process.version,
@@ -186,8 +269,9 @@ try {
       },
       null,
       2,
-    ) + "\n",
-  );
+    ) + "\n";
+  if (values.output) await writeFile(values.output, report);
+  else process.stdout.write(report);
 } finally {
   await receiver.close();
   await rm(directory, { recursive: true, force: true });

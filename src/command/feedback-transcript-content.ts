@@ -8,7 +8,7 @@ function object(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 export function resolveFeedbackTranscriptMessages(
-  record: FeedbackRecord,
+  record: Pick<FeedbackRecord, "ownerUserId" | "answerHash" | "transcript">,
   events: unknown[],
 ):
   | {

@@ -48,7 +48,7 @@ export async function readSmallJson<T>(file: string, limit = 64 * 1024): Promise
     await handle.close();
   }
 }
-/** Used only by the reporting worker; never shares its file with the vote writer. */
+/** Atomic report state writes, separate from the vote writer. Scheduler receipts are written only after the worker settles. */
 export async function writeReportJson(file: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
   // One worker owns this outbox: a fixed exclusive temp name bounds leftovers

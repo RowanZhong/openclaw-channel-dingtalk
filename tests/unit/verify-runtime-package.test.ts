@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const scriptPath = resolve("scripts/verify-runtime-package.mjs");
-const feedbackAssets = ["docs/user/reference/feedback-reporting-api.md", "docs/user/reference/feedback-reporting-examples.json", "dist/feedback-reporting-worker.js", "docs/user/features/feedback-http-reporting.md", "docs/user/reference/feedback-reporting.openapi.json", "docs/user/reference/feedback-reporting-oceanbase.sql", "scripts/feedback-reporting-receiver.mjs", "docs/assets/card-template-v2.json", "docs/user/features/card-feedback.md",
+const feedbackAssets = ["docs/user/reference/feedback-reporting-api.md", "docs/user/reference/feedback-reporting-examples.json", "dist/feedback-reporting-worker.js", "dist/feedback-detail-worker.js", "docs/user/features/feedback-http-reporting.md", "docs/user/reference/feedback-reporting.openapi.json", "docs/user/reference/feedback-reporting-oceanbase.sql", "scripts/feedback-reporting-receiver.mjs", "docs/assets/card-template-v2.json", "docs/user/features/card-feedback.md",
     "docs/user/getting-started/card-feedback-deployment.md", "scripts/feedback-export.mjs"];
 
 describe("runtime package verification", () => {

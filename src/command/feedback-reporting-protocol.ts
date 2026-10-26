@@ -41,6 +41,10 @@ export type FeedbackReportEnvelope = {
   content: ReportContent;
 };
 export type ReportReceipt = {
+  /** Internal maintenance marker; not part of the HTTP protocol. */
+  maintenanceVersion?: number;
+  /** Scheduler failures are separate from uncertain HTTP delivery attempts. */
+  workerFailures?: number;
   superseded?: boolean;
   sourceRevision: number;
   wireRevision: number;
@@ -50,6 +54,7 @@ export type ReportReceipt = {
   attempts: number;
   error?: string;
 };
+export const REPORT_MAINTENANCE_VERSION = 1;
 export type ReportState = ReportReceipt & {
   destinationKey: string;
   delivered: boolean;

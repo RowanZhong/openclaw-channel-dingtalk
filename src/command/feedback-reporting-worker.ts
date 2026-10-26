@@ -4,6 +4,7 @@ import { readSmallJson, reportPaths, writeReportJson } from "./feedback-reportin
 import {
   createReportEnvelope,
   retryDelay,
+  REPORT_MAINTENANCE_VERSION,
   type ReportContent,
   type ReportJob,
   type ReportReceipt,
@@ -11,6 +12,43 @@ import {
   type ReportState,
 } from "./feedback-reporting-protocol";
 import { postFeedbackReport } from "./feedback-reporting-transport";
+
+/** Older readers could mistake a buffered oversized line for corrupt JSONL. */
+function needsLegacyBodyRecheck(state: ReportState): boolean {
+  return (
+    state.maintenanceVersion !== REPORT_MAINTENANCE_VERSION &&
+    state.delivered &&
+    state.terminal &&
+    !state.superseded &&
+    state.envelope.content.status === "unverified" &&
+    state.envelope.content.reason === "invalid_transcript"
+  );
+}
+function releaseTerminalBody(state: ReportState): void {
+  state.envelope.content = {
+    mode: "preserve",
+    status: state.envelope.content.status,
+    reason: state.envelope.content.reason,
+    answerHash: state.envelope.answerHash,
+  };
+}
+function receiptFor(state: ReportState): ReportReceipt {
+  return {
+    sourceRevision: state.sourceRevision,
+    wireRevision: state.wireRevision,
+    terminal:
+      (state.delivered || Boolean(state.superseded)) &&
+      state.terminal &&
+      !needsLegacyBodyRecheck(state),
+    superseded: state.superseded,
+    nextAttemptAt: state.nextAttemptAt,
+    expiresAt: state.expiresAt,
+    attempts: state.attempts,
+    error: state.error,
+    maintenanceVersion: state.maintenanceVersion,
+    workerFailures: 0,
+  };
+}
 
 export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
   const paths = reportPaths(job.scope, job.record.outTrackId, job.config.destinationKey);
@@ -28,27 +66,18 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
     throw new Error("invalid_outbox");
   }
   const sameSource = old?.sourceRevision === sourceRevision;
-  if (sameSource && (old.delivered || old.superseded) && old.terminal) {
-    const {
-      sourceRevision,
-      wireRevision,
-      terminal,
-      nextAttemptAt,
-      expiresAt,
-      attempts,
-      error,
-      superseded,
-    } = old;
-    const receipt = {
-      sourceRevision,
-      wireRevision,
-      terminal,
-      nextAttemptAt,
-      expiresAt,
-      attempts,
-      error,
-      superseded,
-    };
+  const recheckLegacyBody = old ? needsLegacyBodyRecheck(old) : false;
+  if (sameSource && (old.delivered || old.superseded) && old.terminal && !recheckLegacyBody) {
+    const needsWrite =
+      old.maintenanceVersion !== REPORT_MAINTENANCE_VERSION ||
+      old.envelope.content.question !== undefined ||
+      old.envelope.content.answer !== undefined;
+    releaseTerminalBody(old);
+    old.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+    if (needsWrite) {
+      await writeReportJson(paths.state, old);
+    }
+    const receipt = receiptFor(old);
     await writeReportJson(paths.receipt, receipt);
     return { kind: "done", receipt };
   }
@@ -57,20 +86,26 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
     state = old; // Replay the exact durable envelope after an uncertain delivery.
   } else {
     let content: ReportContent;
-    if (old?.delivered && old.terminal) {
+    if (old?.delivered && old.terminal && !recheckLegacyBody) {
       content = {
         mode: "preserve",
         status: old.envelope.content.status,
         reason: old.envelope.content.reason,
         answerHash: job.record.answerHash,
       };
-    } else if (old?.envelope.content.status === "available") {
+    } else if (
+      !old?.superseded &&
+      old?.envelope.content.status === "available" &&
+      typeof old.envelope.content.question === "string" &&
+      typeof old.envelope.content.answer === "string"
+    ) {
       content = old.envelope.content;
     } else {
       content = await collectReportContent(job);
     }
     const revision = Math.max(sourceRevision, (old?.wireRevision ?? 0) + 1);
     state = {
+      maintenanceVersion: REPORT_MAINTENANCE_VERSION,
       sourceRevision,
       wireRevision: revision,
       destinationKey: job.config.destinationKey,
@@ -105,14 +140,19 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
       state.attempts = 0;
       delete state.error;
       state.nextAttemptAt = state.terminal ? 0 : Date.now() + 300_000;
-      if (state.terminal) {
-        state.envelope.content = {
-          mode: "preserve",
-          status: state.envelope.content.status,
-          reason: state.envelope.content.reason,
-          answerHash: job.record.answerHash,
-        };
-      }
+    }
+    // A stale ACK confirms a newer snapshot, not receipt of this request's body.
+    // Release the old text, but keep superseded distinct from delivered so a
+    // later real vote recollects its exact pair rather than assuming remote content.
+    if (state.terminal && (state.delivered || state.superseded)) {
+      releaseTerminalBody(state);
+    }
+    if (needsLegacyBodyRecheck(state)) {
+      // First finish replaying the byte-identical uncertain request. Its ACK
+      // permits one bounded recheck with a new wire revision on the next pass.
+      state.nextAttemptAt = Date.now() + 1000;
+    } else {
+      state.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
     }
   } catch (error) {
     state.attempts++;
@@ -126,16 +166,7 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
         : "network_error";
   }
   await writeReportJson(paths.state, state);
-  const receipt: ReportReceipt = {
-    sourceRevision: state.sourceRevision,
-    wireRevision: state.wireRevision,
-    terminal: (state.delivered || Boolean(state.superseded)) && state.terminal,
-    superseded: state.superseded,
-    nextAttemptAt: state.nextAttemptAt,
-    expiresAt: state.expiresAt,
-    attempts: state.attempts,
-    error: state.error,
-  };
+  const receipt = receiptFor(state);
   await writeReportJson(paths.receipt, receipt);
   return { kind: "done", receipt };
 }

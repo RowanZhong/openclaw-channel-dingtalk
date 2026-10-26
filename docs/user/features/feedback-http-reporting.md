@@ -112,7 +112,7 @@ SecretInput 的 provider 必须在宿主现有 `secrets.providers` 中配置并�
 ```
 
 - `applied` / `duplicate`：确认的版本必须等于请求版本。
-- `stale`：确认的版本必须严格大于请求版本；发送端将这个本地快照标记为已被取代，不自动抬高旧快照版本去覆盖中心的新状态。只有后续真实评价变化才会使用高于已知中心版本的新版本；日志区分 superseded 与 saved。
+- `stale`：确认的版本必须严格大于请求版本；发送端将这个本地快照标记为已被取代并释放待发正文，不自动抬高旧快照版本去覆盖中心的新状态。它不证明中心已收到此快照的正文；后续真实评价变化会重新核验原问答，并使用高于已知中心版本的新版本；日志区分 superseded 与 saved。
 - 接收服务只有在事务提交成功后才能确认。`200 {"ok":true}`、身份不符或版本不符均不能使插件清除待上报状态。
 - 3xx 不跳转；非 200、网络失败、超时和非法 ACK 都保留请求并退避重试。
 - 请求上限 300 KiB，响应上限 8 KiB；不得返回整份问答或大型诊断信息。
@@ -126,7 +126,7 @@ SecretInput 的 provider 必须在宿主现有 `secrets.providers` 中配置并�
 | `unverified` | 内容、身份、会话头或指纹校验不通过；不附带未经核实的正文 |
 | `pending` | 资源预算不足、暂时读取失败或缺少受支持的有界读取能力；不是“正文已删除” |
 
-`content.mode=replace` 提供此次正文结果；`preserve` 表示保留中心已有正文。available、missing、unverified 都是当前发送端的正文终态，获 ACK 后后续评价只发保留指令，不自动重读；pending 才会继续定期尝试。接收方不得用缺省/空字段清空已有正文；可用正文不能被较弱的 pending/missing 状态覆盖。中心数据灾难恢复丢失原记录时，不能确认 `preserve`，应报告冲突并由管理员协调重放/恢复。
+`content.mode=replace` 提供此次正文结果；`preserve` 表示保留中心已有正文。available、missing、unverified 都是当前发送端的正文终态，获 applied/duplicate ACK 后后续评价只发保留指令，不自动重读；pending 才会继续定期尝试。接收方不得用缺省/空字段清空已有正文；可用正文不能被较弱的 pending/missing 状态覆盖。中心数据灾难恢复丢失原记录时，不能确认 `preserve`，应报告冲突并由管理员协调重放/恢复。
 
 ## 主线程和资源边界
 
@@ -134,10 +134,11 @@ SecretInput 的 provider 必须在宿主现有 `secrets.providers` 中配置并�
 - 正文解析、校验、JSON 请求打包和 HTTP 在独立 Worker 中进行，每实例最多一个；短时连续任务复用线程，空闲 5 秒回收，前台开始时立即退让。
 - 钉钉入站处理、评价回调以及宿主 Agent 生命周期开始会终止当前 Worker；已保存 outbox 可重试，已经送达但 ACK 丢失的请求由接收端幂等处理。
 - 启动恢复延后 30～90 秒，逐个读取最多 64 KiB 的小型评价元数据，默认间隔 100ms；不在插件启动时等待网络或扫描所有转录。
-- 内存待处理队列最多 128 张卡。溢出的通知不作为持久化依据：恢复扫描会在容量释放后继续，源评价记录不会因此消失。
+- 内存就绪队列最多 128 张卡。HTTP 失败或正文 pending 后，重试期限写入小型 receipt，并释放队列位置，避免旧待办阻挡新评价。到期按需恢复，新评价可提前唤醒本卡；重启保留退避期限。溢出的通知由恢复扫描继续发现，源评价记录不会因此消失。
 - 无待办时调度器休眠；前台 Agent 运行期间不启动扫描、资源探测或新 Worker，结束后等待空闲窗口。等待退避时按下一次到期时间唤醒，不持续轮询。
 - 宿主事件循环最大延迟超过 50ms 时暂停新工作。Linux cgroup v2 的内存使用超过上限 80%、持续 CPU 限流或 cgroup CPU 等待压力（some avg10 > 10%）也会退让；同时要求实际可用内存至少为 `max(256MiB, 2 × Worker 老生代预算)`；无法读取 cgroup 或在其他系统上时使用 Node 的可用内存指标（含可回收内存），不将单独的进程 RSS 超过 1GiB 当作内存不足，也不将其声称为完整节点资源监控。
 - Worker 默认 JS 老生代上限 128 MiB、任务最多 20 秒；这不是整个进程 RSS 硬上限。操作系统资源竞争和 OOM 仍必须通过部署容量与压力测试评估。
+- 不同钉钉账号的 Worker 预算不同时，串行结束旧 Worker 并按新预算创建，不将正常预算切换计为投递失败。
 
 可调参数：
 
@@ -155,7 +156,7 @@ SecretInput 的 provider 必须在宿主现有 `secrets.providers` 中配置并�
 
 上报开启后，新回答可保存来自可信宿主事件的本地文件提示；它仅用于受限后台读取，必须位于相应 Agent 存储目录中，且仍校验会话头、消息 ID、提问者及回答指纹，绝不上传这个文件路径。没有提示的旧记录通过宿主公开的只读会话解析/路径 helper 定位精确转录，在 Worker 内按上限流式扫描，只保留目标消息。不会调用会写回宿主 session 元数据的旧 `resolveSessionTranscriptLegacyFileTarget`，也不会无上限物化整份历史。普通 main 会话重置后仍按保存的旧 SID 定位；无法可靠解析的线程目标保持 pending，不猜测最新回答。
 
-SQLite 宿主通过公开的 `readSessionTranscriptRawDelta` 接口分页读取。每页最多 128 个事件，通常限于 64 KiB，单个事件最多 1 MiB，总读取量仍受 `maxTranscriptBytes` 约束；只保留指定会话头和两条目标消息。游标代际变化或读取期间发生替换时返回 pending，不能混用两个版本的转录。新宿主缺少该能力时发送 pending 元数据，不回退成主线程全量读取。旧 JSONL 直接进行有界读取，不调用会生成 SQLite 导出文件的旧路径 helper。
+SQLite 宿主通过公开的 `readSessionTranscriptRawDelta` 接口分页读取。每页最多 128 个事件，通常限于 64 KiB，单个事件最多 1 MiB，总读取量仍受 `maxTranscriptBytes` 约束；只保留指定会话头和两条目标消息。游标代际变化或读取期间发生替换时返回 pending，不能混用两个版本的转录。新宿主缺少该能力时发送 pending 元数据，不回退成主线程全量读取。旧 JSONL 直接进行有界读取，不调用会生成 SQLite 导出文件的旧路径 helper；单行缓冲超限同样返回 pending/resource_budget，不判为 invalid_transcript。
 
 `scripts/feedback-host-compatibility.ts` 可针对独立安装的宿主运行真实 SQLite、Worker、HTTP 与事务 ACK 验收；本次版本矩阵与结果见源码验证记录。
 
@@ -164,6 +165,8 @@ SQLite 宿主通过公开的 `readSessionTranscriptRawDelta` 接口分页读取�
 源评价仍在 `feedback.ratings.*.json`，新增 `reporting.revision / destinationKey / retainUntil`。后台 outbox 和小型 receipt 位于同级 `feedback.report.*.json` / `*.receipt.json`，仅发生过评价的卡片产生这些文件。
 
 待发正文只在未获确认时进入 outbox；获确认后移除正文，保留关联及状态。文件权限为 0600。中断写入最多遗留每个 outbox 一个 `.tmp`，恢复扫描会清理过期临时文件。不得让两个网关进程共享同一员工状态目录写入。
+
+本次修复升级包含一次本地状态维护：清理旧 superseded 终态中遗留的正文，并对旧版已确认的 `unverified/invalid_transcript` 做一次有界复核，修正长行超限误判。旧请求若尚未取得可靠 ACK，先原样重发，再用更高版本复核；真正损坏的转录复核后仍为终态。维护版本仅保存在本地，不改变 HTTP 协议，也不会每次重启重复复核全部终态记录。
 
 评价清理会保留至少“最近一次待上报变更后 7 天”与原评价到期时间中的较晚者；超过原评价到期时间后不再计入员工统计。到达保留期限后可以清理，即不保证无限离线仍无损补传。后台状态文件在恢复扫描时按到期时间回收，空闲进程可能较晚清理；应监控目录容量。
 

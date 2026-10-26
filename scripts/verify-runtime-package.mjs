@@ -12,6 +12,7 @@ const requiredFiles = [
   "docs/user/reference/feedback-reporting-api.md",
   "docs/user/reference/feedback-reporting-examples.json",
   "dist/feedback-reporting-worker.js",
+  "dist/feedback-detail-worker.js",
   "docs/user/features/feedback-http-reporting.md",
   "docs/user/reference/feedback-reporting.openapi.json",
   "docs/user/reference/feedback-reporting-oceanbase.sql",

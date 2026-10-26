@@ -18,10 +18,11 @@ export function notifyFeedbackReportPending(scope: FeedbackScope, cardId: string
   }
 }
 
-const activityListeners = new Set<(id: string, active: boolean) => void>();
+const activityListeners = new Set<(id: string, active: boolean) => void | Promise<void>>();
+const backgroundReleases = new Set<Promise<void>>();
 let activitySequence = 0;
 export function onFeedbackForegroundActivity(
-  listener: (id: string, active: boolean) => void,
+  listener: (id: string, active: boolean) => void | Promise<void>,
 ): () => void {
   activityListeners.add(listener);
   return () => {
@@ -36,7 +37,14 @@ export function beginFeedbackForegroundActivity(): () => void {
   const emit = (active: boolean) => {
     for (const listener of activityListeners) {
       try {
-        listener(id, active);
+        const release = listener(id, active);
+        if (release && typeof release.then === "function") {
+          backgroundReleases.add(release);
+          void release.then(
+            () => backgroundReleases.delete(release),
+            () => backgroundReleases.delete(release),
+          );
+        }
       } catch {
         /* Optional reporting cannot fail input. */
       }
@@ -50,6 +58,10 @@ export function beginFeedbackForegroundActivity(): () => void {
       emit(false);
     }
   };
+}
+/** Foreground readers wait for background termination before allocating their own worker. */
+export async function waitForFeedbackBackgroundIdle(): Promise<void> {
+  await Promise.all(backgroundReleases);
 }
 export async function withFeedbackForegroundActivity<T>(run: () => Promise<T>): Promise<T> {
   const end = beginFeedbackForegroundActivity();

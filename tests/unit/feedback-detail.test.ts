@@ -11,6 +11,7 @@ import {
   registerFeedbackCard,
   completeFeedbackCard,
   readFeedbackRecord,
+  type FeedbackRecord,
 } from "../../src/command/feedback-store";
 
 const link = {
@@ -39,6 +40,16 @@ const events = () => [
     message: { role: "assistant", content: "Do not substitute this newer answer" },
   },
 ];
+function verified(record: FeedbackRecord, rows: unknown[]) {
+  const pair = resolveFeedbackTranscriptMessages(record, rows);
+  return pair
+    ? { mode: "replace" as const, status: "available" as const, ...pair }
+    : {
+        mode: "replace" as const,
+        status: "unverified" as const,
+        reason: "content_verification_failed",
+      };
+}
 describe("explicit owner-only transcript lookup", () => {
   let dir: string;
   let scope: { storePath: string; accountId: string };
@@ -68,40 +79,48 @@ describe("explicit owner-only transcript lookup", () => {
     expect((await readFeedbackRecord(scope, "card-1"))?.transcript).toEqual(link);
   });
   it("uses the stored session id, not the session key's current turn", async () => {
-    const readTranscript = vi.fn().mockResolvedValue(events());
+    const readContent = vi
+      .fn()
+      .mockImplementation(async (record: FeedbackRecord) => verified(record, events()));
     const result = await feedbackDetail({
       scope,
       outTrackId: "card-1",
       userId: "alice",
-      readTranscript,
+      readContent,
     });
-    expect(readTranscript).toHaveBeenCalledWith({
-      agentId: "main",
-      sessionKey: "agent:main:main",
-      sessionId: "original-session",
-    });
+    expect(readContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "main",
+        sessionKey: "agent:main:main",
+        transcript: link,
+      }),
+    );
     expect(result).toContain("My original question");
     expect(result).toContain("Exact answer");
     expect(result).not.toContain("newer answer");
   });
   it("checks ownership before reading a shared transcript", async () => {
-    const readTranscript = vi.fn();
+    const readContent = vi.fn();
     expect(
-      await feedbackDetail({ scope, outTrackId: "card-1", userId: "bob", readTranscript }),
+      await feedbackDetail({ scope, outTrackId: "card-1", userId: "bob", readContent }),
     ).toContain("有权");
-    expect(readTranscript).not.toHaveBeenCalled();
+    expect(readContent).not.toHaveBeenCalled();
   });
   it("does not read any transcript for unknown cards", async () => {
-    const readTranscript = vi.fn();
-    await feedbackDetail({ scope, outTrackId: "unknown", userId: "alice", readTranscript });
-    expect(readTranscript).not.toHaveBeenCalled();
+    const readContent = vi.fn();
+    await feedbackDetail({ scope, outTrackId: "unknown", userId: "alice", readContent });
+    expect(readContent).not.toHaveBeenCalled();
   });
   it("rejects missing old messages rather than falling back to the latest", async () => {
     const result = await feedbackDetail({
       scope,
       outTrackId: "card-1",
       userId: "alice",
-      readTranscript: async () => events().filter((x) => x.id !== "answer-id"),
+      readContent: async (record) =>
+        verified(
+          record,
+          events().filter((x) => x.id !== "answer-id"),
+        ),
     });
     expect(result).toContain("指定消息缺失");
     expect(result).not.toContain("newer answer");
@@ -113,7 +132,7 @@ describe("explicit owner-only transcript lookup", () => {
       scope,
       outTrackId: "card-1",
       userId: "alice",
-      readTranscript: async () => changed,
+      readContent: async (record) => verified(record, changed),
     });
     expect(result).toContain("内容校验不一致");
   });
@@ -149,7 +168,7 @@ describe("explicit owner-only transcript lookup", () => {
         scope,
         outTrackId: "card-1",
         userId: "alice",
-        readTranscript: async () => {
+        readContent: async () => {
           throw new Error("missing");
         },
       }),
@@ -164,11 +183,11 @@ describe("explicit owner-only transcript lookup", () => {
       conversationId: "cid-1",
     });
     await completeFeedbackCard(scope, "legacy", "old answer");
-    const readTranscript = vi.fn();
+    const readContent = vi.fn();
     expect(
-      await feedbackDetail({ scope, outTrackId: "legacy", userId: "alice", readTranscript }),
+      await feedbackDetail({ scope, outTrackId: "legacy", userId: "alice", readContent }),
     ).toContain("旧记录未保存消息 ID");
-    expect(readTranscript).not.toHaveBeenCalled();
+    expect(readContent).not.toHaveBeenCalled();
   });
   it("routes explicit detail commands without a model call", async () => {
     expect(
@@ -177,21 +196,34 @@ describe("explicit owner-only transcript lookup", () => {
         userId: "alice",
         isDirect: true,
         enabled: true,
-        readTranscript: async () => events(),
+        readContent: async (record) => verified(record, events()),
       }),
     ).toContain("Exact answer");
   });
+  it.each(["resource_budget", "read_timeout", "detail_busy"])(
+    "reports %s without displaying a guessed answer",
+    async (reason) => {
+      const reply = await feedbackDetail({
+        scope,
+        outTrackId: "card-1",
+        userId: "alice",
+        readContent: async () => ({ mode: "replace", status: "pending", reason }),
+      });
+      expect(reply).not.toContain("**回答**");
+      expect(reply).toMatch(/预算|超时|稍后/);
+    },
+  );
   it("does not expose query results in group chats", async () => {
-    const readTranscript = vi.fn();
+    const readContent = vi.fn();
     expect(
       await runFeedbackCommand("/feedback detail card-1", {
         scope,
         userId: "alice",
         isDirect: false,
         enabled: true,
-        readTranscript,
+        readContent,
       }),
     ).toContain("私聊");
-    expect(readTranscript).not.toHaveBeenCalled();
+    expect(readContent).not.toHaveBeenCalled();
   });
 });

@@ -47,7 +47,7 @@
 
 ## 关于卡片评价与问答反查
 
-上述评价字段属于包含本改造的旧版兼容构建，已在 OpenClaw `2026.7.1-2` 验收；普通上游构建未必包含。启用需同时使用 `messageType: "card"` 和具有 `feedback_vote` 回调的模板，详见[部署与升级指引](../getting-started/card-feedback-deployment.md)。精确关联与 `/feedback detail` 共用 `feedbackEnabled`，不另加配置项。
+上述评价字段适用于包含本功能的插件构建，最低宿主版本为 OpenClaw `2026.8.1`；具体版本覆盖与部署步骤见下方指引。启用需同时使用 `messageType: "card"` 和具有 `feedback_vote` 回调的模板，详见[部署与升级指引](../getting-started/card-feedback-deployment.md)。精确关联与 `/feedback detail` 共用 `feedbackEnabled`，不另加配置项。
 
 `feedbackRetentionDays` 只影响随后新建记录的到期时间，不修改已有记录，也不改变 OpenClaw 的转录清理策略。反查还要求对应 Agent 的原转录可读；旧记录不会补写 ID。统计和详情只在原提问者私聊中返回，且不需要开启 `learningEnabled`。关闭 `feedbackEnabled` 后，这两个命令和上报均不可用，已有文件不会因此删除。HTTP 上报另需显式启用 `feedbackReporting.enabled` 并配置接收端、稳定企业/实例标识及凭据；不需要改变已有评价模板。
 

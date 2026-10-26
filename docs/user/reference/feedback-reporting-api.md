@@ -211,7 +211,9 @@ const recordId = createHash('sha256')
 | replace + pending | 不含 question/answer | 接受当前评价及暂缓状态；稍后可收到新版本的 available |
 | preserve + 已确认状态 | 不含 question/answer；可含已确认的 hash/reason | 保持已有正文/正文状态；无中心记录时返回 409，不能当成功 |
 
-当前发送端在 available、missing、unverified 获确认后均视为正文终态；之后的评价变化使用 preserve，**不是每点一次重新查转录**。只有 pending 按默认约 5 分钟继续检查。恢复被清理的转录不会自动重采已确认的 missing；本版无通用强制重放 API，管理员需协调恢复流程，不能通过随意删除 outbox 实现补采。
+当前发送端在 available、missing、unverified 获 applied/duplicate 确认后均视为正文终态；之后的评价变化使用 preserve，**不是每点一次重新查转录**。只有 pending 按默认约 5 分钟继续检查。stale 只确认中心有更高版本，不能证明本地正文已入库；本地释放旧正文，后续真实评价重新核验后发送 replace。恢复被清理的转录不会自动重采已确认的 missing；本版无通用强制重放 API，管理员需协调恢复流程，不能通过随意删除 outbox 实现补采。
+
+针对旧版长行误判，本次升级会对已确认的 `unverified/invalid_transcript` 做一次有界复核；如需纠正状态，使用更高 revision。尚未确认的旧请求先原样重试，不改变同一幂等键的内容。此为一次兼容维护，不是周期性重采所有终态记录。
 
 正文是转录中的目标消息可见 text 内容；多 text 块以换行连接，保留 Markdown 和文本中已有的引用/上下文包装，**不保证等于钉钉客户端原始输入的纯净副本**。图片/文件等非文本块不上传附件二进制；这不是完整多模态归档。正文超出预算时 pending，不静默截断。后台报表展示应转义 HTML，限制 Markdown 外链/图片加载，避免把来信文本作为可执行内容。
 

@@ -6,8 +6,11 @@ export default async function setup() {
   await mkdir(".local/test-host", { recursive: true, mode: 0o700 });
   await writeFile(".local/test-host/openclaw.json", "{}\n", { mode: 0o600 });
   await build({
-    entryPoints: ["src/command/feedback-reporting-worker.ts"],
-    outfile: ".local/test-runtime/feedback-reporting-worker.js",
+    entryPoints: {
+      "feedback-reporting-worker": "src/command/feedback-reporting-worker.ts",
+      "feedback-detail-worker": "src/command/feedback-detail-worker.ts",
+    },
+    outdir: ".local/test-runtime",
     bundle: true,
     platform: "node",
     format: "esm",

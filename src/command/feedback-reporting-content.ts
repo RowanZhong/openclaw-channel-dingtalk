@@ -2,9 +2,19 @@ import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { readHostTranscriptPage } from "../platform/session-transcript-reader";
 import { readSmallJson } from "./feedback-reporting-io";
-import type { ReportContent, ReportJob } from "./feedback-reporting-protocol";
+import type { ReportContent } from "./feedback-reporting-protocol";
 import type { FeedbackRecord } from "./feedback-store";
 import { resolveFeedbackTranscriptMessages } from "./feedback-transcript-content";
+
+export type FeedbackContentRequest = {
+  record: Pick<
+    FeedbackRecord,
+    "agentId" | "sessionKey" | "ownerUserId" | "answerHash" | "transcript"
+  >;
+  transcriptStorePath: string;
+  config: { maxTranscriptBytes: number; maxContentBytes: number };
+  metadataOnly?: boolean;
+};
 
 async function scopedLegacyPath(storePath: string, file: string): Promise<string | undefined> {
   const root = await realpath(path.dirname(storePath));
@@ -21,8 +31,8 @@ async function scopedLegacyPath(storePath: string, file: string): Promise<string
   return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? actual : undefined;
 }
 
-/** Only called inside the reporting worker. Never materializes a whole transcript. */
-export async function collectReportContent(job: ReportJob): Promise<ReportContent> {
+/** Shared bounded reader for reporting and foreground detail workers. */
+export async function collectReportContent(job: FeedbackContentRequest): Promise<ReportContent> {
   const link = job.record.transcript;
   if (link?.status !== "linked") {
     return {
@@ -97,7 +107,7 @@ export async function collectReportContent(job: ReportJob): Promise<ReportConten
 }
 
 /** New hosts expose generation-aware, bounded SQLite reads through the public SDK. */
-export async function collectHostTranscript(job: ReportJob): Promise<ReportContent> {
+export async function collectHostTranscript(job: FeedbackContentRequest): Promise<ReportContent> {
   const link = job.record.transcript;
   if (link?.status !== "linked") {
     return { mode: "replace", status: "missing", reason: "reference_not_recorded" };
@@ -181,9 +191,9 @@ export async function collectHostTranscript(job: ReportJob): Promise<ReportConte
     };
   }
 }
-function verifiedContent(job: ReportJob, events: unknown[]): ReportContent {
+function verifiedContent(job: FeedbackContentRequest, events: unknown[]): ReportContent {
   const link = job.record.transcript;
-  const result = resolveFeedbackTranscriptMessages(job.record as FeedbackRecord, events);
+  const result = resolveFeedbackTranscriptMessages(job.record, events);
   if (!result) {
     const ids = new Set(events.map((e) => (e as { id?: string }).id));
     const hasPair =
@@ -201,7 +211,7 @@ function verifiedContent(job: ReportJob, events: unknown[]): ReportContent {
 }
 
 export async function collectLegacyTranscript(
-  job: ReportJob,
+  job: FeedbackContentRequest,
   file: string,
 ): Promise<ReportContent> {
   const link = job.record.transcript;
@@ -262,7 +272,10 @@ export async function collectLegacyTranscript(
         consume(pending.subarray(0, index));
         pending = pending.subarray(index + 1);
       }
-      if (pending.length > 1024 * 1024 || selected.length > 4) {
+      if (pending.length > 1024 * 1024) {
+        return { mode: "replace", status: "pending", reason: "resource_budget" };
+      }
+      if (selected.length > 4) {
         return { mode: "replace", status: "unverified", reason: "invalid_transcript" };
       }
     }

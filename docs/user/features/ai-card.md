@@ -162,7 +162,7 @@ AI 卡片生命周期：
 
 ## 原提问者评价与问答反查
 
-本旧版兼容分支增加了可选的赞踩记录、本人统计与精确问答反查，已在 OpenClaw `2026.7.1-2` 验收。需要包含本改造的构建、`feedbackEnabled: true`，以及开启赞踩并回传 `feedback_vote` 的模板；平台默认模板不会因更新插件自动改变。
+本功能提供可选的赞踩记录、本人统计与精确问答反查，最低宿主版本为 OpenClaw `2026.8.1`。需要包含本改造的构建、`feedbackEnabled: true`，以及开启赞踩并回传 `feedback_vote` 的模板；平台默认模板不会因更新插件自动改变。
 
 原提问者可点赞、点踩或撤销，在私聊使用 `/feedback stats`；具备精确引用时可用 `/feedback detail <卡片ID>` 查看原问答。具体使用见[卡片评价说明](card-feedback.md)，模板修改、构建与持久化要求见[部署指引](../getting-started/card-feedback-deployment.md)。
 

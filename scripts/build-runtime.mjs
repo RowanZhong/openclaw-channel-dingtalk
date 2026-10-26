@@ -27,10 +27,13 @@ await build({
 // gateway event loop. Keep SDK imports external and lazy within the worker.
 await build({
   bundle: true,
-  entryPoints: ["src/command/feedback-reporting-worker.ts"],
+  entryPoints: {
+    "feedback-reporting-worker": "src/command/feedback-reporting-worker.ts",
+    "feedback-detail-worker": "src/command/feedback-detail-worker.ts",
+  },
   format: "esm",
   logLevel: "info",
-  outfile: "dist/feedback-reporting-worker.js",
+  outdir: "dist",
   packages: "external",
   platform: "node",
   sourcemap: false,

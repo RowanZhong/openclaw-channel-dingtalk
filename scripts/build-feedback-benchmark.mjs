@@ -8,6 +8,8 @@ await mkdir(out, { recursive: true });
 for (const [entry, name] of [
   ["scripts/feedback-reporting-benchmark.ts", "feedback-reporting-benchmark.mjs"],
   ["src/command/feedback-reporting-worker.ts", "feedback-reporting-worker.js"],
+  ["src/command/feedback-detail-worker.ts", "feedback-detail-worker.js"],
+  ["scripts/feedback-host-compatibility.ts", "feedback-host-compatibility.mjs"],
 ]) {
   await build({
     entryPoints: [entry],
