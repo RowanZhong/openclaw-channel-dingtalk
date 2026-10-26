@@ -4,13 +4,47 @@ import { readSmallJson, reportPaths, writeReportJson } from "./feedback-reportin
 import {
   createReportEnvelope,
   retryDelay,
+  REPORT_MAINTENANCE_VERSION,
   type ReportContent,
   type ReportJob,
+  type ReportMaintenanceJob,
+  type ReportWorkerJob,
   type ReportReceipt,
   type ReportResult,
   type ReportState,
 } from "./feedback-reporting-protocol";
 import { postFeedbackReport } from "./feedback-reporting-transport";
+
+function needsLegacyReview(state: ReportState): boolean {
+  return (
+    !state.superseded &&
+    state.maintenanceVersion !== REPORT_MAINTENANCE_VERSION &&
+    state.envelope.content.status === "unverified" &&
+    state.envelope.content.reason === "invalid_transcript"
+  );
+}
+function removeBody(state: ReportState): void {
+  state.envelope.content = {
+    mode: "preserve",
+    status: state.envelope.content.status,
+    reason: state.envelope.content.reason,
+    answerHash: state.envelope.answerHash,
+  };
+}
+function receiptOf(state: ReportState): ReportReceipt {
+  return {
+    sourceRevision: state.sourceRevision,
+    wireRevision: state.wireRevision,
+    terminal:
+      (state.delivered || Boolean(state.superseded)) && state.terminal && !needsLegacyReview(state),
+    superseded: state.superseded,
+    nextAttemptAt: state.nextAttemptAt,
+    expiresAt: state.expiresAt,
+    attempts: state.attempts,
+    error: state.error,
+    maintenanceVersion: state.maintenanceVersion,
+  };
+}
 
 export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
   const paths = reportPaths(job.scope, job.record.outTrackId, job.config.destinationKey);
@@ -28,36 +62,43 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
     throw new Error("invalid_outbox");
   }
   const sameSource = old?.sourceRevision === sourceRevision;
-  if (sameSource && (old.delivered || old.superseded) && old.terminal) {
-    const {
-      sourceRevision,
-      wireRevision,
-      terminal,
-      nextAttemptAt,
-      expiresAt,
-      attempts,
-      error,
-      superseded,
-    } = old;
-    const receipt = {
-      sourceRevision,
-      wireRevision,
-      terminal,
-      nextAttemptAt,
-      expiresAt,
-      attempts,
-      error,
-      superseded,
-    };
+  // Clean stale terminal bodies without claiming delivery or submitting a new version.
+  if (old?.superseded) {
+    removeBody(old);
+    old.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+    await writeReportJson(paths.state, old);
+  }
+  let reviewed: ReportContent | undefined;
+  if (sameSource && old.delivered && old.terminal && needsLegacyReview(old)) {
+    reviewed = await collectReportContent(job);
+    if (
+      reviewed.status === old.envelope.content.status &&
+      reviewed.reason === old.envelope.content.reason
+    ) {
+      old.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+      await writeReportJson(paths.state, old);
+      reviewed = undefined;
+    }
+  }
+  if (sameSource && (old.delivered || old.superseded) && old.terminal && !reviewed) {
+    old.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+    removeBody(old);
+    await writeReportJson(paths.state, old);
+    const receipt = receiptOf(old);
     await writeReportJson(paths.receipt, receipt);
     return { kind: "done", receipt };
   }
   let state: ReportState;
-  if (sameSource && !old.delivered && !job.metadataOnly) {
-    state = old; // Replay the exact durable envelope after an uncertain delivery.
+  if (sameSource && !old.delivered && !old.superseded) {
+    // Even a metadata-only fallback must replay the exact unacknowledged request.
+    state = old;
   } else {
     let content: ReportContent;
-    if (old?.delivered && old.terminal) {
+    if (reviewed) {
+      content = reviewed;
+    } else if (old?.superseded) {
+      content = await collectReportContent(job);
+    } else if (old?.delivered && old.terminal && !needsLegacyReview(old)) {
       content = {
         mode: "preserve",
         status: old.envelope.content.status,
@@ -80,8 +121,8 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
       attempts: old?.attempts ?? 0,
       nextAttemptAt: 0,
       expiresAt: Math.max(job.record.expiresAt, job.record.reporting.retainUntil),
+      maintenanceVersion: REPORT_MAINTENANCE_VERSION,
     };
-    // Persist before network I/O: a crash or ambiguous HTTP result is safe to replay.
     await writeReportJson(paths.state, state);
   }
   try {
@@ -92,26 +133,29 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
       job.config.requestTimeoutMs,
     );
     if (ack.status === "stale") {
-      // Never manufacture a newer version for a stale local snapshot: that could
-      // resurrect an old like after a receiver already stored a withdrawal.
       state.wireRevision = ack.acceptedRevision;
       state.superseded = true;
       state.terminal = true;
       state.delivered = false;
       state.nextAttemptAt = 0;
       state.error = "remote_newer_snapshot";
+      state.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+      removeBody(state);
     } else {
       state.delivered = true;
       state.attempts = 0;
       delete state.error;
-      state.nextAttemptAt = state.terminal ? 0 : Date.now() + 300_000;
+      const reviewPending = needsLegacyReview(state);
+      state.nextAttemptAt = reviewPending
+        ? Date.now() + 1000
+        : state.terminal
+          ? 0
+          : Date.now() + 300_000;
+      if (!reviewPending) {
+        state.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+      }
       if (state.terminal) {
-        state.envelope.content = {
-          mode: "preserve",
-          status: state.envelope.content.status,
-          reason: state.envelope.content.reason,
-          answerHash: job.record.answerHash,
-        };
+        removeBody(state);
       }
     }
   } catch (error) {
@@ -126,28 +170,38 @@ export async function executeReportJob(job: ReportJob): Promise<ReportResult> {
         : "network_error";
   }
   await writeReportJson(paths.state, state);
-  const receipt: ReportReceipt = {
-    sourceRevision: state.sourceRevision,
-    wireRevision: state.wireRevision,
-    terminal: (state.delivered || Boolean(state.superseded)) && state.terminal,
-    superseded: state.superseded,
-    nextAttemptAt: state.nextAttemptAt,
-    expiresAt: state.expiresAt,
-    attempts: state.attempts,
-    error: state.error,
-  };
+  const receipt = receiptOf(state);
   await writeReportJson(paths.receipt, receipt);
   return { kind: "done", receipt };
 }
 
+/** Metadata-discovered orphan cleanup; no credentials, transcript reads or network. */
+export async function executeReportMaintenance(job: ReportMaintenanceJob): Promise<ReportResult> {
+  const state = await readSmallJson<ReportState>(job.maintenance.state, 350 * 1024);
+  if (
+    state?.terminal &&
+    state.superseded &&
+    state.envelope?.source.accountId === job.maintenance.accountId
+  ) {
+    removeBody(state);
+    state.maintenanceVersion = REPORT_MAINTENANCE_VERSION;
+    await writeReportJson(job.maintenance.state, state);
+    await writeReportJson(job.maintenance.receipt, receiptOf(state));
+  }
+  return { kind: "maintenance_done" };
+}
+
 if (parentPort && workerData?.kind === "dingtalk-feedback-report") {
   let busy = false;
-  parentPort.on("message", (message: { kind: string; job: ReportJob }) => {
+  parentPort.on("message", (message: { kind: string; job: ReportWorkerJob }) => {
     if (message.kind !== "job" || busy) {
       return;
     }
     busy = true;
-    executeReportJob(message.job)
+    ("maintenance" in message.job
+      ? executeReportMaintenance(message.job)
+      : executeReportJob(message.job)
+    )
       .then(
         (result) => parentPort!.postMessage(result),
         () =>

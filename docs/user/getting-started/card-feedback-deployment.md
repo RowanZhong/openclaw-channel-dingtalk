@@ -4,6 +4,8 @@
 
 核对日期：2026-10-25。本次 HTTP 上报增量的交付分支为个人仓库的 [`codex/feedback-http-reporting`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/feedback-http-reporting)，以 `6da056b` 为基线；部署时使用经审阅并固定 SHA 的实际交付构建。基础评价源码分支为个人仓库的 [`codex/card-feedback-recording`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/card-feedback-recording)，开发基线为 `9db293b`（基线本身不含本功能）。本改造尚未发布到上游 npm，`package.json` 仍标记 `3.6.11`；**普通更新上游同名插件不能保证拿到本功能，不能只用版本号识别构建产物。** 分发前应固定已审阅源码、内部构建号及产物 SHA-256。
 
+2026-10-26 维护更新：`62d9559` 是本次修复基线，不包含六项修复。部署需固定含修复的实际构建及摘要；仍保持 OpenClaw `2026.7.1-2`，不提升最低版本。
+
 ## 1. 是否只更新插件就够了
 
 首次部署需要同时满足四项：
@@ -24,7 +26,7 @@
 | 已部署精确关联，需集中入库 | 更新包含 `feedbackReporting` 的构建及独立 Worker 资产，按第 10 节配置公司接收服务；沿用原评价模板 |
 | 不需集中入库 | 保持 `feedbackReporting.enabled: false`（默认）；按第 9 节复验 |
 
-旧记录和已有投放卡片不会在升级后自动补写转录 ID；精确反查应使用升级后新建并正常完成的回答卡片。基础评价与精确关联的回归为 1420 项；加入 HTTP 上报后的最终全量回归为 **1458 项通过**，真实同文回答隔离、点踩反查、重启及撤销均已验收；新版仓库尚未实施迁移，不能据此宣称新版宿主已通过。
+旧记录和已有投放卡片不会在升级后自动补写转录 ID；精确反查应使用升级后新建并正常完成的回答卡片。基础评价与精确关联的历史回归为 1420 项、首版 HTTP 上报为 1458 项；2026-10-26 维护版最终全量回归为 **1514 项通过**，真实同文回答隔离、点踩反查、重启及撤销均已验收；新版仓库尚未实施迁移，不能据此宣称新版宿主已通过。
 
 ### 已有模板如何处理
 
@@ -70,6 +72,7 @@ openclaw.plugin.json
 dist/index.js
 dist/index.d.ts
 dist/feedback-reporting-worker.js
+dist/feedback-detail-worker.js
 docs/user/features/feedback-http-reporting.md
 docs/user/reference/feedback-reporting-api.md
 docs/user/reference/feedback-reporting-examples.json
@@ -121,12 +124,14 @@ openclaw plugins install --force /path/to/dingtalk-feedback-build.tgz
 {
   plugins: {
     load: { paths: ["/opt/openclaw-plugins/dingtalk"] },
-    entries: { dingtalk: { enabled: true } },
+    entries: { dingtalk: { enabled: true, hooks: { allowConversationAccess: true } } },
   },
 }
 ```
 
 这只是相关字段示例；保留已有的其他加载路径和条目，并避免旧、新两个同 ID 插件同时成为候选。产物应带有可解析的生产依赖，不能照搬指向构建机目录的失效依赖链接。
+
+**会话 hook 前置权限：** 在已有配置中合并 `plugins.entries.dingtalk.hooks.allowConversationAccess: true`，供插件接收建立问答关联所需的宿主会话 hook。本轮 2026.7.1-2 真机确认，缺少该项会出现 `llm_output blocked`；模型回答仍可能成功，但卡片可能标为 unavailable。重启后确认该警告消失，再用新卡片验收。该权限不是 HTTP 接收端 token，不改变仅原提问者可查询的校验。
 
 不建议在 15000 个运行中的员工 Pod 内逐个执行在线 npm 更新。构建一次不可变镜像，按公司发布机制分批替换实例，更容易核对版本与回滚。
 
@@ -248,7 +253,7 @@ volumes:
 - 若一员工对应一个 Deployment，可采用 `replicas: 1`、`strategy.type: Recreate`，或无 surge 的滚动策略；如果使用自研控制器，应在控制器实现同等的单写入者约束。
 - 先在少量员工实例验证，再按公司发布节奏扩展；不要一次重启全部实例制造连接与元数据 I/O 峰值。
 
-基础评价不新增常驻进程。可选 HTTP 上报最多启动一个按需 Worker 线程，空闲回收，前台活动时退让；它不是另一个常驻进程，也不需要每员工部署数据库进程。没有修改自研 Web Channel 或 Agent Gateway 的要求。
+基础评价不新增常驻进程；显式详情查询最多启动一个受限只读 Worker，并先等待后台上报 Worker 退出。可选 HTTP 上报最多启动一个按需 Worker 线程，空闲回收，前台活动时退让；它不是另一个常驻进程，也不需要每员工部署数据库进程。没有修改自研 Web Channel 或 Agent Gateway 的要求。
 
 ## 8. 数据在哪里、占多少空间
 
@@ -338,9 +343,9 @@ JS
 - 需要反查的期限内，应同时保留评价记录和对应 Agent 的转录。`feedbackRetentionDays` 不控制宿主转录清理策略。
 - 旧记录不批量回填；新记录关联失败不会影响正常回答和赞踩。
 - 原提问者私聊 `/feedback detail <outTrackId>`，只读取对应会话；找不到指定消息或指纹不符时不会回退到最近回答。
-- 基础精确关联的典型三个 UUID 增加约 224 字节 JSON；开启 HTTP 上报后还可能增加一个本地转录路径提示及评价版本元数据，大小随实际路径变化。路径不上传，完成与评价写入仍合并在原记录中；outbox/receipt 由后台另行写入。字段增加后实际分配块可能因跨过块边界而增多，应按第 8.4 节测量。
+- 基础精确关联的典型三个 UUID 增加约 224 字节 JSON；本次维护后，启用基础评价即可增加可用的本地转录路径提示；开启上报另有评价版本元数据，大小随实际路径变化。路径不上传，完成与评价写入仍合并在原记录中；outbox/receipt 由后台另行写入。字段增加后实际分配块可能因跨过块边界而增多，应按第 8.4 节测量。
 - 本机 10000 次、8400 字符回答基准中，新增 tracker 捕获处理 P95 为约 0.0011 ms；这是新增逻辑的局部测量，不是完整回复延迟，也不等同公司 Pod 压测。新增 CPU / 临时内存并非绝对零；正常回复没有因此增加网络或模型调用。
-- 关闭 HTTP 上报时，仅主动查询 `detail` 读取相应转录；开启上报后，空闲 Worker 也按精确引用有界读取被评价问答。手动查询与后台上报的成本需分别评估。
+- 详情先鉴权，在单并发 Worker 内有界读取，固定 8 MiB 总转录 / 128 KiB 正文 / 10 秒预算，超限明确暂缓。上报使用独立的配置预算；两者都不全量物化会话返回主线程。
 - 不依赖在每次点赞时搜索日志或读取全部会话。管理员 JSON/CSV 导出同时提供关联状态与三个 ID，字段说明见第 10 节。
 
 ## 9. 上线验收、观测与回滚
@@ -389,7 +394,15 @@ JS
 
 这些定时行为都在插件内完成，不要额外配置 OpenClaw cron、PowerJob 或接收端轮询。它们受前台活动、资源和数据保留期约束，不承诺固定时刻送达或无限离线补传。详细时间规则与停止条件见[接口调用与触发说明](../reference/feedback-reporting-api.md#_1-调用方向、触发时机与双方职责)。
 
-#### 10.1.2 部署步骤
+#### 10.1.2 本次维护升级注意事项
+
+- 安装包必须同时包含 `dist/feedback-reporting-worker.js` 和 `dist/feedback-detail-worker.js`，不能只替换主入口。已有合规评价模板继续使用。
+- 调度变为 128 就绪＋1024 等待索引；pending/失败等待不占就绪位置。索引之外通过节流扫描恢复，不删除持久待办；普通已知重试不依赖全目录扫描。
+- 旧版 invalid_transcript 误判做一次有界复核；纠正请求可能在没有新评价时使用更高传输版本。先确认旧请求再纠正，stale 则仅清理，不覆盖中心新值。接收端仍按既有 v1 协议处理，无须改接口路由或数据库表。
+- 旧 stale 残留正文由后台清理，包括源记录缺失的 outbox；保持 superseded 与 delivered 含义不同。不要手动删除待办/receipt 或修改 revision。
+- 灰度复验至少覆盖：128 条 pending 下的新点赞、撤销；超限详情提示；重启恢复；旧误判纠正和 stale 清理；多账号预算切换。源版本、目的地标识和待办在回滚时必须保留，回退到 62d9559 会恢复已知旧缺陷。
+
+#### 10.1.3 部署步骤
 
 1. 先部署公司接收服务的 POST 路由，确认各 Pod 可访问；无需建立反向拉取入口。阅读[接口对接手册](../reference/feedback-reporting-api.md)及[完整示例](../reference/feedback-reporting-examples.json)，再按 [OpenAPI 协议](../reference/feedback-reporting.openapi.json)实现公司接收服务，参考随包文件 `docs/user/reference/feedback-reporting-oceanbase.sql` 的 DDL 与事务步骤。确认事务提交后才返回 `applied/duplicate/stale` ACK。
 2. 为员工配发稳定的 `tenantId`、`instanceId` 和受保护凭据；Pod 重建后身份不变。接收端必须将凭据与企业/实例绑定。

@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { ResolvedFeedbackReporting } from "./feedback-reporting-config";
 import type { FeedbackRecord, FeedbackScope } from "./feedback-store";
 
+export const REPORT_MAINTENANCE_VERSION = 2;
+
 export type ReportContent = {
   mode: "replace" | "preserve";
   status: "available" | "missing" | "unverified" | "pending";
@@ -19,6 +21,11 @@ export type ReportJob = {
   token: string;
   metadataOnly?: boolean;
 };
+export type ReportMaintenanceJob = {
+  maintenance: { state: string; receipt: string; accountId: string };
+  config: { workerMemoryMb: number };
+};
+export type ReportWorkerJob = ReportJob | ReportMaintenanceJob;
 export type FeedbackReportEnvelope = {
   schemaVersion: 1;
   type: "dingtalk.feedback.snapshot";
@@ -41,6 +48,7 @@ export type FeedbackReportEnvelope = {
   content: ReportContent;
 };
 export type ReportReceipt = {
+  maintenanceVersion?: number;
   superseded?: boolean;
   sourceRevision: number;
   wireRevision: number;
@@ -56,6 +64,7 @@ export type ReportState = ReportReceipt & {
   envelope: FeedbackReportEnvelope;
 };
 export type ReportResult =
+  | { kind: "maintenance_done" }
   | { kind: "done"; receipt: ReportReceipt }
   | { kind: "error"; code: string };
 

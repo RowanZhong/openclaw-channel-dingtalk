@@ -1,10 +1,10 @@
 # AI 流式卡片评价：核实结论、实现方案与新版复用指南
 
-更新日期：2026-10-25。本文是开发交接材料，方便将旧版已经验证的“仅原提问者、记录统计、精确反查原问答”能力迁移至新的社区钉钉插件分支，也说明后续数据库接入的边界。
+更新日期：2026-10-26。本文是开发交接材料，方便将旧版已经验证的“仅原提问者、记录统计、精确反查原问答”能力迁移至新的社区钉钉插件分支，也说明后续数据库接入的边界。
 
 **验证状态：** 旧版基础评价与精确反查均已通过真机验收，该阶段全量回归为 137 个文件、1420 项测试。R8 / R14 在同一实际会话中输出完全相同的回答，仍能分别反查正确问题；重启、点赞点踩和撤销后引用不变。详见[最终验收记录](./2026-10-25-card-feedback-verification.md)。
 
-**状态区分：** 基础评价后已在交付分支 [`codex/feedback-http-reporting`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/feedback-http-reporting)（基线 `6da056b`）增加通用 HTTP 同步，默认关闭。最终回归 1458 项，真机及同规格 Kubernetes 模块压力结果见[上报验收](./2026-10-25-feedback-http-reporting-verification.md)。“迁移步骤”尚未在新版执行；数据库成为本地主存储的适配器仍未实现。
+**状态区分：** 基础评价后已在交付分支 [`codex/feedback-http-reporting`](https://github.com/RowanZhong/openclaw-channel-dingtalk/tree/codex/feedback-http-reporting)（基线 `6da056b`）增加通用 HTTP 同步，默认关闭。首版回归 1458 项及同规格 Kubernetes 模块压力记录见[历史验收](./2026-10-25-feedback-http-reporting-verification.md)；六项修复后 1514 项及旧版真机通过，见[维护版验收](./2026-10-26-feedback-reliability-verification.md)。“迁移步骤”尚未在新版执行；数据库成为本地主存储的适配器仍未实现。
 
 ## 1. 基线、目标与非目标
 
@@ -217,11 +217,9 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 #### 4.5.2 按需反查
 
-`/feedback detail <outTrackId>` 在已有命令入口直接处理，禁用群聊输出。先读取精确卡片记录并检查账号、提问者、完成状态与保留期，通过后才调用 `openclaw/plugin-sdk/session-transcript-runtime` 的 `readSessionTranscriptEvents`。使用实际 Agent 的 `resolveStorePath`，并明确传入保存的 `sessionId`，不依赖会话键当前指向的会话。
+`/feedback detail <outTrackId>` 先校验账号、原提问者、完成状态与保留期，再通过 `readFeedbackDetailContent` 启动单并发只读 Worker。先等待后台上报退出，总期限包含等待时间；读取预算 8 MiB、正文 128 KiB、JS 老生代 128 MiB、10 秒。请求取消、后续钉钉输入或网关停止可以结束读取，超限有明确提示。
 
-从该转录中按两条外层消息 ID 查找；核对会话头、角色、顺序、可用的用户来源信息及回答 SHA-256。只呈现问题与最终可见回答，展示分别限 1000 / 2500 字符，不暴露思考或工具内容。转录不可读取、消息缺失或校验不通过时明确提示；不扫描其他会话、不回退最近答案、不补写旧记录。
-
-这一手动查询会读取一个指定转录文件，成本与其大小有关；正常回答和点击路径不直接调用它。开启 HTTP 上报后，由独立 Worker 的有界读取路径采集被评价问答，可产生临时 outbox 正文；不借用手动全会话读取路径。
+Worker 共用有界正文采集和纯消息/指纹核验，只返回目标问答或状态。展示仍限问题 1000 / 回答 2500 字符。生产路径已移除 `readSessionTranscriptEvents` 全会话读取；不能把全量 API 套在 Worker 内就称为有界。旧版使用 JSONL 受限扫描；SQLite 使用可用时的公开 raw-delta 分页接口。
 
 #### 4.5.3 宿主能力与降级边界
 
@@ -243,11 +241,9 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 #### 4.5.4 SQLite 宿主的源码兼容性核对
 
-2026-10-25 已核对官方发布版 `2026.10.7`：默认运行会话与转录改用各 Agent 的 `openclaw-agent.sqlite`。这里指基础精确关联与手动详情：它们通过公开事件及 `readSessionTranscriptEvents()` 接入，而非自行解析 JSONL；新增 HTTP 上报的有界读取适配是另一条路径，见第 6 节；该版本保留所需 `target.agentId/sessionId/sessionKey`、`messageId` 和消息字段，公开读取接口通过宿主存储层读取 SQLite。公开事件不再提供 `sessionFile`，本 tracker 对该字段的检查是可选的，不以文件路径为必填身份。
+已核对官方 `2026.10.7` 的 SQLite 源码：其全量公开读取路径自身也可能使用宿主 Worker，不能概括为“同步 SQLite 阻塞”。问题在于完整事件物化/传回与插件后处理没有总量预算。维护版改用能力探测的 `readSessionTranscriptRawDelta`，限制每页/总字节、事件和页数；generation reset 即暂缓，缺接口则明确不可安全读取。
 
-这是**源码接口兼容性核对，不是新版整包或 SQLite 迁移的真机验收**。迁移时还需验证实际模型后端事件、完成时序、同文不同消息、原评价文件路径，以及历史 sessionId / 消息 ID 是否保留。当前已经通过真实验收的宿主仍为 `2026.7.1-2`。
-
-当前 `detail` 读取指定会话的事件后再定位两条消息，不等于已实现数据库按 ID 只取两行；长会话反查需要另外测量读取延迟和内存。新宿主的备份/保留策略应覆盖实际 SQLite 存储与归档，不能照搬“只保留 JSONL 文件”的运维方案。
+该适配的接口契约测试覆盖了分页、缺失、换代、预算、身份及指纹；这不是新版整包/真实 SQLite 部署验收。兼容基线仍为 OpenClaw 2026.7.1-2，移植目标新版时必须重验真实 SDK、模型事件和存储行为，不提升本旧版最低版本。
 
 核对依据：[会话存储说明](https://github.com/openclaw/openclaw/blob/v2026.10.7/docs/concepts/session.md)、[公开转录事件](https://github.com/openclaw/openclaw/blob/v2026.10.7/src/sessions/transcript-events.ts)、[公开读取接口](https://github.com/openclaw/openclaw/blob/v2026.10.7/src/plugin-sdk/session-transcript-runtime.ts)。
 
@@ -265,7 +261,9 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 | `src/card/feedback-callback.ts` | 保持 `card/` 领域，调整 config/types import |
 | `src/command/feedback-command.ts` | 保持 `command/` 领域，接入统计与详情两个子命令 |
 | `src/card/feedback-transcript.ts` | 保持 `card/` 领域，核对宿主转录事件与会话别名契约 |
-| `src/command/feedback-detail.ts` | 保持 `command/` 领域；runtime import 对应 `src/platform/runtime.ts`，核对公开转录读取接口 |
+| `src/command/feedback-detail.ts` | 权限检查和展示；不直接读取全转录 |
+| `feedback-detail-reader.ts` / `feedback-detail-worker.ts` | 单并发、取消、期限和后台互斥；独立打包详情 Worker |
+| `feedback-sqlite-content.ts` | 公开 raw-delta 能力探测与有界分页；不使用宿主私有 SQLite 文件解析 |
 | `src/command/feedback-transcript-content.ts` | 基础详情与上报共用的纯解析/身份/指纹核对逻辑；即使不迁移 HTTP 上报也要复制 |
 | `src/command/feedback-reporting-config.ts`、`feedback-reporting-events.ts` | 当前基础回调/存储已导入的配置和轻量通知支撑；即使保持上报关闭，复制当前源码时也不能漏掉 |
 | `index.ts` | 沿用既有 `llm_output` hook，按 runId 传递实际 sessionId，不重复注册 hook |
@@ -281,7 +279,7 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 ### 5.2 推荐实施顺序
 
-1. 复制六个基础模块：`feedback-store`、`feedback-callback`、`feedback-command`、`feedback-transcript`、`feedback-detail`、`feedback-transcript-content`，以及当前导入的 `feedback-reporting-config` / `feedback-reporting-events` 支撑模块和对应测试，按上表修正 import；不要引入代回复助手依赖。
+1. 复制基础模块：`feedback-store`、`feedback-callback`、`feedback-command`、`feedback-transcript`、`feedback-detail`、`feedback-transcript-content`、`feedback-detail-reader`、`feedback-detail-worker`、`feedback-sqlite-content`，以及当前导入的 `feedback-reporting-config` / `feedback-reporting-events` / `feedback-reporting-content` / `feedback-reporting-io` / `feedback-reporting-protocol` 支撑模块和对应测试，按上表修正 import；不要引入代回复助手依赖。
 2. 在目标配置 schema、类型、插件 manifest 与多账号继承链加入 `feedbackEnabled`、`feedbackRetentionDays`，保持默认关闭。复制当前回调/config 代码还需保留 `feedbackReporting` 类型/schema；是否启用 HTTP 服务按第 6 节处理。
 3. 找到实际的卡片创建/排队复用路径，从已授权入站身份注册归属。入口和卡片回调用相同账号存储 scope；详情读取转录时使用记录中的实际 Agent，不混用两者。
 4. 按第 4.5 节接入转录事件：在会话锁内创建 tracker，交给回复策略，在 `finally` 释放；`onAgentRunStart` 绑定 runId，既有 `llm_output` hook 补充实际 SID。保留可信别名、候选上限与不确定降级。
@@ -304,13 +302,17 @@ JSON/CSV 导出用 `cardId` 表示记录中的 `outTrackId`，并包含 `session
 
 已实现的第一版是本地评价为权威、HTTP 接收服务存最新快照，**只存被评价的一问一答**；不采集全会话，不要求中心数据库响应才能完成卡片操作。对接入口是 OpenAPI HTTP 协议，不是对外暴露内部 TS 函数。字段、事务、全部示例和错误处理见[接口手册](../user/reference/feedback-reporting-api.md)，机器可读定义及示例也须随运行包交付。配置、缺失正文、撤销与版本规则见[上报说明](../user/features/feedback-http-reporting.md)。
 
-新版复用上报时，除基础六模块，还需迁移 `feedback-reporting-{config,events,io,protocol,content,transport,worker,service}` 及测试。需同步以下接线：
+新版复用上报时，除上述基础模块，还需迁移 `feedback-reporting-{config,events,io,protocol,content,transport,worker,worker-host,service}` 及测试。需同步以下接线：
 
 - `index.ts` 的服务注册/停止，`inbound-handler`、评价回调及可信 Agent 生命周期的前台活动通知。
 - `feedback-store` 的同次源版本/目的地/保留期写入；不要在点击路径直接读转录或请求 HTTP。
 - 转录 tracker 的可选可信 `localFile` 提示与回复完成时保存；仅 Worker 本地使用，协议显式排除路径。
 - 构建与归档中的独立 Worker 入口、配置 schema、SecretInput、运行时资源和文件权限。
-- SQLite 宿主先实现并验证有界读取适配，不能用全会话读取 API 冒充低开销按 ID 查询。旧版 JSONL 的真机和压力结果不能直接外推。
+- SQLite 宿主核对并真机验证现有 raw-delta 适配，不能用全会话读取 API 冒充低开销按 ID 查询。旧版 JSONL 的真机和压力结果不能直接外推。
+
+维护版额外迁移要求：128 就绪队列与 1024 重试索引必须一起迁移，保留溢出恢复、新版本唤醒和账号/目的地隔离；Worker 预算双向切换都要重建且不计假失败；前台/停止在 await 期间到达时不得启动新后台任务。旧维护标记与一次复核同样需要迁移，未 ACK 请求原样重试、stale 不自动升版、历史正文清理不可遗漏。构建中必须同时包含两个 Worker 文件，运行包检查也要覆盖。
+
+宿主拒绝 llm_output 时需按目标版本配置会话 hook 权限；本轮旧版需要 `plugins.entries.dingtalk.hooks.allowConversationAccess=true`。先检查生效再验收精确关联，不能把 unavailable 误记为完整通过。
 
 不必改评价卡片模板。新版必须复验前台抢占、冷启动内存、压力暂停/恢复、ACK 幂等、重启补传和故障退让。以下“存储适配层”仍为设计草案。
 
@@ -427,7 +429,7 @@ interface FeedbackStore {
 
 ## 10. 交接交付物
 
-- 基础六个业务模块、当前直接导入的 config/events 支撑，以及第 6 节列出的可选 HTTP 上报模块、独立 Worker 资产与相应测试。
+- 基础评价、详情 Worker 和有界采集模块、当前直接导入的 config/events 支撑，以及第 6 节列出的可选 HTTP 上报模块、独立 Worker 资产与相应测试。
 - 平台导出的完整模板资产；复用新版时只合并相关组件设置。
 - `docs/user/features/card-feedback.md`：员工使用说明。
 - `docs/user/getting-started/card-feedback-deployment.md`：完整部署、容量与回滚。

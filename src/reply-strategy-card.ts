@@ -763,9 +763,7 @@ export function createCardReplyStrategy(
           try {
             await completeFeedbackCard({ storePath: ctx.storePath, accountId: ctx.accountId },
               card.outTrackId || card.cardInstanceId, content, undefined,
-              config.feedbackReporting?.enabled
-                ? ctx.feedbackTranscript?.resolve(content, { includeLocalFile: true })
-                : ctx.feedbackTranscript?.resolve(content));
+              ctx.feedbackTranscript?.resolve(content, { includeLocalFile: true }));
           } catch {
             log?.error?.("[DingTalk][Feedback] Failed to persist completed answer; feedback will fail closed");
           }

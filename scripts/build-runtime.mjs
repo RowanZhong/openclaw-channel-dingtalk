@@ -31,3 +31,9 @@ await build({
     format: "esm", logLevel: "info", outfile: "dist/feedback-reporting-worker.js",
     packages: "external", platform: "node", sourcemap: false, target: "node22",
 });
+
+await build({
+    bundle: true, entryPoints: ["src/command/feedback-detail-worker.ts"],
+    format: "esm", logLevel: "info", outfile: "dist/feedback-detail-worker.js",
+    packages: "external", platform: "node", sourcemap: false, target: "node22",
+});

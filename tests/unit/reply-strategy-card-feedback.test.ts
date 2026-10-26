@@ -35,7 +35,7 @@ describe("reply feedback completion boundary", () => {
     const tracker = { bindRun: vi.fn(), resolve: vi.fn().mockReturnValue(link), dispose: vi.fn() };
     const { strategy } = setup(true, tracker);
     await strategy.deliver(final("answer")); await strategy.finalize();
-    expect(tracker.resolve).toHaveBeenCalledWith("answer");
+    expect(tracker.resolve).toHaveBeenCalledWith("answer", { includeLocalFile: true });
     expect(completeFeedbackCard).toHaveBeenCalledTimes(1);
     expect(completeFeedbackCard).toHaveBeenCalledWith(expect.anything(), "card-1", "answer", undefined, link);
   });

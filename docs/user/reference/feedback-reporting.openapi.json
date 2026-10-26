@@ -3,7 +3,7 @@
   "info": {
     "title": "DingTalk Feedback Snapshot Reporting",
     "version": "1.0.0",
-    "description": "插件到公司接收服务的最新评价快照协议。员工 Pod 内的钉钉插件主动 POST，公司服务提供接收路由并在数据库 COMMIT 后返回 ACK；接收服务不反向调用插件或定时拉取。有效评价事件触发，默认约 5 秒空闲后发送；失败由插件退避重试，重启恢复和 pending 正文复查也由插件调度。只发送被评价的一问一答。详细时机、字段及边界见 feedback-reporting-api.md 第 1 节。"
+    "description": "插件到公司接收服务的最新评价快照协议。员工 Pod 内的钉钉插件主动 POST，公司服务提供接收路由并在数据库 COMMIT 后返回 ACK；接收服务不反向调用插件或定时拉取。有效评价事件触发，默认约 5 秒空闲后发送；失败由插件退避重试，重启恢复和 pending 正文复查也由插件调度。只发送被评价的一问一答。详细时机、字段及边界见 feedback-reporting-api.md 第 1 节。 2026-10-26 维护：128 就绪队列与 1024 延迟索引分离；旧 invalid_transcript 一次复核可在旧请求确认后发出更高版本纠正，遇 stale 不纠正。stale 后清除本地正文。maintenanceVersion 仅在本地，不改变 v1 Schema。"
   },
   "paths": {
     "/v1/feedback/snapshots": {

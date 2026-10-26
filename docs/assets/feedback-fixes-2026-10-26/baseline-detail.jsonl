@@ -1,0 +1,2 @@
+{"unrelatedLineMiB":0,"elapsedMs":1.2,"maxEventLoopLagMs":0.84,"peakHeapGrowthMiB":0.24,"eventsMaterialized":4,"detailCorrect":true,"scope":"isolated Node synthetic JSONL; actual baseline detail + OpenClaw 2026.7.1-2 SDK; not production or SQLite measurement"}
+{"unrelatedLineMiB":24,"elapsedMs":22.19,"maxEventLoopLagMs":4.82,"peakHeapGrowthMiB":72.13,"eventsMaterialized":4,"detailCorrect":true,"scope":"isolated Node synthetic JSONL; actual baseline detail + OpenClaw 2026.7.1-2 SDK; not production or SQLite measurement"}

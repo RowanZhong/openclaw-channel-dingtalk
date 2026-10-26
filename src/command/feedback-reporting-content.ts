@@ -2,11 +2,17 @@ import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { readSmallJson } from "./feedback-reporting-io";
 import type { ReportContent, ReportJob } from "./feedback-reporting-protocol";
+import { collectSqliteFeedbackContent } from "./feedback-sqlite-content";
 import type { FeedbackRecord } from "./feedback-store";
 import { resolveFeedbackTranscriptMessages } from "./feedback-transcript-content";
 
+export type FeedbackContentJob = Pick<
+  ReportJob,
+  "record" | "transcriptStorePath" | "metadataOnly"
+> & { config: Pick<ReportJob["config"], "maxTranscriptBytes" | "maxContentBytes"> };
+
 /** Only called inside the reporting worker. Never materializes a whole transcript. */
-export async function collectReportContent(job: ReportJob): Promise<ReportContent> {
+export async function collectReportContent(job: FeedbackContentJob): Promise<ReportContent> {
   const link = job.record.transcript;
   if (link?.status !== "linked") {
     return {
@@ -35,8 +41,23 @@ export async function collectReportContent(job: ReportJob): Promise<ReportConten
         }
       }
     }
-    // Public legacy path helpers, not the mutating legacy-target API. SQLite hosts
-    // require a bounded reader adapter; do not fall back to an unlimited full read.
+    let sqlite = /\.(?:sqlite|db)$/i.test(job.transcriptStorePath);
+    if (!sqlite) {
+      const handle = await open(job.transcriptStorePath, "r").catch(() => undefined);
+      if (handle) {
+        try {
+          const header = Buffer.alloc(16);
+          await handle.read(header, 0, 16, 0);
+          sqlite = header.toString() === "SQLite format 3\0";
+        } finally {
+          await handle.close();
+        }
+      }
+    }
+    if (sqlite) {
+      return await collectSqliteFeedbackContent(job);
+    }
+    // Public read-only legacy helpers. Never fall back to full-transcript hydration.
     const sdk = await import("openclaw/plugin-sdk/session-store-runtime");
     if (
       typeof sdk.resolveSessionFilePath !== "function" ||
@@ -83,7 +104,7 @@ export async function collectReportContent(job: ReportJob): Promise<ReportConten
 }
 
 export async function collectLegacyTranscript(
-  job: ReportJob,
+  job: FeedbackContentJob,
   file: string,
 ): Promise<ReportContent> {
   const link = job.record.transcript;
@@ -144,7 +165,10 @@ export async function collectLegacyTranscript(
         consume(pending.subarray(0, index));
         pending = pending.subarray(index + 1);
       }
-      if (pending.length > 1024 * 1024 || selected.length > 4) {
+      if (pending.length > 1024 * 1024) {
+        return { mode: "replace", status: "pending", reason: "resource_budget" };
+      }
+      if (selected.length > 4) {
         return { mode: "replace", status: "unverified", reason: "invalid_transcript" };
       }
     }

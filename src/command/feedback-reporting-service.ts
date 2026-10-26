@@ -1,18 +1,30 @@
 import { opendir, unlink, stat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
-import { Worker } from "node:worker_threads";
 import type { OpenClawPluginApi, OpenClawConfig } from "openclaw/plugin-sdk/core";
 import { getConfig, listDingTalkAccountIds } from "../config";
 import { resolveNamespacePath } from "../persistence-store";
 import { resolveSecretInputString } from "../secret-input";
+import { cancelFeedbackDetailReads } from "./feedback-detail-reader";
 import {
   resolveFeedbackReporting,
   type ResolvedFeedbackReporting,
 } from "./feedback-reporting-config";
-import { onFeedbackReportPending, onFeedbackForegroundActivity } from "./feedback-reporting-events";
-import { readSmallJson, reportPaths } from "./feedback-reporting-io";
-import type { ReportJob, ReportReceipt, ReportResult } from "./feedback-reporting-protocol";
+import {
+  onFeedbackReportPending,
+  onFeedbackForegroundActivity,
+  onFeedbackBackgroundStop,
+} from "./feedback-reporting-events";
+import { readSmallJson, reportPaths, writeReportJson } from "./feedback-reporting-io";
+import {
+  REPORT_MAINTENANCE_VERSION,
+  type ReportJob,
+  type ReportMaintenanceJob,
+  type ReportWorkerJob,
+  type ReportReceipt,
+  type ReportResult,
+} from "./feedback-reporting-protocol";
+import { FeedbackReportWorkerHost, FeedbackWorkerDeferred } from "./feedback-reporting-worker-host";
 import type { FeedbackRecord, FeedbackScope } from "./feedback-store";
 
 type Account = { scope: FeedbackScope; config: ResolvedFeedbackReporting };
@@ -22,25 +34,35 @@ type Pending = {
   due: number;
   failures: number;
   generation: number;
+  fresh?: boolean;
+  maintenance?: ReportMaintenanceJob["maintenance"];
 };
 const MAX_QUEUE = 128;
+const MAX_RETRIES = 1024;
 const pause = (ms: number) =>
   new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     timer.unref();
   });
-const queueKey = (scope: FeedbackScope, id: string) =>
-  JSON.stringify([scope.storePath, scope.accountId, id]);
+const queueKey = (account: Account, id: string) =>
+  JSON.stringify([
+    account.scope.storePath,
+    account.scope.accountId,
+    account.config.destinationKey,
+    id,
+  ]);
 
 export class FeedbackReportingService {
   private readonly queue = new Map<string, Pending>();
+  private readonly retries = new Map<string, Pending>();
+  private activeKey?: string;
+  private readonly workerHost: FeedbackReportWorkerHost;
+  private unsubscribeBackground?: () => void;
   private readonly activeRuns = new Set<string>();
   private readonly lag = monitorEventLoopDelay({ resolution: 20 });
   private timer?: NodeJS.Timeout;
   private timerAt = 0;
   private ticking = false;
-  private worker?: Worker;
-  private workerIdleTimer?: NodeJS.Timeout;
   private stopped = true;
   private processing = false;
   private scanning = false;
@@ -68,6 +90,11 @@ export class FeedbackReportingService {
       now?: () => number;
     } = {},
   ) {
+    this.workerHost = new FeedbackReportWorkerHost({
+      url: options.workerUrl,
+      timeoutMs: options.taskTimeoutMs,
+      allowed: () => !this.busy(),
+    });
     this.accounts = (
       listDingTalkAccountIds(api.config).length ? listDingTalkAccountIds(api.config) : ["default"]
     ).flatMap((accountId) => {
@@ -117,6 +144,7 @@ export class FeedbackReportingService {
         this.enqueue(account, cardId, this.now() + account.config.idleMs);
       }
     });
+    this.unsubscribeBackground = onFeedbackBackgroundStop(() => this.workerHost.stop());
     this.unsubscribeActivity = onFeedbackForegroundActivity((id, active) =>
       this.setForeground(id, active),
     );
@@ -140,8 +168,8 @@ export class FeedbackReportingService {
       this.activeRuns.delete(runId);
     }
     this.quietAfter = this.now() + Math.max(...this.accounts.map((a) => a.config.idleMs), 1000);
-    if (active && this.worker) {
-      void this.worker.terminate();
+    if (active) {
+      void this.workerHost.stop();
     }
     if (active) {
       if (this.timer) {
@@ -157,9 +185,11 @@ export class FeedbackReportingService {
     return {
       ...this.counters,
       queued: this.queue.size,
+      waiting: this.retries.size,
+      workersStarted: this.workerHost.started,
       scanning: this.scanning,
-      workerActive: this.processing && Boolean(this.worker),
-      workerResident: Boolean(this.worker),
+      workerActive: this.workerHost.running,
+      workerResident: this.workerHost.resident,
       foregroundRuns: this.activeRuns.size,
       timerScheduled: Boolean(this.timer),
     };
@@ -172,15 +202,12 @@ export class FeedbackReportingService {
     this.unsubscribe?.();
     this.unsubscribeAgent?.();
     this.unsubscribeActivity?.();
+    this.unsubscribeBackground?.();
     this.lag.disable();
-    if (this.worker) {
-      await this.worker.terminate();
-    }
-    if (this.workerIdleTimer) {
-      clearTimeout(this.workerIdleTimer);
-    }
+    await this.workerHost.stop();
     this.tokens.clear();
     this.queue.clear();
+    this.retries.clear();
   }
   private wake(): void {
     const tick = this.options.tickMs ?? 1000;
@@ -194,7 +221,7 @@ export class FeedbackReportingService {
     if (this.stopped || this.timer || this.ticking || this.activeRuns.size) {
       return;
     }
-    if (!this.queue.size && !this.needsScan && !this.scanning) {
+    if (!this.queue.size && !this.retries.size && !this.needsScan && !this.scanning) {
       this.lag.disable();
       return;
     }
@@ -206,6 +233,7 @@ export class FeedbackReportingService {
         : Math.min(
             this.needsScan ? this.scanAt : Infinity,
             ...[...this.queue.values()].map((p) => p.due),
+            ...[...this.retries.values()].map((p) => p.due),
           );
       delay = Math.max(tick, Math.min(60000, Math.max(earliest, this.quietAfter) - this.now()));
     }
@@ -232,20 +260,129 @@ export class FeedbackReportingService {
   private busy(): boolean {
     return this.stopped || this.activeRuns.size > 0 || this.now() < this.quietAfter;
   }
-  private enqueue(account: Account, cardId: string, due: number): void {
-    const key = queueKey(account.scope, cardId);
-    const old = this.queue.get(key);
+  private requestRecovery(due: number): void {
+    const at = Math.max(this.now() + 60_000, due);
+    this.scanAt = this.needsScan ? Math.min(this.scanAt, at) : at;
+    this.needsScan = true;
+  }
+  private waitForRetry(key: string, pending: Pending): void {
+    this.queue.delete(key);
+    if (!this.retries.has(key) && this.retries.size >= MAX_RETRIES) {
+      let latest: [string, Pending] | undefined;
+      for (const entry of this.retries) {
+        if (!latest || entry[1].due > latest[1].due) {
+          latest = entry;
+        }
+      }
+      if (latest && pending.due < latest[1].due) {
+        this.retries.delete(latest[0]);
+        this.requestRecovery(latest[1].due);
+      } else {
+        this.requestRecovery(pending.due);
+        return;
+      }
+    }
+    this.retries.set(key, pending);
+  }
+  private enqueue(account: Account, cardId: string, due: number, hint = true): void {
+    const key = queueKey(account, cardId);
+    const old = this.queue.get(key) ?? this.retries.get(key);
+    const pending = old ?? { account, cardId, due, failures: 0, generation: 0, fresh: hint };
     if (old) {
-      old.generation++;
-      old.due = Math.min(old.due, due);
-      this.wake();
-      return;
+      if (hint) {
+        pending.generation++;
+        pending.fresh = true;
+      }
+      pending.due = Math.min(pending.due, due);
+      if (this.queue.has(key)) {
+        this.wake();
+        return;
+      }
     }
+    // Fresh events can displace one non-running backlog entry; both stay durable.
+    if (hint && this.queue.size >= MAX_QUEUE) {
+      const displaced = [...this.queue.entries()].toReversed().find(([k]) => k !== this.activeKey);
+      if (displaced) {
+        this.waitForRetry(displaced[0], displaced[1]);
+      }
+    }
+    if ((hint || pending.due <= this.now()) && this.queue.size < MAX_QUEUE) {
+      this.retries.delete(key);
+      this.queue.set(key, pending);
+    } else {
+      this.waitForRetry(key, pending);
+    }
+    this.wake();
+  }
+  private promoteRetry(): void {
     if (this.queue.size >= MAX_QUEUE) {
-      this.needsScan = true;
       return;
     }
-    this.queue.set(key, { account, cardId, due, failures: 0, generation: 0 });
+    let earliest: [string, Pending] | undefined;
+    for (const entry of this.retries) {
+      if (entry[1].due <= this.now() && (!earliest || entry[1].due < earliest[1].due)) {
+        earliest = entry;
+      }
+    }
+    if (earliest) {
+      this.retries.delete(earliest[0]);
+      this.queue.set(earliest[0], earliest[1]);
+    }
+  }
+  private defer(key: string, pending: Pending, due: number, generation: number): void {
+    if (this.stopped) {
+      return;
+    }
+    if (pending.generation !== generation) {
+      pending.due = Math.min(pending.due, this.now() + pending.account.config.idleMs);
+    } else {
+      pending.due = due;
+      pending.fresh = false;
+      this.waitForRetry(key, pending);
+    }
+    this.wake();
+  }
+  private async persistDeferral(
+    pending: Pending,
+    record: FeedbackRecord,
+    due: number,
+  ): Promise<void> {
+    const paths = reportPaths(
+      pending.account.scope,
+      pending.cardId,
+      pending.account.config.destinationKey,
+    );
+    const old = await readSmallJson<ReportReceipt>(paths.receipt, 4096).catch(() => undefined);
+    await writeReportJson(paths.receipt, {
+      ...old,
+      sourceRevision: record.reporting!.revision,
+      wireRevision: old?.wireRevision ?? 0,
+      terminal: false,
+      nextAttemptAt: due,
+      expiresAt: Math.max(record.expiresAt, record.reporting!.retainUntil),
+      attempts: pending.failures,
+      error: "local_worker_deferred",
+    } satisfies ReportReceipt);
+  }
+  private enqueueMaintenance(account: Account, state: string, receipt: string): void {
+    const id = `maintenance:${path.basename(state)}`;
+    const key = queueKey(account, id);
+    if (this.queue.has(key) || this.retries.has(key)) {
+      return;
+    }
+    const pending: Pending = {
+      account,
+      cardId: id,
+      due: this.now(),
+      generation: 0,
+      failures: 0,
+      maintenance: { state, receipt, accountId: account.scope.accountId },
+    };
+    if (this.queue.size < MAX_QUEUE) {
+      this.queue.set(key, pending);
+    } else {
+      this.waitForRetry(key, pending);
+    }
     this.wake();
   }
   private async systemPressure(): Promise<boolean> {
@@ -305,9 +442,7 @@ export class FeedbackReportingService {
     const memoryHigh = await this.systemPressure();
     if (stalled || memoryHigh) {
       this.quietAfter = this.now() + 5000;
-      if (this.worker) {
-        void this.worker.terminate();
-      }
+      void this.workerHost.stop();
     }
     if (this.busy()) {
       return;
@@ -323,20 +458,28 @@ export class FeedbackReportingService {
     if (this.processing) {
       return;
     }
-    const candidate = [...this.queue.entries()].find(([, p]) => p.due <= this.now());
+    this.promoteRetry();
+    const ready = [...this.queue.entries()];
+    const candidate =
+      ready.find(([, p]) => p.fresh && p.due <= this.now()) ??
+      ready.find(([, p]) => p.due <= this.now());
     if (!candidate) {
       return;
     }
     this.processing = true;
+    this.activeKey = candidate[0];
+    const generation = candidate[1].generation;
     // Do not await the worker in the timer: pressure monitoring must continue
     // while it is reading or waiting for a receiver.
     void this.process(candidate[0], candidate[1])
       .catch(() => {
-        candidate[1].due = this.now() + 300_000;
+        this.defer(candidate[0], candidate[1], this.now() + 300_000, generation);
         this.api.logger.warn("[DingTalk][FeedbackReport] job deferred after local failure");
       })
       .finally(() => {
         this.processing = false;
+        this.activeKey = undefined;
+        this.wake();
       });
   }
   private async scan(): Promise<void> {
@@ -349,6 +492,7 @@ export class FeedbackReportingService {
         });
         const directory = path.dirname(base);
         const prefix = `${path.basename(base, ".json")}.target-`;
+        const reportPrefix = `${path.basename(resolveNamespacePath("feedback.report", { storePath: account.scope.storePath, scope: { accountId: account.scope.accountId } }), ".json")}.target-`;
         let dir;
         try {
           dir = await opendir(directory);
@@ -362,7 +506,7 @@ export class FeedbackReportingService {
           if (this.stopped) {
             break;
           }
-          while (!this.stopped && (this.busy() || this.queue.size >= MAX_QUEUE)) {
+          while (!this.stopped && this.busy()) {
             await pause(250);
           }
           if (this.stopped) {
@@ -380,8 +524,17 @@ export class FeedbackReportingService {
                     .receipt,
                   4096,
                 );
-                if (!receipt?.terminal || receipt.sourceRevision !== record.reporting.revision) {
-                  this.enqueue(account, record.outTrackId, receipt?.nextAttemptAt || this.now());
+                const changed = receipt?.sourceRevision !== record.reporting.revision;
+                const maintenance = receipt?.maintenanceVersion !== REPORT_MAINTENANCE_VERSION;
+                if (!receipt?.terminal || changed || maintenance) {
+                  this.enqueue(
+                    account,
+                    record.outTrackId,
+                    changed || receipt?.terminal
+                      ? this.now()
+                      : receipt?.nextAttemptAt || this.now(),
+                    false,
+                  );
                 }
               }
             } catch {
@@ -389,18 +542,38 @@ export class FeedbackReportingService {
                 "[DingTalk][FeedbackReport] unreadable or oversized rating metadata skipped",
               );
             }
+          } else if (
+            entry.name.startsWith(reportPrefix) &&
+            entry.name.endsWith(".json") &&
+            !entry.name.endsWith(".receipt.json")
+          ) {
+            // The state write may have survived a crash before the receipt write.
+            // Inspect the small receipt here; any body-bearing state stays in the worker.
+            const state = path.join(directory, entry.name);
+            const receiptPath = state.replace(/\.json$/, ".receipt.json");
+            const receipt = await readSmallJson<ReportReceipt>(receiptPath, 4096).catch(
+              () => undefined,
+            );
+            if (receipt?.maintenanceVersion !== REPORT_MAINTENANCE_VERSION) {
+              this.enqueueMaintenance(account, state, receiptPath);
+            }
           } else if (entry.name.startsWith("feedback.report.") && entry.name.endsWith(".tmp")) {
             const file = path.join(directory, entry.name);
             const info = await stat(file).catch(() => undefined);
             if (info && info.mtimeMs < this.now() - 86400000) {
               await unlink(file).catch(() => undefined);
             }
-          } else if (
-            entry.name.startsWith("feedback.report.") &&
-            entry.name.endsWith(".receipt.json")
-          ) {
+          } else if (entry.name.startsWith(reportPrefix) && entry.name.endsWith(".receipt.json")) {
             const file = path.join(directory, entry.name);
             const receipt = await readSmallJson<ReportReceipt>(file, 4096).catch(() => undefined);
+            if (
+              receipt?.terminal &&
+              receipt.superseded &&
+              receipt.maintenanceVersion !== REPORT_MAINTENANCE_VERSION &&
+              receipt.expiresAt >= this.now()
+            ) {
+              this.enqueueMaintenance(account, file.replace(/\.receipt\.json$/, ".json"), file);
+            }
             if (receipt && receipt.expiresAt < this.now()) {
               await unlink(file.replace(/\.receipt\.json$/, ".json")).catch(() => undefined);
               await unlink(file).catch(() => undefined);
@@ -411,6 +584,11 @@ export class FeedbackReportingService {
       }
     } finally {
       this.scanning = false;
+      if (!this.stopped) {
+        this.api.logger.info(
+          `[DingTalk][FeedbackReport] recovery ready=${this.queue.size} waiting=${this.retries.size} overflow=${this.needsScan}`,
+        );
+      }
       // No repeating whole-directory polling. New votes provide hints; overflow or
       // restart causes bounded recovery. A later restart also reclaims expired outboxes.
     }
@@ -422,12 +600,36 @@ export class FeedbackReportingService {
       this.queue.delete(key);
       return;
     }
+    if (pending.maintenance) {
+      if (this.busy()) {
+        return;
+      }
+      try {
+        const result = await this.runWorker({
+          maintenance: pending.maintenance,
+          config: { workerMemoryMb: account.config.workerMemoryMb },
+        });
+        if (result.kind === "maintenance_done") {
+          this.queue.delete(key);
+        } else {
+          this.defer(key, pending, this.now() + 300_000, generation);
+        }
+      } catch (error) {
+        this.defer(
+          key,
+          pending,
+          this.now() + (error instanceof FeedbackWorkerDeferred ? account.config.idleMs : 300_000),
+          generation,
+        );
+      }
+      return;
+    }
     const { feedbackRecordPath } = await import("./feedback-store");
     let record: FeedbackRecord | undefined;
     try {
       record = await readSmallJson<FeedbackRecord>(feedbackRecordPath(account.scope, cardId));
     } catch {
-      pending.due = this.now() + 300_000;
+      this.defer(key, pending, this.now() + 300_000, generation);
       return;
     }
     if (
@@ -451,7 +653,9 @@ export class FeedbackReportingService {
     if (!token) {
       token = await resolveSecretInputString(account.config.token, undefined, this.api.config);
       if (!token) {
-        pending.due = this.now() + 300_000;
+        const due = this.now() + 300_000;
+        await this.persistDeferral(pending, record, due);
+        this.defer(key, pending, due, generation);
         this.api.logger.warn("[DingTalk][FeedbackReport] authentication configuration unavailable");
         return;
       }
@@ -476,23 +680,27 @@ export class FeedbackReportingService {
     let result: ReportResult;
     try {
       result = await this.runWorker(job);
-    } catch {
-      if (this.busy()) {
+    } catch (error) {
+      if (error instanceof FeedbackWorkerDeferred || this.busy()) {
         this.counters.deferred++;
-        pending.due = this.now() + config.idleMs;
+        this.defer(key, pending, this.now() + config.idleMs, generation);
         return;
       }
       pending.failures++;
       this.counters.failures++;
-      pending.due = this.now() + Math.min(300_000, 5000 * 2 ** Math.min(pending.failures, 6));
+      const due = this.now() + Math.min(300_000, 5000 * 2 ** Math.min(pending.failures, 6));
+      await this.persistDeferral(pending, record, due);
+      this.defer(key, pending, due, generation);
       this.api.logger.warn(
         "[DingTalk][FeedbackReport] bounded worker failed; durable record retained for retry",
       );
       return;
     }
-    if (result.kind === "error") {
+    if (result.kind !== "done") {
       pending.failures++;
-      pending.due = this.now() + 300_000;
+      const due = this.now() + 300_000;
+      await this.persistDeferral(pending, record, due);
+      this.defer(key, pending, due, generation);
       this.counters.failures++;
       return;
     }
@@ -516,7 +724,7 @@ export class FeedbackReportingService {
         `[DingTalk][FeedbackReport] ${result.receipt.superseded ? "superseded" : "saved"} card=${cardId} revision=${result.receipt.wireRevision}`,
       );
     } else {
-      pending.due = result.receipt.nextAttemptAt || this.now() + 300_000;
+      this.defer(key, pending, result.receipt.nextAttemptAt || this.now() + 300_000, generation);
       if (result.receipt.error) {
         this.counters.failures++;
         this.tokens.delete(tokenKey);
@@ -528,87 +736,8 @@ export class FeedbackReportingService {
       );
     }
   }
-  private async runWorker(job: ReportJob): Promise<ReportResult> {
-    if (this.workerIdleTimer) {
-      clearTimeout(this.workerIdleTimer);
-    }
-    if (!this.worker) {
-      this.counters.workersStarted++;
-      const created = new Worker(
-        this.options.workerUrl ?? new URL("./feedback-reporting-worker.js", import.meta.url),
-        {
-          workerData: { kind: "dingtalk-feedback-report" },
-          execArgv: [],
-          resourceLimits: {
-            maxOldGenerationSizeMb: job.config.workerMemoryMb,
-            maxYoungGenerationSizeMb: 16,
-            stackSizeMb: 4,
-          },
-        },
-      );
-      created.on("error", () => {
-        /* Each active job also observes failures. */
-      });
-      created.once("exit", () => {
-        if (this.worker === created) {
-          this.worker = undefined;
-        }
-      });
-      this.worker = created;
-    }
-    const worker = this.worker;
-    if ((worker.resourceLimits?.maxOldGenerationSizeMb ?? Infinity) > job.config.workerMemoryMb) {
-      await worker.terminate();
-      if (this.worker === worker) {
-        this.worker = undefined;
-      }
-      throw new Error("worker_heap_budget_overridden");
-    }
-    try {
-      return await new Promise<ReportResult>((resolve, reject) => {
-        const deadline = setTimeout(() => {
-          void worker.terminate();
-          reject(new Error("worker_budget"));
-        }, this.options.taskTimeoutMs ?? 20_000);
-        const finish = () => {
-          clearTimeout(deadline);
-          worker.off("message", message);
-          worker.off("error", error);
-          worker.off("exit", exit);
-        };
-        const message = (result: ReportResult) => {
-          finish();
-          resolve(result);
-        };
-        const error = (failure: Error) => {
-          finish();
-          reject(failure);
-        };
-        const exit = () => {
-          finish();
-          reject(new Error("worker_stopped"));
-        };
-        worker.once("message", message);
-        worker.once("error", error);
-        worker.once("exit", exit);
-        worker.postMessage({ kind: "job", job });
-      });
-    } finally {
-      if (this.stopped || this.busy()) {
-        await worker.terminate();
-        if (this.worker === worker) {
-          this.worker = undefined;
-        }
-      } else if (this.worker === worker) {
-        // Reuse one isolate for a short burst; never keep a worker permanently idle.
-        this.workerIdleTimer = setTimeout(() => {
-          if (this.worker === worker && !this.processing) {
-            void worker.terminate();
-          }
-        }, 5000);
-        this.workerIdleTimer.unref();
-      }
-    }
+  private async runWorker(job: ReportWorkerJob): Promise<ReportResult> {
+    return this.workerHost.run(job);
   }
 }
 
@@ -624,6 +753,7 @@ export function registerFeedbackReporting(api: OpenClawPluginApi): void {
       service.start();
     },
     stop: async () => {
+      await cancelFeedbackDetailReads();
       await service?.stop();
       service = undefined;
     },

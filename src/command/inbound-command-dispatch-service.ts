@@ -38,7 +38,7 @@ import {
 import type { SessionPeerSourceKind } from "../session-peer-store";
 import type { DingTalkConfig, HandleDingTalkMessageParams, MessageContent } from "../types";
 import { runFeedbackCommand } from "./feedback-command";
-import { readFeedbackTranscriptEvents } from "./feedback-detail";
+import { readFeedbackDetailContent } from "./feedback-detail-reader";
 
 type InboundCommandDispatchParams = {
   cfg: HandleDingTalkMessageParams["cfg"];
@@ -86,7 +86,7 @@ export async function handleInboundCommandDispatch(
         userId: params.data.senderStaffId?.trim() || "",
         isDirect: params.isDirect,
         enabled: Boolean(params.dingtalkConfig.feedbackEnabled),
-        readTranscript: (target) => readFeedbackTranscriptEvents(target, params.cfg.session?.store),
+        readContent: (record) => readFeedbackDetailContent(record, params.cfg.session?.store),
       });
       if (reply) {
         await params.sendReply(reply);

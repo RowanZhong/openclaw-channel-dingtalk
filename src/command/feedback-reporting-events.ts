@@ -59,3 +59,15 @@ export async function withFeedbackForegroundActivity<T>(run: () => Promise<T>): 
     end();
   }
 }
+
+const backgroundStops = new Set<() => Promise<void>>();
+/** Detail reads wait for all report workers to actually exit before allocating. */
+export function onFeedbackBackgroundStop(stop: () => Promise<void>): () => void {
+  backgroundStops.add(stop);
+  return () => {
+    backgroundStops.delete(stop);
+  };
+}
+export async function stopFeedbackBackgroundWorkers(): Promise<void> {
+  await Promise.all([...backgroundStops].map((stop) => stop()));
+}
